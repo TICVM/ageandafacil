@@ -34,8 +34,12 @@ export default function SlotAdminPage() {
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
 
   const { data: slots, isLoading: loadingSlots } = useCollection<TimeSlot>(slotsRef);
-  const { data: classes } = useCollection<Class>(classesRef);
-  const { data: segments } = useCollection<Segment>(segmentsRef);
+  const { data: rawClasses } = useCollection<Class>(classesRef);
+  const { data: rawSegments } = useCollection<Segment>(segmentsRef);
+
+  // Ordenação garantida conforme a sequência definida pelo admin
+  const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+  const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
   // Estado do Criador Individual/Lote
   const [selectedDays, setSelectedDays] = useState<string[]>(['1', '2', '3', '4', '5']);
@@ -101,7 +105,6 @@ export default function SlotAdminPage() {
 
     setIsSaving(true);
     try {
-      // Filtrar slots de origem
       const sourceSlots = slots.filter(s => {
         if (sourceType === 'global') return !s.schoolClassId && !s.schoolSegmentId;
         if (sourceType === 'segment') return s.schoolSegmentId === sourceId;
@@ -146,11 +149,11 @@ export default function SlotAdminPage() {
 
   const getTargetName = (slot: TimeSlot) => {
     if (slot.schoolClassId) {
-      const cls = classes?.find(c => c.id === slot.schoolClassId);
+      const cls = sortedClasses.find(c => c.id === slot.schoolClassId);
       return `Turma: ${cls?.name || '...'}`;
     }
     if (slot.schoolSegmentId) {
-      const seg = segments?.find(s => s.id === slot.schoolSegmentId);
+      const seg = sortedSegments.find(s => s.id === slot.schoolSegmentId);
       return `Seg: ${seg?.name || '...'}`;
     }
     return 'Global';
@@ -215,8 +218,8 @@ export default function SlotAdminPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {targetType === 'segment' ? 
-                            segments?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
-                            classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                            sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
+                            sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
                           }
                         </SelectContent>
                       </Select>
@@ -254,8 +257,8 @@ export default function SlotAdminPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {sourceType === 'segment' ? 
-                            segments?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
-                            classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                            sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
+                            sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
                           }
                         </SelectContent>
                       </Select>
@@ -276,8 +279,8 @@ export default function SlotAdminPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {destType === 'segment' ? 
-                          segments?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
-                          classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                          sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
+                          sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
                         }
                       </SelectContent>
                     </Select>
