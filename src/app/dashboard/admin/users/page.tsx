@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon } from 'lucide-react';
+import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Lock, Eye, EyeOff } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -22,25 +23,30 @@ export default function UsersAdminPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', role: 'TEACHER' as UserRole });
+  const [showPassword, setShowPassword] = useState(false);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'TEACHER' as UserRole });
 
   const handleAdd = () => {
-    if (!newUser.name || !newUser.email || !db) {
-      toast({ title: "Erro", description: "Preencha o nome e o e-mail.", variant: "destructive" });
+    if (!newUser.name || !newUser.email || !newUser.password || !db) {
+      toast({ title: "Erro", description: "Preencha todos os campos, incluindo a senha.", variant: "destructive" });
       return;
     }
     
     addDocumentNonBlocking(collection(db, 'users'), {
       name: newUser.name,
       email: newUser.email,
+      password: newUser.password,
       role: newUser.role,
       isActive: true,
       createdAt: new Date().toISOString()
     });
     
-    setNewUser({ name: '', email: '', role: 'TEACHER' });
+    setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
     setIsDialogOpen(false);
-    toast({ title: "Usuário Cadastrado", description: "O perfil do usuário foi criado no banco de dados." });
+    toast({ 
+      title: "Usuário Cadastrado", 
+      description: "O perfil foi criado. Lembre-se de cadastrar este e-mail no Firebase Auth também." 
+    });
   };
 
   const handleRemove = (id: string) => {
@@ -91,6 +97,26 @@ export default function UsersAdminPage() {
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                   className="rounded-xl"
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Senha de Acesso</label>
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Defina uma senha" 
+                    value={newUser.password} 
+                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    className="rounded-xl pr-10"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">Esta senha será usada pelo usuário para entrar no sistema.</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Papel / Função</label>
