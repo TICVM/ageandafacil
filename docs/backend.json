@@ -1,0 +1,423 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the system, either an Administrator or a Teacher, with their basic profile information and role.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user, used for login and notifications.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user within the system (e.g., 'Admin', 'Teacher')."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the user's account is active or deactivated."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "role",
+        "isActive",
+        "createdAt"
+      ]
+    },
+    "SchoolSegment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SchoolSegment",
+      "type": "object",
+      "description": "Represents a logical division within the school (e.g., 'Educação Infantil', 'Ensino Fundamental I').",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SchoolSegment entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the school segment."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the school segment."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether this school segment is currently active in the school's structure."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isActive"
+      ]
+    },
+    "SchoolClass": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SchoolClass",
+      "type": "object",
+      "description": "Represents a specific class or grade within a school segment (e.g., 'Maternal', '1º Ano').",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SchoolClass entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the class."
+        },
+        "schoolSegmentId": {
+          "type": "string",
+          "description": "Reference to the SchoolSegment this class belongs to. (Relationship: SchoolSegment 1:N SchoolClass)"
+        },
+        "responsibleTeacherId": {
+          "type": "string",
+          "description": "Reference to the User (Teacher) who is primarily responsible for this class. (Relationship: User 1:N SchoolClass)"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether this class is currently active and available for scheduling."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "schoolSegmentId",
+        "responsibleTeacherId",
+        "isActive"
+      ]
+    },
+    "PhotoLocation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PhotoLocation",
+      "type": "object",
+      "description": "Represents a physical location within the school where photo sessions can be conducted.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PhotoLocation entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the photo location (e.g., 'Pátio', 'Biblioteca')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the photo location, including any specific features or considerations."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether this photo location is currently active and available for bookings."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isActive"
+      ]
+    },
+    "SchedulingConfiguration": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SchedulingConfiguration",
+      "type": "object",
+      "description": "Stores global configuration settings related to the scheduling system, managed by administrators.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SchedulingConfiguration entity. Typically, this would be a single global configuration (e.g., 'global')."
+        },
+        "defaultSessionDurationMinutes": {
+          "type": "number",
+          "description": "The default duration in minutes for a photo session, which can be overridden for individual appointments."
+        },
+        "maxBookingAheadDays": {
+          "type": "number",
+          "description": "The maximum number of days in advance that teachers are allowed to book a photo session."
+        },
+        "description": {
+          "type": "string",
+          "description": "A descriptive label for this specific scheduling configuration, e.g., 'Global school scheduling rules'."
+        }
+      },
+      "required": [
+        "id",
+        "defaultSessionDurationMinutes",
+        "maxBookingAheadDays"
+      ]
+    },
+    "AvailableTimeSlot": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AvailableTimeSlot",
+      "type": "object",
+      "description": "Defines a recurring time slot that is available for booking, configurable by administrators for specific segments or classes.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AvailableTimeSlot entity."
+        },
+        "dayOfWeek": {
+          "type": "string",
+          "description": "The day of the week for which this slot is available (e.g., 'MONDAY', 'TUESDAY')."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The starting time of the available slot (e.g., '09:00:00').",
+          "format": "time"
+        },
+        "schoolSegmentId": {
+          "type": "string",
+          "description": "Reference to the SchoolSegment for which this slot is available. Optional if `schoolClassId` is specified. (Relationship: SchoolSegment 1:N AvailableTimeSlot)"
+        },
+        "schoolClassId": {
+          "type": "string",
+          "description": "Reference to the SchoolClass for which this slot is available. Optional if `schoolSegmentId` is specified. (Relationship: SchoolClass 1:N AvailableTimeSlot)"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether this available time slot is currently active and can be booked."
+        }
+      },
+      "required": [
+        "id",
+        "dayOfWeek",
+        "startTime",
+        "isActive"
+      ]
+    },
+    "Appointment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Appointment",
+      "type": "object",
+      "description": "Represents a confirmed booking for a photo session made by a teacher for a specific class.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Appointment entity."
+        },
+        "schoolClassId": {
+          "type": "string",
+          "description": "Reference to the SchoolClass for which the photo session is scheduled. (Relationship: SchoolClass 1:N Appointment)"
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Reference to the User (Teacher) who booked this appointment. (Relationship: User 1:N Appointment)"
+        },
+        "photoLocationId": {
+          "type": "string",
+          "description": "Reference to the PhotoLocation where the session will take place. (Relationship: PhotoLocation 1:N Appointment)"
+        },
+        "appointmentDate": {
+          "type": "string",
+          "description": "The specific date of the scheduled photo session.",
+          "format": "date"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The starting time of the photo session.",
+          "format": "time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The calculated ending time of the photo session, essential for conflict checking.",
+          "format": "time"
+        },
+        "sessionDurationMinutes": {
+          "type": "number",
+          "description": "The actual duration of this specific photo session in minutes, which may override the default."
+        },
+        "observations": {
+          "type": "string",
+          "description": "Any specific notes, requirements, or special instructions for the photo session, potentially generated or enhanced by an AI assistant."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the appointment (e.g., 'Booked', 'Confirmed', 'Cancelled', 'Completed')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the appointment was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the appointment was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "schoolClassId",
+        "teacherId",
+        "photoLocationId",
+        "appointmentDate",
+        "startTime",
+        "endTime",
+        "sessionDurationMinutes",
+        "status",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual user profiles. Teachers can read and update their own profile; Administrators can read and update all user profiles. The '{userId}' wildcard should match 'request.auth.uid'.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{adminId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Marker documents indicating administrator roles. The existence of a document at this path signifies administrator privileges for the corresponding 'adminId'. Used for Database Access Control (DBAC).",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "The unique identifier of an administrator, corresponding to Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/school_segments/{segmentId}",
+        "definition": {
+          "entityName": "SchoolSegment",
+          "schema": {
+            "$ref": "#/backend/entities/SchoolSegment"
+          },
+          "description": "Collection for managing school segments (e.g., 'Educação Infantil'). This collection is managed by administrators.",
+          "params": [
+            {
+              "name": "segmentId",
+              "description": "The unique identifier for a school segment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/school_classes/{classId}",
+        "definition": {
+          "entityName": "SchoolClass",
+          "schema": {
+            "$ref": "#/backend/entities/SchoolClass"
+          },
+          "description": "Collection for managing individual school classes (e.g., 'Maternal'). This collection is managed by administrators and includes 'responsibleTeacherId' for teacher-specific access.",
+          "params": [
+            {
+              "name": "classId",
+              "description": "The unique identifier for a school class."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/photo_locations/{locationId}",
+        "definition": {
+          "entityName": "PhotoLocation",
+          "schema": {
+            "$ref": "#/backend/entities/PhotoLocation"
+          },
+          "description": "Collection for managing physical locations within the school where photo sessions can be conducted. This collection is managed by administrators.",
+          "params": [
+            {
+              "name": "locationId",
+              "description": "The unique identifier for a photo location."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/scheduling_configuration/global",
+        "definition": {
+          "entityName": "SchedulingConfiguration",
+          "schema": {
+            "$ref": "#/backend/entities/SchedulingConfiguration"
+          },
+          "description": "A single document containing global configuration settings for the scheduling system, managed by administrators. Uses a fixed document ID 'global'."
+        }
+      },
+      {
+        "path": "/available_time_slots/{slotId}",
+        "definition": {
+          "entityName": "AvailableTimeSlot",
+          "schema": {
+            "$ref": "#/backend/entities/AvailableTimeSlot"
+          },
+          "description": "Collection for defining recurring time slots available for booking. These are configured by administrators and readable by teachers to make appointments.",
+          "params": [
+            {
+              "name": "slotId",
+              "description": "The unique identifier for an available time slot."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/appointments/{appointmentId}",
+        "definition": {
+          "entityName": "Appointment",
+          "schema": {
+            "$ref": "#/backend/entities/Appointment"
+          },
+          "description": "Collection for all confirmed photo session bookings. Includes denormalized 'teacherId' for authorization independence, allowing teachers to manage their own appointments and administrators to oversee all appointments.",
+          "params": [
+            {
+              "name": "appointmentId",
+              "description": "The unique identifier for an appointment."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, DBAC, and QAPs. It prioritizes simple, robust, and easily debuggable security rules.\n\n**Authorization Independence via Denormalization:**\n\n1.  **User Roles (DBAC):** Administrator roles are established using a dedicated top-level collection, `/roles_admin/{adminId}`. The mere existence of a document in this collection (`exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))`) is the sole and atomic mechanism for verifying admin privileges. This completely eliminates the need for `get()` operations on user profiles to determine a user's role, thus achieving authorization independence.\n2.  **Appointments:** Each `appointment` document directly includes the `teacherId` (the user who booked it). This denormalization allows security rules to check `request.auth.uid == resource.data.teacherId` directly, without needing to `get()` a parent `User` or `SchoolClass` document, ensuring atomic authorization checks for teachers managing their own appointments.\n3.  **School Classes:** The `school_classes` collection includes `responsibleTeacherId`. This allows a teacher to directly query and manage classes they are responsible for, with rules checking `request.auth.uid == resource.data.responsibleTeacherId` without extra `get()` calls.\n\n**QAPs (Rules are not Filters) and Structural Segregation:**\n\n1.  **Admin-Managed Collections:** Collections like `/school_segments`, `/photo_locations`, and `/scheduling_configuration` are segregated to have an 'admin-only' write posture. Read access for these (and `/available_time_slots`) can be broad for authenticated users if needed for selection in the UI (e.g., teachers need to see available slots to book). However, the critical point is that only authorized administrators (checked via `/roles_admin/{adminId}`) have write access, ensuring data integrity without relying on client-side filtering.\n2.  **Appointments (`/appointments/{appointmentId}`):** This is a global collection. For teachers, the security rules will enforce that `list` operations (queries) must include a filter on `teacherId` that matches `request.auth.uid` (e.g., `request.query.where.teacherId == request.auth.uid`). This ensures that a teacher can only retrieve *their own* appointments, making the `list` operation secure and preventing data leakage, adhering strictly to QAPs. Administrators, having broader read access, can list all appointments. This structure avoids filtering data *after* it's retrieved by the rules, pushing the filtering responsibility to the query itself.\n3.  **School Classes (`/school_classes/{classId}`):** Similar to appointments, teachers wanting to list their assigned classes will query with `responsibleTeacherId == request.auth.uid`. Rules can enforce this for non-admin users, ensuring QAPs are met for teacher-specific class listings.\n\nThis design leverages direct field checks for ownership, dedicated role collections for DBAC, and query-based authorization for `list` operations, resulting in a secure, scalable, and debuggable Firestore implementation."
+  }
+}
