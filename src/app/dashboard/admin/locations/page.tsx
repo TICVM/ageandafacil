@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -7,46 +6,58 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Plus, Trash2, Edit2, Search } from 'lucide-react';
-import { locations as initialLocations } from '@/lib/db';
-import { PhotoLocation } from '@/lib/types';
+import { MapPin, Plus, Trash2, Edit2, Search, Loader2 } from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { PhotoLocation } from '@/lib/types';
 
 export default function LocationsAdminPage() {
-  const [locations, setLocations] = useState<PhotoLocation[]>(initialLocations);
+  const db = useFirestore();
+  const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
+  const { data: locations, isLoading } = useCollection<PhotoLocation>(locationsRef);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newLoc, setNewLoc] = useState({ name: '', description: '' });
 
   const handleAdd = () => {
-    if (!newLoc.name) return;
-    const loc: PhotoLocation = {
-      id: Math.random().toString(36).substr(2, 9),
+    if (!newLoc.name || !db) return;
+    
+    addDocumentNonBlocking(collection(db, 'photo_locations'), {
       name: newLoc.name,
       description: newLoc.description,
-      active: true
-    };
-    setLocations([...locations, loc]);
+      isActive: true
+    });
+    
     setNewLoc({ name: '', description: '' });
     setIsDialogOpen(false);
-    toast({ title: "Local Adicionado", description: "O novo local de foto está disponível para uso." });
+    toast({ title: "Local Adicionado", description: "O novo local de foto está salvo no banco de dados." });
   };
 
-  const toggleStatus = (id: string) => {
-    setLocations(locations.map(l => l.id === id ? { ...l, active: !l.active } : l));
+  const handleRemove = (id: string) => {
+    if (!db) return;
+    deleteDocumentNonBlocking(doc(db, 'photo_locations', id));
+    toast({ title: "Local Removido", description: "O local foi excluído do banco de dados." });
+  };
+
+  const toggleStatus = (id: string, currentStatus: boolean) => {
+    if (!db) return;
+    updateDocumentNonBlocking(doc(db, 'photo_locations', id), { isActive: !currentStatus });
     toast({ title: "Status Atualizado" });
   };
 
-  const filtered = locations.filter(l => l.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filtered = locations?.filter(l => l.name.toLowerCase().includes(searchTerm.toLowerCase())) || [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Locais de Foto</h1>
-          <p className="text-muted-foreground">Gerencie os espaços da escola disponíveis para as sessões.</p>
+          <p className="text-muted-foreground">Gerencie os espaços da escola salvos no Firestore.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -99,50 +110,65 @@ export default function LocationsAdminPage() {
             />
           </div>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/5">
-              <TableHead className="font-bold w-[300px]">Nome</TableHead>
-              <TableHead className="font-bold">Descrição</TableHead>
-              <TableHead className="font-bold">Status</TableHead>
-              <TableHead className="text-right font-bold">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((loc) => (
-              <TableRow key={loc.id} className="hover:bg-accent/5">
-                <TableCell className="font-bold flex items-center gap-2">
-                  <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                    <MapPin className="w-4 h-4" />
-                  </div>
-                  {loc.name}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {loc.description}
-                </TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={loc.active ? "default" : "secondary"} 
-                    className={`rounded-lg cursor-pointer ${loc.active ? 'bg-green-500' : ''}`}
-                    onClick={() => toggleStatus(loc.id)}
-                  >
-                    {loc.active ? 'Ativo' : 'Inativo'}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="rounded-full text-destructive hover:bg-destructive/10">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+        {isLoading ? (
+          <div className="p-20 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/5">
+                <TableHead className="font-bold w-[300px]">Nome</TableHead>
+                <TableHead className="font-bold">Descrição</TableHead>
+                <TableHead className="font-bold">Status</TableHead>
+                <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((loc) => (
+                <TableRow key={loc.id} className="hover:bg-accent/5">
+                  <TableCell className="font-bold flex items-center gap-2">
+                    <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    {loc.name}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {loc.description}
+                  </TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant={loc.isActive ? "default" : "secondary"} 
+                      className={`rounded-lg cursor-pointer ${loc.isActive ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                      onClick={() => toggleStatus(loc.id, !!loc.isActive)}
+                    >
+                      {loc.isActive ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-full text-destructive hover:bg-destructive/10"
+                        onClick={() => handleRemove(loc.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                    Nenhum local encontrado.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
     </div>
   );

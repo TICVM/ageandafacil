@@ -6,11 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Filter, Loader2 } from 'lucide-react';
+import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Filter, Loader2, Trash2 } from 'lucide-react';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
 import { Booking } from '@/lib/types';
 
@@ -19,7 +19,6 @@ export default function AppointmentsPage() {
   const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Removido o orderBy para evitar erro de índice composto no Firestore
   const appointmentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -34,10 +33,16 @@ export default function AppointmentsPage() {
     if (!db) return;
     const docRef = doc(db, 'appointments', id);
     updateDocumentNonBlocking(docRef, { status: 'CANCELLED' });
-    toast({ title: "Agendamento Cancelado", description: "O horário foi liberado com sucesso." });
+    toast({ title: "Agendamento Cancelado", description: "O status foi alterado para cancelado." });
   };
 
-  // Ordenação realizada no cliente (mais recente primeiro)
+  const handleDelete = (id: string) => {
+    if (!db) return;
+    const docRef = doc(db, 'appointments', id);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: "Agendamento Excluído", description: "O registro foi removido permanentemente." });
+  };
+
   const sortedList = list ? [...list].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate)) : [];
 
   const filtered = sortedList.filter(b => 
@@ -71,10 +76,6 @@ export default function AppointmentsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button variant="outline" className="rounded-xl h-11 bg-white">
-            <Filter className="w-4 h-4 mr-2" />
-            Filtros
-          </Button>
         </div>
       </div>
 
@@ -133,12 +134,20 @@ export default function AppointmentsPage() {
                           <DropdownMenuItem className="rounded-lg cursor-pointer">Ver Detalhes</DropdownMenuItem>
                           {b.status !== 'CANCELLED' && (
                             <DropdownMenuItem 
-                              className="text-destructive rounded-lg cursor-pointer focus:bg-destructive/10 focus:text-destructive"
+                              className="rounded-lg cursor-pointer"
                               onClick={() => handleCancel(b.id)}
                             >
                               Cancelar Sessão
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="text-destructive rounded-lg cursor-pointer focus:bg-destructive/10 focus:text-destructive flex items-center gap-2"
+                            onClick={() => handleDelete(b.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Excluir Registro
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -150,7 +159,6 @@ export default function AppointmentsPage() {
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <Users className="w-12 h-12 mb-4 opacity-20" />
                       <p className="text-lg font-medium">Nenhum agendamento encontrado.</p>
-                      <p className="text-sm">Os dados agora são carregados do Firestore.</p>
                     </div>
                   </TableCell>
                 </TableRow>
