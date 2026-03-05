@@ -59,12 +59,22 @@ export default function AppointmentsPage() {
 
   const formatCreationDate = (createdAt: any) => {
     if (!createdAt) return null;
+    let date: Date;
     // Se for Timestamp do Firestore
     if (createdAt.seconds) {
-      return new Date(createdAt.seconds * 1000).toLocaleDateString('pt-BR');
+      date = new Date(createdAt.seconds * 1000);
+    } else {
+      // Se for String ou Date
+      date = new Date(createdAt);
     }
-    // Se for String
-    return new Date(createdAt).toLocaleDateString('pt-BR');
+    
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
