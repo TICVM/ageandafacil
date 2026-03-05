@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -8,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { GraduationCap, Plus, Trash2, Users, Layers } from 'lucide-react';
 import { classes as initialClasses, segments as initialSegments, users } from '@/lib/db';
 import { Class, Segment } from '@/lib/types';
@@ -87,29 +87,29 @@ export default function ClassesAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Segmento</label>
-                  <Select onValueChange={setSelectedSegment} value={selectedSegment}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {segments.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    onChange={(e) => setSelectedSegment(e.target.value)} 
+                    value={selectedSegment}
+                  >
+                    <option value="">Selecione um segmento</option>
+                    {segments.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Professor(a)</label>
-                  <Select onValueChange={setSelectedTeacher} value={selectedTeacher}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teachers.map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    onChange={(e) => setSelectedTeacher(e.target.value)} 
+                    value={selectedTeacher}
+                  >
+                    <option value="">Selecione um professor</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <Button onClick={handleAddClass} className="w-full rounded-xl gap-2">
                   <Plus className="w-4 h-4" />
