@@ -12,6 +12,7 @@ export interface User {
 export interface Segment {
   id: string;
   name: string;
+  unit?: string; // Unidade vinculada ao segmento
   order?: number;
 }
 

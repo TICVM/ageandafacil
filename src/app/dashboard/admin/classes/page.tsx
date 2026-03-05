@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, Plus, Trash2, Users, Layers, Loader2, Edit2, ArrowUpDown } from 'lucide-react';
+import { GraduationCap, Plus, Trash2, Users, Layers, Loader2, Edit2, ArrowUpDown, Building2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -34,10 +34,11 @@ export default function ClassesAdminPage() {
   const [selectedSegment, setSelectedSegment] = useState('');
   
   const [newSegmentName, setNewSegmentName] = useState('');
+  const [newSegmentUnit, setNewSegmentUnit] = useState('');
   const [newSegmentOrder, setNewSegmentOrder] = useState('1');
 
   // Estado para Edição
-  const [editingItem, setEditingItem] = useState<{ id: string; name: string; order: number; type: 'class' | 'segment' } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit?: string; order: number; type: 'class' | 'segment' } | null>(null);
 
   // Efeito para sugerir automaticamente a próxima ordem ao carregar ou cadastrar
   useEffect(() => {
@@ -83,11 +84,13 @@ export default function ClassesAdminPage() {
     const orderVal = parseInt(newSegmentOrder) || 0;
     addDocumentNonBlocking(collection(db, 'school_segments'), {
       name: newSegmentName,
+      unit: newSegmentUnit,
       order: orderVal,
       isActive: true
     });
 
     setNewSegmentName('');
+    setNewSegmentUnit('');
     setNewSegmentOrder((orderVal + 1).toString());
     toast({ title: "Segmento Adicionado" });
   };
@@ -96,10 +99,16 @@ export default function ClassesAdminPage() {
     if (!editingItem || !db) return;
     
     const collectionName = editingItem.type === 'class' ? 'school_classes' : 'school_segments';
-    updateDocumentNonBlocking(doc(db, collectionName, editingItem.id), {
+    const updateData: any = {
       name: editingItem.name,
       order: editingItem.order
-    });
+    };
+    
+    if (editingItem.type === 'segment') {
+      updateData.unit = editingItem.unit || '';
+    }
+
+    updateDocumentNonBlocking(doc(db, collectionName, editingItem.id), updateData);
 
     setEditingItem(null);
     toast({ title: "Alterações Salvas" });
@@ -172,7 +181,7 @@ export default function ClassesAdminPage() {
                   >
                     <option value="">Selecione um segmento</option>
                     {segments?.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
+                      <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -203,7 +212,7 @@ export default function ClassesAdminPage() {
                         <TableRow key={c.id}>
                           <TableCell className="text-center font-mono text-xs text-muted-foreground">{c.order || 0}</TableCell>
                           <TableCell className="font-bold">{c.name}</TableCell>
-                          <TableCell>{seg?.name || '---'}</TableCell>
+                          <TableCell>{seg?.name || '---'} {seg?.unit ? `(${seg.unit})` : ''}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button 
@@ -235,18 +244,27 @@ export default function ClassesAdminPage() {
         </TabsContent>
 
         <TabsContent value="segments" className="space-y-6">
-          <div className="max-w-3xl space-y-6">
+          <div className="max-w-4xl space-y-6">
             <Card className="shadow-md border-none">
               <CardHeader>
                 <CardTitle className="text-lg">Adicionar Segmento</CardTitle>
               </CardHeader>
-              <CardContent className="flex gap-4 items-end">
-                <div className="flex-1 space-y-2">
+              <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="md:col-span-1 space-y-2">
                    <label className="text-xs font-bold">Nome do Segmento</label>
                    <Input 
                     placeholder="Ex: Educação Infantil" 
                     value={newSegmentName}
                     onChange={(e) => setNewSegmentName(e.target.value)}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="md:col-span-1 space-y-2">
+                   <label className="text-xs font-bold">Unidade</label>
+                   <Input 
+                    placeholder="Ex: Unidade I" 
+                    value={newSegmentUnit}
+                    onChange={(e) => setNewSegmentUnit(e.target.value)}
                     className="rounded-xl"
                   />
                 </div>
@@ -272,6 +290,7 @@ export default function ClassesAdminPage() {
                   <TableRow>
                     <TableHead className="w-16 text-center"><ArrowUpDown className="w-3 h-3 mx-auto" /></TableHead>
                     <TableHead className="font-bold">Nome do Segmento</TableHead>
+                    <TableHead className="font-bold">Unidade</TableHead>
                     <TableHead className="text-center font-bold">Turmas</TableHead>
                     <TableHead className="text-right font-bold">Ações</TableHead>
                   </TableRow>
@@ -284,6 +303,14 @@ export default function ClassesAdminPage() {
                         <GraduationCap className="w-4 h-4 text-primary" />
                         {s.name}
                       </TableCell>
+                      <TableCell>
+                        {s.unit ? (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Building2 className="w-3 h-3" />
+                            {s.unit}
+                          </div>
+                        ) : '---'}
+                      </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="secondary" className="rounded-lg">
                           {classes?.filter(c => c.schoolSegmentId === s.id).length || 0}
@@ -295,7 +322,7 @@ export default function ClassesAdminPage() {
                             variant="ghost" 
                             size="icon" 
                             className="rounded-full hover:bg-primary/10 text-primary"
-                            onClick={() => setEditingItem({ id: s.id, name: s.name, order: s.order || 0, type: 'segment' })}
+                            onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -333,6 +360,16 @@ export default function ClassesAdminPage() {
                 className="rounded-xl"
               />
             </div>
+            {editingItem?.type === 'segment' && (
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Unidade</label>
+                <Input 
+                  value={editingItem?.unit || ''} 
+                  onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)}
+                  className="rounded-xl"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-semibold">Ordem de Exibição</label>
               <Input 

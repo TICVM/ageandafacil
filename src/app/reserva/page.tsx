@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -52,8 +53,21 @@ export default function PublicBookingPage() {
   const locations = rawLocations || [];
 
   const selectedClass = classes?.find(c => c.id === selectedClassId);
+  const selectedSegment = segments?.find(s => s.id === selectedClass?.schoolSegmentId);
+  
   const selectedLocation = locations?.find(l => l.id === selectedLocationId);
-  const activeLocations = locations?.filter(l => l.isActive) || [];
+
+  // Filtro de locais baseado na unidade do segmento da turma
+  const filteredLocations = locations?.filter(l => {
+    if (!l.isActive) return false;
+    
+    // Se a turma não foi selecionada, mostra todos os locais ativos
+    if (!selectedSegment || !selectedSegment.unit) return true;
+    
+    // Se o segmento tem unidade, filtra locais pela mesma unidade
+    // Se o local não tem unidade definida, ele é considerado "global" e aparece para todos
+    return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
+  }) || [];
 
   const availableSlots = slots?.filter(s => {
     if (!date) return false;
@@ -86,11 +100,10 @@ export default function PublicBookingPage() {
     }
     setIsAiLoading(true);
     try {
-      const seg = segments?.find(s => s.id === selectedClass?.schoolSegmentId);
       const result = await aiSessionBriefAssistant({
         briefNotes: notes,
         className: selectedClass?.name || 'Turma não identificada',
-        segmentName: seg?.name || 'Geral',
+        segmentName: selectedSegment?.name || 'Geral',
         locationName: selectedLocation?.name || 'Local não identificado',
       });
       setAiBrief(result);
@@ -220,7 +233,10 @@ export default function PublicBookingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Turma</label>
-                    <Select onValueChange={setSelectedClassId} value={selectedClassId}>
+                    <Select onValueChange={(val) => {
+                      setSelectedClassId(val);
+                      setSelectedLocationId(''); // Reseta o local ao trocar de turma para re-filtrar
+                    }} value={selectedClassId}>
                       <SelectTrigger className="rounded-xl h-11">
                         <SelectValue placeholder="Selecione a turma" />
                       </SelectTrigger>
@@ -233,19 +249,23 @@ export default function PublicBookingPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Local da Foto</label>
-                    <Select onValueChange={setSelectedLocationId} value={selectedLocationId}>
+                    <Select onValueChange={setSelectedLocationId} value={selectedLocationId} disabled={!selectedClassId}>
                       <SelectTrigger className="rounded-xl h-11">
-                        <SelectValue placeholder="Selecione o local" />
+                        <SelectValue placeholder={!selectedClassId ? "Escolha a turma primeiro" : "Selecione o local"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {activeLocations.map(l => (
-                          <SelectItem key={l.id} value={l.id}>
-                            <div className="flex flex-col items-start leading-none">
-                              <span>{l.name}</span>
-                              {l.unit && <span className="text-[10px] text-muted-foreground mt-0.5">{l.unit}</span>}
-                            </div>
-                          </SelectItem>
-                        ))}
+                        {filteredLocations.length > 0 ? (
+                          filteredLocations.map(l => (
+                            <SelectItem key={l.id} value={l.id}>
+                              <div className="flex flex-col items-start leading-none">
+                                <span>{l.name}</span>
+                                {l.unit && <span className="text-[10px] text-muted-foreground mt-0.5">{l.unit}</span>}
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-4 text-xs text-center text-muted-foreground">Nenhum local disponível para esta unidade.</div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
