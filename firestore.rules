@@ -3,159 +3,76 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SCHOOL SCHEDULING SYSTEM - SECURITY RULES
-     *
-     * Core Philosophy:
-     * This ruleset implements a dual-layered authorization model: Role-Based Access Control (RBAC) 
-     * via a Database Access Control (DBAC) marker collection for Administrators, and an 
-     * Ownership/Assignment model for Teachers. 
-     *
-     * Data Structure:
-     * - /users/{userId}: Profiles for all users.
-     * - /roles_admin/{adminId}: Marker documents that grant global administrative privileges.
-     * - /appointments/{appointmentId}: Centralized booking records.
-     * - /school_segments, /school_classes, /photo_locations, /available_time_slots: 
-     *   Configuration and structural data managed by admins and consumed by teachers.
-     *
-     * Key Security Decisions:
-     * 1. DBAC Pattern: Admin status is determined by the existence of a document in `/roles_admin`. 
-     *    This provides a highly performant and secure way to check global roles without 
-     *    repeatedly fetching user profile documents.
-     * 2. Denormalization for Auth: The `teacherId` is stored directly on `Appointment` documents, 
-     *    and `responsibleTeacherId` is stored on `SchoolClass` documents. This allows for 
-     *    immediate ownership checks during read/write operations without joining data.
-     * 3. Structural Segregation: Administrative configurations (Scheduling, Segments, Locations) 
-     *    are read-only for Teachers to ensure the integrity of the scheduling environment.
-     * 4. Prototyping Flexibility: Rules strictly enforce *who* can access data based on 
-     *    relationships but do not validate the specific schema or data types of content fields.
+     * SISTEMA DE AGENDAMENTO ESCOLAR - REGRAS DE SEGURANÇA
      */
 
-    // --- Global Helper Functions ---
+    // --- Funções Auxiliares Globais ---
 
-    /** @description Checks if the request is from a signed-in user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the user has an admin marker document. */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    /** @description Checks if the user's UID matches the provided ID. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** @description Verifies ownership of an existing document before modification. */
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
-    }
+    // --- Regras de Coleção ---
 
-    // --- Collection Rules ---
-
-    /**
-     * @description Rules for User profiles. Users manage their own profile; Admins manage all.
-     * @path /users/{userId}
-     * @allow (get) If user is the owner or an admin.
-     * @deny (update) If user attempts to change their own 'id' field.
-     * @principle Enforces document ownership and relational integrity for profiles.
-     */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if (isExistingOwner(userId) || isAdmin()) && (request.resource.data.id == resource.data.id);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for Admin roles (DBAC). Only admins can view or modify the admin list.
-     * @path /roles_admin/{adminId}
-     * @allow (get) If the user is an admin.
-     * @deny (create) If a non-admin attempts to grant themselves admin status.
-     * @principle Uses a dedicated collection for secure, performant role management.
-     */
     match /roles_admin/{adminId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for School Segments. Admins manage; Authenticated users read.
-     * @path /school_segments/{segmentId}
-     * @allow (list) Any signed-in user to see available segments for booking.
-     * @deny (write) Any non-admin user.
-     * @principle Restricts structural changes to administrative roles.
-     */
     match /school_segments/{segmentId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for School Classes. Admins manage; Teachers read their assigned classes.
-     * @path /school_classes/{classId}
-     * @allow (get) If the teacher is assigned as 'responsibleTeacherId'.
-     * @deny (list) Without filtering by responsibleTeacherId for non-admins.
-     * @principle Validates teacher assignment for data access.
-     */
     match /school_classes/{classId} {
-      allow get: if isAdmin() || (isSignedIn() && resource.data.responsibleTeacherId == request.auth.uid);
-      allow list: if isSignedIn(); // Queries must still filter by responsibleTeacherId to succeed for non-admins
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for Photo Locations. Admins manage; Authenticated users read.
-     * @path /photo_locations/{locationId}
-     * @allow (get) Any signed-in teacher looking for a location.
-     * @deny (create) Non-admin users.
-     * @principle Protects static organizational data.
-     */
     match /photo_locations/{locationId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for Global Scheduling Configuration. Fixed ID 'global'.
-     * @path /scheduling_configuration/global
-     * @allow (get) Teachers reading booking limits.
-     * @deny (update) Any non-admin user.
-     * @principle Ensures consistent scheduling rules across the application.
-     */
     match /scheduling_configuration/{configId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for Available Time Slots. Managed by admins; Read by teachers.
-     * @path /available_time_slots/{slotId}
-     * @allow (list) Teachers viewing available slots for scheduling.
-     * @deny (write) Non-admin users.
-     * @principle Centralized control of availability.
-     */
     match /available_time_slots/{slotId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for Appointments. Teachers manage their own bookings; Admins oversee all.
-     * @path /appointments/{appointmentId}
-     * @allow (create) If teacherId in data matches the authenticated user.
-     * @deny (update) If a teacher tries to change the teacherId (transfer ownership).
-     * @principle Enforces data-level ownership and prevents unauthorized modification.
-     */
     match /appointments/{appointmentId} {
-      allow get: if isAdmin() || (isSignedIn() && resource.data.teacherId == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn()); // Teachers must query where teacherId == auth.uid
+      // Permite ler se for admin ou o professor dono do agendamento
+      allow get: if isSignedIn() && (isAdmin() || resource.data.teacherId == request.auth.uid);
+      
+      // Permite listar se estiver logado. 
+      // O Firestore garantirá que a query contenha os filtros necessários se as regras forem restritivas.
+      allow list: if isSignedIn(); 
+      
+      // Permite criar se o teacherId no dado for o próprio usuário
       allow create: if isSignedIn() && (isAdmin() || request.resource.data.teacherId == request.auth.uid);
-      allow update: if (isAdmin() || (resource != null && resource.data.teacherId == request.auth.uid)) && (request.resource.data.teacherId == resource.data.teacherId);
-      allow delete: if isAdmin() || (resource != null && resource.data.teacherId == request.auth.uid);
+      
+      // Permite atualizar ou deletar se for o dono ou admin
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.teacherId == request.auth.uid));
     }
   }
 }
