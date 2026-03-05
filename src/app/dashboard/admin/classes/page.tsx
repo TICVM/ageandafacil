@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -12,42 +13,35 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { Class, Segment, User } from '@/lib/types';
+import { Class, Segment } from '@/lib/types';
 
 export default function ClassesAdminPage() {
   const db = useFirestore();
 
-  // Referências do Firestore
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
-  const usersRef = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
 
   const { data: classes, isLoading: loadingClasses } = useCollection<Class>(classesRef);
   const { data: segments, isLoading: loadingSegments } = useCollection<Segment>(segmentsRef);
-  const { data: allUsers } = useCollection<User>(usersRef);
 
   const [newClassName, setNewClassName] = useState('');
   const [selectedSegment, setSelectedSegment] = useState('');
-  const [selectedTeacher, setSelectedTeacher] = useState('');
   const [newSegmentName, setNewSegmentName] = useState('');
 
-  const teachers = allUsers?.filter(u => u.role === 'TEACHER') || [];
-
   const handleAddClass = () => {
-    if (!newClassName || !selectedSegment || !selectedTeacher || !db) {
-      toast({ title: "Erro", description: "Preencha todos os campos da turma.", variant: "destructive" });
+    if (!newClassName || !selectedSegment || !db) {
+      toast({ title: "Erro", description: "Preencha o nome e o segmento da turma.", variant: "destructive" });
       return;
     }
     
     addDocumentNonBlocking(collection(db, 'school_classes'), {
       name: newClassName,
       schoolSegmentId: selectedSegment,
-      responsibleTeacherId: selectedTeacher,
       isActive: true
     });
 
     setNewClassName('');
-    toast({ title: "Turma Cadastrada no Firestore" });
+    toast({ title: "Turma Cadastrada" });
   };
 
   const handleAddSegment = () => {
@@ -59,7 +53,7 @@ export default function ClassesAdminPage() {
     });
 
     setNewSegmentName('');
-    toast({ title: "Segmento Adicionado no Firestore" });
+    toast({ title: "Segmento Adicionado" });
   };
 
   const handleRemoveClass = (id: string) => {
@@ -80,7 +74,7 @@ export default function ClassesAdminPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Estrutura Escolar</h1>
-        <p className="text-muted-foreground">Gerencie as turmas e segmentos diretamente no banco de dados.</p>
+        <p className="text-muted-foreground">Gerencie as turmas e segmentos educacionais.</p>
       </div>
 
       <Tabs defaultValue="classes" className="w-full">
@@ -114,26 +108,13 @@ export default function ClassesAdminPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Segmento</label>
                   <select 
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     onChange={(e) => setSelectedSegment(e.target.value)} 
                     value={selectedSegment}
                   >
                     <option value="">Selecione um segmento</option>
                     {segments?.map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Professor(a)</label>
-                  <select 
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onChange={(e) => setSelectedTeacher(e.target.value)} 
-                    value={selectedTeacher}
-                  >
-                    <option value="">Selecione um professor</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
@@ -153,19 +134,16 @@ export default function ClassesAdminPage() {
                     <TableRow>
                       <TableHead className="font-bold">Turma</TableHead>
                       <TableHead className="font-bold">Segmento</TableHead>
-                      <TableHead className="font-bold">Professor(a)</TableHead>
                       <TableHead className="text-right font-bold">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {classes?.map((c) => {
-                      const seg = segments?.find(s => s.id === (c as any).schoolSegmentId);
-                      const teacher = teachers.find(t => t.id === (c as any).responsibleTeacherId);
+                      const seg = segments?.find(s => s.id === c.schoolSegmentId);
                       return (
                         <TableRow key={c.id}>
                           <TableCell className="font-bold">{c.name}</TableCell>
                           <TableCell>{seg?.name || '---'}</TableCell>
-                          <TableCell>{teacher?.name || '---'}</TableCell>
                           <TableCell className="text-right">
                             <Button 
                               variant="ghost" 
@@ -211,6 +189,7 @@ export default function ClassesAdminPage() {
                 <TableHeader className="bg-muted/20">
                   <TableRow>
                     <TableHead className="font-bold">Nome do Segmento</TableHead>
+                    <TableHead className="text-center font-bold">Turmas</TableHead>
                     <TableHead className="text-right font-bold">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -220,6 +199,11 @@ export default function ClassesAdminPage() {
                       <TableCell className="font-bold flex items-center gap-2">
                         <GraduationCap className="w-4 h-4 text-primary" />
                         {s.name}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary" className="rounded-lg">
+                          {classes?.filter(c => c.schoolSegmentId === s.id).length || 0}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button 

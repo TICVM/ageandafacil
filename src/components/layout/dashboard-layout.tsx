@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -41,16 +42,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [userData, setUserData] = useState<User | null>(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUserData(JSON.parse(savedUser));
-    } else if (authUser) {
-      // Fallback básico se não houver no localStorage mas houver auth
+    if (authUser) {
       setUserData({
         id: authUser.uid,
         name: authUser.displayName || authUser.email?.split('@')[0] || 'Usuário',
         email: authUser.email || '',
-        role: 'TEACHER' // Padrão se desconhecido
+        role: 'ADMIN' // Por padrão no protótipo vamos assumir admin se logado
       });
     }
   }, [authUser]);
@@ -59,12 +56,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-    { title: 'Agendar Foto', icon: CalendarDays, href: '/dashboard/schedule' },
-    { title: 'Meus Agendamentos', icon: ListTodo, href: '/dashboard/appointments' },
+    { title: 'Fazer Reserva', icon: CalendarDays, href: '/reserva' },
+    { title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' },
   ];
 
   const adminItems = [
-    { title: 'Usuários/Professores', icon: UserCog, href: '/dashboard/admin/users' },
+    { title: 'Gestão de Usuários', icon: UserCog, href: '/dashboard/admin/users' },
     { title: 'Configurar Horários', icon: Clock, href: '/dashboard/admin/slots' },
     { title: 'Locais de Foto', icon: MapPin, href: '/dashboard/admin/locations' },
     { title: 'Turmas e Segmentos', icon: Users, href: '/dashboard/admin/classes' },
@@ -73,7 +70,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await signOut(auth);
-    localStorage.removeItem('user');
     router.push('/');
   };
 
@@ -87,7 +83,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-bold text-lg leading-none">SchoolLens</span>
-              <span className="text-xs text-muted-foreground">Admin Panel</span>
+              <span className="text-xs text-muted-foreground">Painel de Controle</span>
             </div>
           </div>
         </SidebarHeader>
@@ -162,8 +158,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger />
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
-              <span className="text-xs text-muted-foreground font-medium">Hoje</span>
-              <span className="text-sm font-bold">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+              <span className="text-xs text-muted-foreground font-medium">Bem-vindo</span>
+              <span className="text-sm font-bold">{userData?.name}</span>
             </div>
           </div>
         </header>

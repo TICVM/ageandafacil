@@ -1,28 +1,44 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SISTEMA DE AGENDAMENTO ESCOLAR - REGRAS DE SEGURANÇA
+     * SISTEMA DE AGENDAMENTO ESCOLAR - REGRAS PÚBLICAS E PRIVADAS
      */
-
-    // --- Funções Auxiliares Globais ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Permitindo temporariamente leitura/escrita para todos os logados 
-    // enquanto o sistema de roles_admin é estabelecido via UI.
-    function isAdmin() {
-      return isSignedIn(); 
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     // --- Regras de Coleção ---
+
+    // Dados públicos necessários para preencher o formulário de reserva
+    match /school_segments/{segmentId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /school_classes/{classId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /photo_locations/{locationId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /available_time_slots/{slotId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Agendamentos: Qualquer pessoa pode criar, mas apenas logados veem/editam
+    match /appointments/{appointmentId} {
+      allow create: if true;
+      allow read, write: if isSignedIn();
+    }
 
     match /users/{userId} {
       allow read, write: if isSignedIn();
@@ -30,37 +46,6 @@ service cloud.firestore {
 
     match /roles_admin/{adminId} {
       allow read, write: if isSignedIn();
-    }
-
-    match /school_segments/{segmentId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /school_classes/{classId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /photo_locations/{locationId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /scheduling_configuration/{configId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /available_time_slots/{slotId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /appointments/{appointmentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (resource.data.teacherId == request.auth.uid || isAdmin());
     }
   }
 }
