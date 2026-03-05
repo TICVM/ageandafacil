@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,13 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
@@ -56,15 +55,12 @@ export default function PublicBookingPage() {
   const selectedLocation = locations?.find(l => l.id === selectedLocationId);
   const activeLocations = locations?.filter(l => l.isActive) || [];
 
-  // Lógica para filtrar horários disponíveis, removendo os que já possuem agendamento para a data
   const availableSlots = slots?.filter(s => {
     if (!date) return false;
     
-    // 1. Verifica se o dia da semana coincide
     const dayMatches = s.dayOfWeek === date.getDay().toString();
     if (!dayMatches) return false;
 
-    // 2. Verifica regras de turma/segmento
     const targetMatches = s.schoolClassId 
       ? s.schoolClassId === selectedClassId
       : s.schoolSegmentId 
@@ -73,7 +69,6 @@ export default function PublicBookingPage() {
     
     if (!targetMatches) return false;
 
-    // 3. Bloqueio de duplicidade: Verifica se já existe um agendamento confirmado para este horário e data
     const dateStr = format(date, 'yyyy-MM-dd');
     const isTaken = allAppointments?.some(app => 
       app.appointmentDate === dateStr && 
@@ -82,7 +77,7 @@ export default function PublicBookingPage() {
     );
 
     return !isTaken;
-  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || []; // Ordenação crescente por horário
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
 
   const handleGenerateAiBrief = async () => {
     if (!notes || !selectedClassId || !selectedLocationId) {
@@ -418,4 +413,3 @@ export default function PublicBookingPage() {
     </div>
   );
 }
-
