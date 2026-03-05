@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,14 +30,33 @@ export default function ClassesAdminPage() {
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
   const [newClassName, setNewClassName] = useState('');
-  const [newClassOrder, setNewClassOrder] = useState('0');
+  const [newClassOrder, setNewClassOrder] = useState('1');
   const [selectedSegment, setSelectedSegment] = useState('');
   
   const [newSegmentName, setNewSegmentName] = useState('');
-  const [newSegmentOrder, setNewSegmentOrder] = useState('0');
+  const [newSegmentOrder, setNewSegmentOrder] = useState('1');
 
   // Estado para Edição
   const [editingItem, setEditingItem] = useState<{ id: string; name: string; order: number; type: 'class' | 'segment' } | null>(null);
+
+  // Efeito para sugerir automaticamente a próxima ordem ao carregar ou cadastrar
+  useEffect(() => {
+    if (classes.length > 0) {
+      const maxOrder = Math.max(...classes.map(c => c.order ?? 0));
+      setNewClassOrder((maxOrder + 1).toString());
+    } else {
+      setNewClassOrder('1');
+    }
+  }, [rawClasses]);
+
+  useEffect(() => {
+    if (segments.length > 0) {
+      const maxOrder = Math.max(...segments.map(s => s.order ?? 0));
+      setNewSegmentOrder((maxOrder + 1).toString());
+    } else {
+      setNewSegmentOrder('1');
+    }
+  }, [rawSegments]);
 
   const handleAddClass = () => {
     if (!newClassName || !selectedSegment || !db) {
@@ -45,29 +64,31 @@ export default function ClassesAdminPage() {
       return;
     }
     
+    const orderVal = parseInt(newClassOrder) || 0;
     addDocumentNonBlocking(collection(db, 'school_classes'), {
       name: newClassName,
       schoolSegmentId: selectedSegment,
-      order: parseInt(newClassOrder) || 0,
+      order: orderVal,
       isActive: true
     });
 
     setNewClassName('');
-    setNewClassOrder('0');
+    setNewClassOrder((orderVal + 1).toString());
     toast({ title: "Turma Cadastrada" });
   };
 
   const handleAddSegment = () => {
     if (!newSegmentName || !db) return;
     
+    const orderVal = parseInt(newSegmentOrder) || 0;
     addDocumentNonBlocking(collection(db, 'school_segments'), {
       name: newSegmentName,
-      order: parseInt(newSegmentOrder) || 0,
+      order: orderVal,
       isActive: true
     });
 
     setNewSegmentName('');
-    setNewSegmentOrder('0');
+    setNewSegmentOrder((orderVal + 1).toString());
     toast({ title: "Segmento Adicionado" });
   };
 
@@ -134,7 +155,7 @@ export default function ClassesAdminPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Ordem</label>
+                  <label className="text-sm font-semibold">Ordem de Exibição</label>
                   <Input 
                     type="number"
                     value={newClassOrder}
