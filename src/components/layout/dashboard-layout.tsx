@@ -19,7 +19,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   ListTodo,
-  Settings,
   LogOut,
   Camera,
   MapPin,
@@ -31,26 +30,64 @@ import {
 import { User } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user: authUser } = useUser();
   const auth = useAuth();
+  const db = useFirestore();
   const [userData, setUserData] = useState<User | null>(null);
 
   useEffect(() => {
-    if (authUser) {
-      setUserData({
-        id: authUser.uid,
-        name: authUser.displayName || authUser.email?.split('@')[0] || 'Usuário',
-        email: authUser.email || '',
-        role: 'ADMIN' // Por padrão no protótipo vamos assumir admin se logado
-      });
+    async function loadUserProfile() {
+      if (!authUser) return;
+
+      const savedEmail = localStorage.getItem('loggedUserEmail');
+      
+      // Se não houver e-mail salvo, tentamos pelo UID (casos de login real do Firebase Auth)
+      // Se houver e-mail salvo, buscamos por ele no Firestore
+      try {
+        const usersRef = collection(db, 'users');
+        let q;
+        
+        if (savedEmail) {
+          q = query(usersRef, where('email', '==', savedEmail));
+        } else {
+          // Fallback para quando o UID do Auth for o mesmo do Firestore
+          q = query(usersRef, where('__name__', '==', authUser.uid));
+        }
+
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          const data = doc.data();
+          setUserData({
+            id: doc.id,
+            name: data.name || 'Usuário',
+            email: data.email || '',
+            role: data.role || 'TEACHER'
+          });
+        } else {
+          // Se não achar nada, coloca um padrão para não quebrar o layout
+          setUserData({
+            id: authUser.uid,
+            name: authUser.displayName || authUser.email?.split('@')[0] || 'Visitante',
+            email: authUser.email || '',
+            role: 'TEACHER'
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao carregar perfil:", error);
+      }
     }
-  }, [authUser]);
+
+    loadUserProfile();
+  }, [authUser, db]);
 
   const isAdmin = userData?.role === 'ADMIN';
 
@@ -69,6 +106,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = async () => {
+    localStorage.removeItem('loggedUserEmail');
     await signOut(auth);
     router.push('/');
   };

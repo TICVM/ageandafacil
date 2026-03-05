@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,48 +7,61 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Camera, LogIn, GraduationCap, Loader2 } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
+import { useAuth, useUser, useFirestore } from '@/firebase';
+import { signInAnonymously } from 'firebase/auth';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
+  const db = useFirestore();
   const { user, isUserLoading } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user && !isUserLoading) {
+    // Se já estiver logado (mesmo que anonimamente) e tivermos o e-mail salvo, redireciona
+    if (user && !isUserLoading && localStorage.getItem('loggedUserEmail')) {
       router.push('/dashboard');
     }
   }, [user, isUserLoading, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Chamada não-bloqueante, mas com tratamento de erro na promessa
-    initiateEmailSignIn(auth, email, password)
-      .catch((error: any) => {
-        setIsSubmitting(false);
-        let message = "Verifique suas credenciais e tente novamente.";
-        
-        if (error.code === 'auth/invalid-credential') {
-          message = "E-mail ou senha incorretos.";
-        } else if (error.code === 'auth/user-not-found') {
-          message = "Usuário não encontrado.";
-        } else if (error.code === 'auth/wrong-password') {
-          message = "Senha incorreta.";
-        }
+    try {
+      // 1. Validar as credenciais diretamente no Firestore (como solicitado)
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', email), where('password', '==', password));
+      const querySnapshot = await getDocs(q);
 
-        toast({
-          title: "Erro no login",
-          description: message,
-          variant: "destructive"
-        });
+      if (querySnapshot.empty) {
+        throw new Error('Usuário ou senha inválidos no banco de dados.');
+      }
+
+      // 2. Realizar login anônimo no Firebase Auth para manter a sessão técnica ativa
+      await signInAnonymously(auth);
+
+      // 3. Salvar o e-mail localmente para que o dashboard saiba quem carregar
+      localStorage.setItem('loggedUserEmail', email);
+      
+      toast({
+        title: "Login realizado",
+        description: "Acesso validado pelo banco de dados com sucesso.",
       });
+
+      router.push('/dashboard');
+    } catch (error: any) {
+      setIsSubmitting(false);
+      toast({
+        title: "Erro no login",
+        description: error.message || "Verifique suas credenciais.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (isUserLoading) {
@@ -74,7 +88,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Acesso ao Sistema</CardTitle>
           <CardDescription className="text-center">
-            Entre com suas credenciais para gerenciar sessões de fotos
+            Validação direta pelo cadastro de usuários
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -109,9 +123,6 @@ export default function LoginPage() {
               {isSubmitting ? <Loader2 className="mr-2 w-5 h-5 animate-spin" /> : 'Entrar'}
               {!isSubmitting && <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </Button>
-            <div className="text-center text-xs text-muted-foreground mt-2">
-              <p>Dica: Use credenciais válidas do Firebase Auth</p>
-            </div>
           </CardFooter>
         </form>
       </Card>
