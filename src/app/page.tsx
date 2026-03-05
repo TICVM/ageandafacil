@@ -28,17 +28,26 @@ export default function LoginPage() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    try {
-      initiateEmailSignIn(auth, email, password);
-      // O redirecionamento é tratado pelo useEffect acima quando o estado do usuário muda
-    } catch (error: any) {
-      setIsSubmitting(false);
-      toast({
-        title: "Erro no login",
-        description: "Verifique suas credenciais e tente novamente.",
-        variant: "destructive"
+    // Chamada não-bloqueante, mas com tratamento de erro na promessa
+    initiateEmailSignIn(auth, email, password)
+      .catch((error: any) => {
+        setIsSubmitting(false);
+        let message = "Verifique suas credenciais e tente novamente.";
+        
+        if (error.code === 'auth/invalid-credential') {
+          message = "E-mail ou senha incorretos.";
+        } else if (error.code === 'auth/user-not-found') {
+          message = "Usuário não encontrado.";
+        } else if (error.code === 'auth/wrong-password') {
+          message = "Senha incorreta.";
+        }
+
+        toast({
+          title: "Erro no login",
+          description: message,
+          variant: "destructive"
+        });
       });
-    }
   };
 
   if (isUserLoading) {
