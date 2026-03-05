@@ -11,10 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Lock, Eye, EyeOff } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { User, UserRole } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { initializeApp, getApps, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { firebaseConfig } from '@/firebase/config';
 
 export default function UsersAdminPage() {
   const db = useFirestore();
@@ -24,29 +27,62 @@ export default function UsersAdminPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'TEACHER' as UserRole });
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newUser.name || !newUser.email || !newUser.password || !db) {
       toast({ title: "Erro", description: "Preencha todos os campos, incluindo a senha.", variant: "destructive" });
       return;
     }
     
-    addDocumentNonBlocking(collection(db, 'users'), {
-      name: newUser.name,
-      email: newUser.email,
-      password: newUser.password,
-      role: newUser.role,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    });
-    
-    setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
-    setIsDialogOpen(false);
-    toast({ 
-      title: "Usuário Cadastrado", 
-      description: "O perfil foi criado. Lembre-se de cadastrar este e-mail no Firebase Auth também." 
-    });
+    setIsCreating(true);
+
+    try {
+      // 1. Criar o usuário no Firebase Auth usando uma instância secundária 
+      // para evitar que o administrador atual seja deslogado.
+      const secondaryAppName = `Secondary-${Date.now()}`;
+      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+      
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
+      const uid = userCredential.user.uid;
+
+      // 2. Salvar os metadados no Firestore usando o mesmo UID do Auth
+      setDocumentNonBlocking(doc(db, 'users', uid), {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+
+      // Limpar instância secundária
+      await deleteApp(secondaryApp);
+
+      setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
+      setIsDialogOpen(false);
+      toast({ 
+        title: "Usuário Cadastrado", 
+        description: "A conta de acesso foi criada e o perfil foi salvo com sucesso." 
+      });
+    } catch (error: any) {
+      console.error(error);
+      let message = "Ocorreu um erro ao criar a conta.";
+      if (error.code === 'auth/email-already-in-use') {
+        message = "Este e-mail já está em uso.";
+      } else if (error.code === 'auth/weak-password') {
+        message = "A senha é muito fraca (mínimo 6 caracteres).";
+      }
+      
+      toast({ 
+        title: "Erro no cadastro", 
+        description: message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleRemove = (id: string) => {
@@ -77,6 +113,9 @@ export default function UsersAdminPage() {
           <DialogContent className="rounded-2xl">
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
+              <DialogDescription>
+                Ao salvar, uma conta de acesso será criada automaticamente no sistema.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -86,6 +125,7 @@ export default function UsersAdminPage() {
                   value={newUser.name} 
                   onChange={(e) => setNewUser({...newUser, name: e.target.value})}
                   className="rounded-xl"
+                  disabled={isCreating}
                 />
               </div>
               <div className="space-y-2">
@@ -96,6 +136,7 @@ export default function UsersAdminPage() {
                   value={newUser.email} 
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                   className="rounded-xl"
+                  disabled={isCreating}
                 />
               </div>
               <div className="space-y-2">
@@ -103,26 +144,28 @@ export default function UsersAdminPage() {
                 <div className="relative">
                   <Input 
                     type={showPassword ? "text" : "password"}
-                    placeholder="Defina uma senha" 
+                    placeholder="Mínimo 6 caracteres" 
                     value={newUser.password} 
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                     className="rounded-xl pr-10"
+                    disabled={isCreating}
                   />
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                    disabled={isCreating}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">Esta senha será usada pelo usuário para entrar no sistema.</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Papel / Função</label>
                 <Select 
                   value={newUser.role} 
                   onValueChange={(val) => setNewUser({...newUser, role: val as UserRole})}
+                  disabled={isCreating}
                 >
                   <SelectTrigger className="rounded-xl">
                     <SelectValue placeholder="Selecione o papel" />
@@ -135,8 +178,13 @@ export default function UsersAdminPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl">Cancelar</Button>
-              <Button onClick={handleAdd} className="rounded-xl">Salvar Perfil</Button>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl" disabled={isCreating}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAdd} className="rounded-xl min-w-[120px]" disabled={isCreating}>
+                {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Salvar Perfil
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
