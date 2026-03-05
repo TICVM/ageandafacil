@@ -38,7 +38,7 @@ export default function ClassesAdminPage() {
   const [newSegmentOrder, setNewSegmentOrder] = useState('1');
 
   // Estado para Edição
-  const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit?: string; order: number; type: 'class' | 'segment' } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit?: string; order: number; type: 'class' | 'segment', schoolSegmentId?: string } | null>(null);
 
   // Efeito para sugerir automaticamente a próxima ordem ao carregar ou cadastrar
   useEffect(() => {
@@ -106,6 +106,8 @@ export default function ClassesAdminPage() {
     
     if (editingItem.type === 'segment') {
       updateData.unit = editingItem.unit || '';
+    } else if (editingItem.type === 'class') {
+      updateData.schoolSegmentId = editingItem.schoolSegmentId;
     }
 
     updateDocumentNonBlocking(doc(db, collectionName, editingItem.id), updateData);
@@ -219,7 +221,7 @@ export default function ClassesAdminPage() {
                                 variant="ghost" 
                                 size="icon" 
                                 className="rounded-full hover:bg-primary/10 text-primary"
-                                onClick={() => setEditingItem({ id: c.id, name: c.name, order: c.order || 0, type: 'class' })}
+                                onClick={() => setEditingItem({ id: c.id, name: c.name, order: c.order || 0, type: 'class', schoolSegmentId: c.schoolSegmentId })}
                               >
                                 <Edit2 className="w-4 h-4" />
                               </Button>
@@ -368,6 +370,21 @@ export default function ClassesAdminPage() {
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)}
                   className="rounded-xl"
                 />
+              </div>
+            )}
+            {editingItem?.type === 'class' && (
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Segmento</label>
+                <select 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={editingItem.schoolSegmentId || ''}
+                  onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}
+                >
+                  <option value="">Selecione um segmento</option>
+                  {segments?.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>
+                  ))}
+                </select>
               </div>
             )}
             <div className="space-y-2">
