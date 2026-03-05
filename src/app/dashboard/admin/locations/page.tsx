@@ -21,8 +21,11 @@ export default function LocationsAdminPage() {
   const { data: locations, isLoading } = useCollection<PhotoLocation>(locationsRef);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newLoc, setNewLoc] = useState({ name: '', description: '' });
+  
+  // Estado para Edição
+  const [editingItem, setEditingItem] = useState<{ id: string; name: string; description: string } | null>(null);
 
   const handleAdd = () => {
     if (!newLoc.name || !db) return;
@@ -34,8 +37,20 @@ export default function LocationsAdminPage() {
     });
     
     setNewLoc({ name: '', description: '' });
-    setIsDialogOpen(false);
+    setIsAddDialogOpen(false);
     toast({ title: "Local Adicionado", description: "O novo local de foto está salvo no banco de dados." });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingItem || !db) return;
+    
+    updateDocumentNonBlocking(doc(db, 'photo_locations', editingItem.id), {
+      name: editingItem.name,
+      description: editingItem.description
+    });
+
+    setEditingItem(null);
+    toast({ title: "Local Atualizado", description: "As alterações foram salvas com sucesso." });
   };
 
   const handleRemove = (id: string) => {
@@ -59,7 +74,7 @@ export default function LocationsAdminPage() {
           <h1 className="text-3xl font-bold tracking-tight">Locais de Foto</h1>
           <p className="text-muted-foreground">Gerencie os espaços da escola salvos no Firestore.</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="rounded-xl h-11 gap-2 shadow-lg">
               <Plus className="w-4 h-4" />
@@ -91,7 +106,7 @@ export default function LocationsAdminPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl">Cancelar</Button>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">Cancelar</Button>
               <Button onClick={handleAdd} className="rounded-xl">Salvar Local</Button>
             </DialogFooter>
           </DialogContent>
@@ -146,7 +161,15 @@ export default function LocationsAdminPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-full hover:bg-primary/10 text-primary"
+                        onClick={() => setEditingItem({ id: loc.id, name: loc.name, description: loc.description })}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -170,6 +193,38 @@ export default function LocationsAdminPage() {
           </Table>
         )}
       </Card>
+
+      {/* Modal de Edição */}
+      <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Local</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Nome do Local</label>
+              <Input 
+                value={editingItem?.name || ''} 
+                onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)}
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Descrição/Dicas</label>
+              <Textarea 
+                placeholder="Dicas de iluminação ou acesso..." 
+                value={editingItem?.description || ''} 
+                onChange={(e) => setEditingItem(prev => prev ? {...prev, description: e.target.value} : null)}
+                className="rounded-xl min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingItem(null)} className="rounded-xl">Cancelar</Button>
+            <Button onClick={handleSaveEdit} className="rounded-xl">Salvar Alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
