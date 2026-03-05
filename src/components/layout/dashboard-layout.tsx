@@ -32,7 +32,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -44,36 +44,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function loadUserProfile() {
-      if (!authUser) return;
+      if (!authUser || !db) return;
 
-      const savedEmail = localStorage.getItem('loggedUserEmail');
-      
-      // Se não houver e-mail salvo, tentamos pelo UID (casos de login real do Firebase Auth)
-      // Se houver e-mail salvo, buscamos por ele no Firestore
       try {
-        const usersRef = collection(db, 'users');
-        let q;
+        const userDocRef = doc(db, 'users', authUser.uid);
+        const userSnap = await getDoc(userDocRef);
         
-        if (savedEmail) {
-          q = query(usersRef, where('email', '==', savedEmail));
-        } else {
-          // Fallback para quando o UID do Auth for o mesmo do Firestore
-          q = query(usersRef, where('__name__', '==', authUser.uid));
-        }
-
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          const data = doc.data();
+        if (userSnap.exists()) {
+          const data = userSnap.data();
           setUserData({
-            id: doc.id,
+            id: userSnap.id,
             name: data.name || 'Usuário',
-            email: data.email || '',
+            email: data.email || authUser.email || '',
             role: data.role || 'TEACHER'
           });
         } else {
-          // Se não achar nada, coloca um padrão para não quebrar o layout
+          // Fallback para quando o perfil ainda não existe no Firestore
           setUserData({
             id: authUser.uid,
             name: authUser.displayName || authUser.email?.split('@')[0] || 'Visitante',
@@ -106,7 +92,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = async () => {
-    localStorage.removeItem('loggedUserEmail');
     await signOut(auth);
     router.push('/');
   };
