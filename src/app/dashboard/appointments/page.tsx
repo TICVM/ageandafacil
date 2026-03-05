@@ -1,44 +1,53 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Filter, XCircle } from 'lucide-react';
-import { bookings, classes, locations, segments } from '@/lib/db';
-import { Booking, User } from '@/lib/types';
+import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Filter, Loader2 } from 'lucide-react';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, doc } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
+import { Booking } from '@/lib/types';
 
 export default function AppointmentsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [list, setList] = useState<Booking[]>([]);
+  const db = useFirestore();
+  const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
-    setUser(savedUser);
-    setList(savedUser?.role === 'ADMIN' ? bookings : bookings.filter(b => b.teacherId === savedUser?.id));
-  }, []);
+  const appointmentsQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(
+      collection(db, 'appointments'),
+      where('teacherId', '==', user.uid),
+      orderBy('appointmentDate', 'desc')
+    );
+  }, [db, user]);
+
+  const { data: list, isLoading } = useCollection<Booking>(appointmentsQuery);
 
   const handleCancel = (id: string) => {
-    setList(prev => prev.map(b => b.id === id ? { ...b, status: 'CANCELLED' } : b));
+    if (!db) return;
+    const docRef = doc(db, 'appointments', id);
+    updateDocumentNonBlocking(docRef, { status: 'CANCELLED' });
     toast({ title: "Agendamento Cancelado", description: "O horário foi liberado com sucesso." });
   };
 
-  const filtered = list.filter(b => {
-    const cls = classes.find(c => c.id === b.classId);
-    return cls?.name.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const filtered = list?.filter(b => 
+    b.status.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    b.appointmentDate.includes(searchTerm)
+  ) || [];
 
-  const getStatusBadge = (status: Booking['status']) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'CONFIRMED': return <Badge className="bg-green-500 rounded-lg">Confirmado</Badge>;
       case 'PENDING': return <Badge variant="secondary" className="rounded-lg">Pendente</Badge>;
       case 'CANCELLED': return <Badge variant="destructive" className="rounded-lg">Cancelado</Badge>;
+      default: return <Badge className="rounded-lg">{status}</Badge>;
     }
   };
 
@@ -47,13 +56,13 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda de Fotos</h1>
-          <p className="text-muted-foreground">Gerencie seus horários reservados com a equipe de marketing.</p>
+          <p className="text-muted-foreground">Gerencie seus horários reservados no banco de dados.</p>
         </div>
         <div className="flex w-full md:w-auto gap-2">
           <div className="relative flex-1 md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
-              placeholder="Buscar por turma..." 
+              placeholder="Buscar agendamento..." 
               className="pl-9 rounded-xl h-11 bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -67,24 +76,23 @@ export default function AppointmentsPage() {
       </div>
 
       <Card className="border-none shadow-md overflow-hidden bg-white">
-        <Table>
-          <TableHeader className="bg-muted/20">
-            <TableRow>
-              <TableHead className="font-bold">Data / Hora</TableHead>
-              <TableHead className="font-bold">Turma / Segmento</TableHead>
-              <TableHead className="font-bold">Local</TableHead>
-              <TableHead className="font-bold">Status</TableHead>
-              <TableHead className="text-right font-bold">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length > 0 ? (
-              filtered.sort((a,b) => b.date.localeCompare(a.date)).map((b) => {
-                const cls = classes.find(c => c.id === b.classId);
-                const seg = segments.find(s => s.id === cls?.segmentId);
-                const loc = locations.find(l => l.id === b.locationId);
-
-                return (
+        {isLoading ? (
+          <div className="p-20 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="bg-muted/20">
+              <TableRow>
+                <TableHead className="font-bold">Data / Hora</TableHead>
+                <TableHead className="font-bold">Detalhes</TableHead>
+                <TableHead className="font-bold">Status</TableHead>
+                <TableHead className="text-right font-bold">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length > 0 ? (
+                filtered.map((b) => (
                   <TableRow key={b.id} className="hover:bg-accent/5">
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -92,7 +100,7 @@ export default function AppointmentsPage() {
                           <CalendarDays className="w-4 h-4" />
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-bold">{new Date(b.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="font-bold">{new Date(b.appointmentDate).toLocaleDateString('pt-BR')}</span>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {b.startTime} - {b.endTime}
@@ -102,14 +110,10 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-bold">{cls?.name}</span>
-                        <span className="text-xs text-muted-foreground">{seg?.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
-                        <span className="text-sm">{loc?.name}</span>
+                        <span className="text-sm font-medium">{b.observations || 'Sem observações'}</span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> Sessão de fotos
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -136,21 +140,21 @@ export default function AppointmentsPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="h-64 text-center">
-                  <div className="flex flex-col items-center justify-center text-muted-foreground">
-                    <Users className="w-12 h-12 mb-4 opacity-20" />
-                    <p className="text-lg font-medium">Nenhum agendamento encontrado.</p>
-                    <p className="text-sm">Tente ajustar seus filtros ou realizar uma nova busca.</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-64 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Users className="w-12 h-12 mb-4 opacity-20" />
+                      <p className="text-lg font-medium">Nenhum agendamento encontrado.</p>
+                      <p className="text-sm">Os dados agora são carregados do Firestore.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
     </div>
   );

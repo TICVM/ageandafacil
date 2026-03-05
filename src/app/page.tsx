@@ -1,28 +1,53 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, LogIn, GraduationCap } from 'lucide-react';
+import { Camera, LogIn, GraduationCap, Loader2 } from 'lucide-react';
+import { useAuth, useUser } from '@/firebase';
+import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
+import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user && !isUserLoading) {
+      router.push('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple mock auth
-    if (email.includes('admin')) {
-      localStorage.setItem('user', JSON.stringify({ id: 'admin-1', role: 'ADMIN', name: 'Admin User' }));
-    } else {
-      localStorage.setItem('user', JSON.stringify({ id: 'teacher-1', role: 'TEACHER', name: 'Prof. Helena' }));
+    setIsSubmitting(true);
+    
+    try {
+      initiateEmailSignIn(auth, email, password);
+      // O redirecionamento é tratado pelo useEffect acima quando o estado do usuário muda
+    } catch (error: any) {
+      setIsSubmitting(false);
+      toast({
+        title: "Erro no login",
+        description: "Verifique suas credenciais e tente novamente.",
+        variant: "destructive"
+      });
     }
-    router.push('/dashboard');
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -71,12 +96,12 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full h-11 text-lg font-semibold group">
-              Entrar
-              <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <Button type="submit" disabled={isSubmitting} className="w-full h-11 text-lg font-semibold group">
+              {isSubmitting ? <Loader2 className="mr-2 w-5 h-5 animate-spin" /> : 'Entrar'}
+              {!isSubmitting && <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </Button>
             <div className="text-center text-xs text-muted-foreground mt-2">
-              <p>Dica: Use "admin@school.com" para visão Administrativa</p>
+              <p>Dica: Use credenciais válidas do Firebase Auth</p>
             </div>
           </CardFooter>
         </form>

@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,79 +10,55 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { classes, locations, segments, slotTemplates, bookings, addBooking } from '@/lib/db';
-import { User, AISessionBriefAssistantOutput } from '@/lib/types';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { AISessionBriefAssistantOutput } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
 export default function SchedulePage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const db = useFirestore();
+  const { user } = useUser();
+  
   const [date, setDate] = useState<Date>();
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedLocation, setSelectedLocation] = useState<string>('');
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiBrief, setAiBrief] = useState<AISessionBriefAssistantOutput | null>(null);
 
-  useEffect(() => {
-    setUser(JSON.parse(localStorage.getItem('user') || 'null'));
-  }, []);
+  const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
+  const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
+  const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
 
-  const filteredClasses = classes.filter(c => c.teacherId === user?.id || user?.role === 'ADMIN');
+  const { data: classes } = useCollection(classesQuery);
+  const { data: locations } = useCollection(locationsQuery);
+  const { data: slots } = useCollection(slotsQuery);
 
-  // Conflict logic: check if any booking overlaps with the selected slot duration
-  const isSlotAvailable = (slotStartTime: string, duration = 60) => {
-    if (!date) return true;
-    const dateStr = format(date, 'yyyy-MM-dd');
-    
-    // Convert slot to numeric minutes for overlap check
-    const [sH, sM] = slotStartTime.split(':').map(Number);
-    const startMins = sH * 60 + sM;
-    const endMins = startMins + duration;
-
-    return !bookings.some(b => {
-      if (b.date !== dateStr || b.status === 'CANCELLED') return false;
-      
-      const [bSH, bSM] = b.startTime.split(':').map(Number);
-      const [bEH, bEM] = b.endTime.split(':').map(Number);
-      const bStart = bSH * 60 + bSM;
-      const bEnd = bEH * 60 + bEM;
-
-      // Overlap condition: startA < endB and startB < endA
-      return startMins < bEnd && bStart < endMins;
-    });
-  };
-
-  const availableSlots = date 
-    ? slotTemplates
-        .filter(t => t.dayOfWeek === date.getDay())
-        .map(t => ({
-          ...t,
-          available: isSlotAvailable(t.startTime, t.durationMinutes)
-        }))
-    : [];
+  const filteredClasses = classes?.filter(c => c.responsibleTeacherId === user?.uid) || [];
+  const activeLocations = locations?.filter(l => l.isActive) || [];
 
   const handleGenerateAiBrief = async () => {
-    if (!notes || !selectedClass || !selectedLocation) {
+    if (!notes || !selectedClassId || !selectedLocationId) {
       toast({ title: "Dados incompletos", description: "Preencha a turma, local e suas notas primeiro.", variant: "destructive" });
       return;
     }
 
     setIsAiLoading(true);
     try {
-      const cls = classes.find(c => c.id === selectedClass);
-      const seg = segments.find(s => s.id === cls?.segmentId);
-      const loc = locations.find(l => l.id === selectedLocation);
+      const cls = classes?.find(c => c.id === selectedClassId);
+      const loc = locations?.find(l => l.id === selectedLocationId);
 
       const result = await aiSessionBriefAssistant({
         briefNotes: notes,
-        className: cls?.name || '',
-        segmentName: seg?.name || '',
-        locationName: loc?.name || '',
+        className: cls?.name || 'Turma não identificada',
+        segmentName: 'Geral', // Contexto simplificado
+        locationName: loc?.name || 'Local não identificado',
       });
       setAiBrief(result);
       toast({ title: "Briefing gerado com sucesso!", description: "A IA expandiu suas notas para a equipe de marketing." });
@@ -95,32 +70,36 @@ export default function SchedulePage() {
   };
 
   const handleSchedule = () => {
-    if (!date || !selectedClass || !selectedLocation || !selectedSlot) {
+    if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !db || !user) {
       toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
 
-    const slot = slotTemplates.find(s => s.id === selectedSlot);
+    const slot = slots?.find(s => s.id === selectedSlotId);
     if (!slot) return;
 
-    // Calculate end time
+    // Calcular hora de término simplificada
     const [h, m] = slot.startTime.split(':').map(Number);
-    const endTotal = h * 60 + m + slot.durationMinutes;
+    const endTotal = h * 60 + m + 60; // 60 minutos padrão
     const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
     const endM = (endTotal % 60).toString().padStart(2, '0');
 
-    addBooking({
-      id: Math.random().toString(36).substr(2, 9),
-      classId: selectedClass,
-      teacherId: user?.id || '',
-      locationId: selectedLocation,
-      date: format(date, 'yyyy-MM-dd'),
+    const appointmentData = {
+      schoolClassId: selectedClassId,
+      teacherId: user.uid,
+      photoLocationId: selectedLocationId,
+      appointmentDate: format(date, 'yyyy-MM-dd'),
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
+      sessionDurationMinutes: 60,
       status: 'CONFIRMED',
-      teacherNotes: notes,
-      aiBrief: aiBrief || undefined
-    });
+      observations: notes,
+      aiBrief: aiBrief || null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    addDocumentNonBlocking(collection(db, 'appointments'), appointmentData);
 
     toast({ title: "Agendamento Realizado!", description: "Sua sessão de fotos foi confirmada." });
     router.push('/dashboard/appointments');
@@ -130,7 +109,7 @@ export default function SchedulePage() {
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Novo Agendamento</h1>
-        <p className="text-muted-foreground">Siga os passos abaixo para reservar sua sessão de fotos.</p>
+        <p className="text-muted-foreground">Siga os passos abaixo para reservar sua sessão de fotos no banco de dados real.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -146,7 +125,7 @@ export default function SchedulePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Turma</label>
-                  <Select onValueChange={setSelectedClass} value={selectedClass}>
+                  <Select onValueChange={setSelectedClassId} value={selectedClassId}>
                     <SelectTrigger className="rounded-xl h-11">
                       <SelectValue placeholder="Selecione a turma" />
                     </SelectTrigger>
@@ -159,12 +138,12 @@ export default function SchedulePage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Local da Foto</label>
-                  <Select onValueChange={setSelectedLocation} value={selectedLocation}>
+                  <Select onValueChange={setSelectedLocationId} value={selectedLocationId}>
                     <SelectTrigger className="rounded-xl h-11">
                       <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
                     <SelectContent>
-                      {locations.filter(l => l.active).map(l => (
+                      {activeLocations.map(l => (
                         <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -202,24 +181,19 @@ export default function SchedulePage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Horário Disponível</label>
-                  <Select onValueChange={setSelectedSlot} value={selectedSlot} disabled={!date}>
+                  <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date}>
                     <SelectTrigger className="rounded-xl h-11">
                       <SelectValue placeholder={date ? "Selecione o horário" : "Escolha a data primeiro"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableSlots.length > 0 ? (
-                        availableSlots.map(s => (
-                          <SelectItem key={s.id} value={s.id} disabled={!s.available}>
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4 text-muted-foreground" />
-                              {s.startTime}
-                              {!s.available && <span className="text-[10px] text-destructive font-bold uppercase">(Ocupado)</span>}
-                            </div>
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="p-2 text-center text-xs text-muted-foreground">Nenhum horário cadastrado para este dia.</div>
-                      )}
+                      {slots?.filter(s => s.dayOfWeek === date?.getDay().toString() || s.dayOfWeek === date?.getDay()).map(s => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-muted-foreground" />
+                            {s.startTime}
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -313,8 +287,8 @@ export default function SchedulePage() {
                 Dica do Local
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                {selectedLocation 
-                  ? locations.find(l => l.id === selectedLocation)?.description 
+                {selectedLocationId 
+                  ? locations?.find(l => l.id === selectedLocationId)?.description 
                   : "Selecione um local para ver dicas de iluminação e posicionamento."}
               </p>
             </CardContent>
