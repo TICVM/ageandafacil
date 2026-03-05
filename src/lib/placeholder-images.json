@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "school-garden",
+      "description": "A beautiful green school garden",
+      "imageUrl": "https://picsum.photos/seed/school1/800/600",
+      "imageHint": "school garden"
+    },
+    {
+      "id": "classroom",
+      "description": "Modern bright classroom",
+      "imageUrl": "https://picsum.photos/seed/school2/800/600",
+      "imageHint": "classroom"
+    },
+    {
+      "id": "library",
+      "description": "Cozy school library",
+      "imageUrl": "https://picsum.photos/seed/school3/800/600",
+      "imageHint": "school library"
+    },
+    {
+      "id": "playground",
+      "description": "School playground with kids playing",
+      "imageUrl": "https://picsum.photos/seed/school4/800/600",
+      "imageHint": "school playground"
+    }
+  ]
 }
