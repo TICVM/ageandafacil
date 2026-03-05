@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -26,28 +25,37 @@ import {
   Users,
   Clock,
   PieChart,
+  UserCog,
 } from 'lucide-react';
 import { User } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
+  const { user: authUser } = useUser();
+  const auth = useAuth();
+  const [userData, setUserData] = useState<User | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
-    if (!savedUser) {
-      router.push('/');
-    } else {
-      setUser(JSON.parse(savedUser));
+    if (savedUser) {
+      setUserData(JSON.parse(savedUser));
+    } else if (authUser) {
+      // Fallback básico se não houver no localStorage mas houver auth
+      setUserData({
+        id: authUser.uid,
+        name: authUser.displayName || authUser.email?.split('@')[0] || 'Usuário',
+        email: authUser.email || '',
+        role: 'TEACHER' // Padrão se desconhecido
+      });
     }
-  }, [router]);
+  }, [authUser]);
 
-  if (!user) return null;
-
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = userData?.role === 'ADMIN';
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -56,13 +64,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const adminItems = [
+    { title: 'Usuários/Professores', icon: UserCog, href: '/dashboard/admin/users' },
     { title: 'Configurar Horários', icon: Clock, href: '/dashboard/admin/slots' },
     { title: 'Locais de Foto', icon: MapPin, href: '/dashboard/admin/locations' },
     { title: 'Turmas e Segmentos', icon: Users, href: '/dashboard/admin/classes' },
     { title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' },
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut(auth);
     localStorage.removeItem('user');
     router.push('/');
   };
@@ -130,12 +140,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
             <Avatar className="w-8 h-8">
               <AvatarFallback className="bg-accent text-accent-foreground font-bold">
-                {user.name.charAt(0)}
+                {userData?.name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-sm font-semibold truncate max-w-[120px]">{user.name}</span>
-              <span className="text-[10px] text-muted-foreground">{user.role}</span>
+              <span className="text-sm font-semibold truncate max-w-[120px]">{userData?.name}</span>
+              <span className="text-[10px] text-muted-foreground">{userData?.role}</span>
             </div>
             <button
               onClick={handleLogout}
