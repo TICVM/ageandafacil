@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -12,11 +13,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2, Hash } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2, Hash, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking } from '@/lib/types';
+import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
@@ -40,12 +41,14 @@ export default function PublicBookingPage() {
   const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
   const segmentsQuery = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
   const appointmentsQuery = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
+  const blocksQuery = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
 
   const { data: rawClasses } = useCollection<Class>(classesQuery);
   const { data: rawLocations } = useCollection<PhotoLocation>(locationsQuery);
   const { data: slots } = useCollection<TimeSlot>(slotsQuery);
   const { data: rawSegments } = useCollection<Segment>(segmentsQuery);
   const { data: allAppointments } = useCollection<Booking>(appointmentsQuery);
+  const { data: allBlocks } = useCollection<ScheduleBlock>(blocksQuery);
 
   const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
@@ -56,24 +59,24 @@ export default function PublicBookingPage() {
   
   const selectedLocation = locations?.find(l => l.id === selectedLocationId);
 
-  // Filtro de locais baseado na unidade do segmento da turma
   const filteredLocations = locations?.filter(l => {
     if (!l.isActive) return false;
-    
-    // Se a turma não foi selecionada, mostra todos os locais ativos
     if (!selectedSegment || !selectedSegment.unit) return true;
-    
-    // Se o segmento tem unidade, filtra locais pela mesma unidade
-    // Se o local não tem unidade definida, ele é considerado "global" e aparece para todos
     return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
   }) || [];
 
+  // Lógica principal de filtragem de horários:
+  // Remove horários que:
+  // 1. Já estão agendados (CONFIRMED)
+  // 2. Estão dentro de um período bloqueado pelo administrador (ScheduleBlock)
   const availableSlots = slots?.filter(s => {
     if (!date) return false;
     
+    // 1. Filtro básico de dia da semana
     const dayMatches = s.dayOfWeek === date.getDay().toString();
     if (!dayMatches) return false;
 
+    // 2. Filtro de alvo (Global, Segmento ou Turma)
     const targetMatches = s.schoolClassId 
       ? s.schoolClassId === selectedClassId
       : s.schoolSegmentId 
@@ -83,14 +86,39 @@ export default function PublicBookingPage() {
     if (!targetMatches) return false;
 
     const dateStr = format(date, 'yyyy-MM-dd');
+
+    // 3. Verifica se o horário já está ocupado por outro professor
     const isTaken = allAppointments?.some(app => 
       app.appointmentDate === dateStr && 
       app.startTime === s.startTime && 
       app.status === 'CONFIRMED'
     );
+    if (isTaken) return false;
 
-    return !isTaken;
+    // 4. Verifica se o horário está dentro de um BLOQUEIO administrativo
+    const isBlocked = allBlocks?.some(block => {
+      if (block.date !== dateStr) return false;
+      
+      // Converte horários HH:mm para minutos totais para comparação fácil
+      const timeToMin = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const slotStart = timeToMin(s.startTime);
+      const slotEnd = slotStart + (s.durationMinutes || 60);
+      const blockStart = timeToMin(block.startTime);
+      const blockEnd = timeToMin(block.endTime);
+
+      // Existe sobreposição se: (slotStart < blockEnd) AND (slotEnd > blockStart)
+      return slotStart < blockEnd && slotEnd > blockStart;
+    });
+
+    return !isBlocked;
   }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
+
+  // Verifica se o dia inteiro está bloqueado para exibir um aviso
+  const dayBlock = allBlocks?.find(b => date && b.date === format(date, 'yyyy-MM-dd'));
 
   const handleGenerateAiBrief = async () => {
     if (!notes || !selectedClassId || !selectedLocationId) {
@@ -208,6 +236,18 @@ export default function PublicBookingPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2 space-y-8">
+            {dayBlock && (
+              <div className="bg-destructive/10 border-2 border-destructive/20 p-6 rounded-3xl flex items-center gap-4 animate-in slide-in-from-top-2 duration-500">
+                <div className="bg-destructive p-3 rounded-2xl">
+                  <ShieldAlert className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-destructive">Dia com Restrições</h4>
+                  <p className="text-sm text-destructive/80 font-medium">Atenção: Existem períodos bloqueados pela direção neste dia: <span className="underline">{dayBlock.reason}</span>.</p>
+                </div>
+              </div>
+            )}
+
             <Card className="shadow-xl border-none overflow-hidden rounded-3xl">
               <CardHeader className="bg-primary text-primary-foreground p-6">
                 <CardTitle className="flex items-center gap-2">
@@ -234,7 +274,7 @@ export default function PublicBookingPage() {
                     <label className="text-sm font-semibold">Turma</label>
                     <Select onValueChange={(val) => {
                       setSelectedClassId(val);
-                      setSelectedLocationId(''); // Reseta o local ao trocar de turma para re-filtrar
+                      setSelectedLocationId('');
                     }} value={selectedClassId}>
                       <SelectTrigger className="rounded-xl h-11">
                         <SelectValue placeholder="Selecione a turma" />
@@ -281,7 +321,6 @@ export default function PublicBookingPage() {
                       onChange={(e) => setLocationIdentifier(e.target.value)}
                       className="rounded-xl h-11 bg-white"
                     />
-                    <p className="text-[10px] text-muted-foreground">Este local possui múltiplas unidades. Por favor, especifique qual usará.</p>
                   </div>
                 )}
 
@@ -332,7 +371,7 @@ export default function PublicBookingPage() {
                           ))
                         ) : (
                           <div className="p-4 text-xs text-center text-muted-foreground">
-                            {!date ? "Selecione uma data primeiro." : "Todos os horários ocupados ou não disponíveis para este dia."}
+                            {!date ? "Selecione uma data primeiro." : "Nenhum horário disponível para este dia ou período bloqueado."}
                           </div>
                         )}
                       </SelectContent>
@@ -386,14 +425,6 @@ export default function PublicBookingPage() {
                     <div className="p-4 bg-white rounded-2xl border border-accent/20 shadow-sm space-y-3">
                       <h4 className="font-bold text-accent-foreground text-sm">Contexto:</h4>
                       <p className="text-xs leading-relaxed text-muted-foreground">{aiBrief.detailedBrief}</p>
-                      <h4 className="font-bold text-accent-foreground text-sm">Atividades:</h4>
-                      <ul className="text-xs space-y-1">
-                        {aiBrief.keyActivities.slice(0, 3).map((act, i) => (
-                          <li key={i} className="flex items-center gap-2">
-                            <CheckCircle2 className="w-3 h-3 text-green-500" /> {act}
-                          </li>
-                        ))}
-                      </ul>
                     </div>
                   </div>
                 ) : (
@@ -401,30 +432,6 @@ export default function PublicBookingPage() {
                     <p className="text-xs text-muted-foreground italic">Escreva nas notas e clique em "Assistente IA" para detalhar sua ideia.</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-md bg-primary/5 rounded-3xl">
-              <CardContent className="p-6 space-y-3">
-                <h3 className="font-bold text-primary flex items-center gap-2">
-                  <MapPin className="w-4 h-4" /> Dica do Local
-                </h3>
-                {selectedLocation && (
-                  <div className="flex flex-col gap-1 mb-1">
-                    <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
-                      <Building2 className="w-3 h-3" />
-                      {selectedLocation.unit || 'Unidade não informada'}
-                    </div>
-                    {selectedLocation.requiresIdentifier && (
-                      <Badge variant="secondary" className="w-fit text-[9px] h-4">Requer Identificação</Badge>
-                    )}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {selectedLocationId 
-                    ? locations?.find(l => l.id === selectedLocationId)?.description 
-                    : "Escolha um local para ver dicas importantes."}
-                </p>
               </CardContent>
             </Card>
           </div>

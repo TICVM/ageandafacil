@@ -12,7 +12,7 @@ export interface User {
 export interface Segment {
   id: string;
   name: string;
-  unit?: string; // Unidade vinculada ao segmento
+  unit?: string;
   order?: number;
 }
 
@@ -29,7 +29,7 @@ export interface PhotoLocation {
   unit?: string;
   description: string;
   isActive: boolean;
-  requiresIdentifier?: boolean; // Se true, abre campo para nº da sala
+  requiresIdentifier?: boolean;
 }
 
 export interface AISessionBriefAssistantOutput {
@@ -45,22 +45,32 @@ export interface Booking {
   teacherId?: string;
   teacherName: string;
   photoLocationId: string;
-  locationIdentifier?: string; // Ex: "Sala 12", "Laboratório 2"
-  appointmentDate: string; // ISO Date String YYYY-MM-DD
-  startTime: string; // HH:mm
-  endTime: string; // HH:mm
+  locationIdentifier?: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
   observations: string;
   sessionDurationMinutes: number;
   aiBrief?: AISessionBriefAssistantOutput | null;
+  createdAt?: any;
 }
 
 export interface TimeSlot {
   id: string;
-  dayOfWeek: string; // 0-6
-  startTime: string; // HH:mm
+  dayOfWeek: string;
+  startTime: string;
   durationMinutes: number;
   schoolSegmentId?: string | null;
   schoolClassId?: string | null;
   isActive: boolean;
+}
+
+export interface ScheduleBlock {
+  id: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  reason: string;
+  createdAt: any;
 }

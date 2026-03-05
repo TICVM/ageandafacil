@@ -7,14 +7,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy } from 'lucide-react';
+import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy, ShieldAlert, CalendarIcon } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch } from 'firebase/firestore';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, writeBatch, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { TimeSlot, Class, Segment } from '@/lib/types';
+import { TimeSlot, Class, Segment, ScheduleBlock } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 const DAYS_OF_WEEK = [
   { id: '1', label: 'Segunda', short: 'Seg' },
@@ -32,10 +37,12 @@ export default function SlotAdminPage() {
   const slotsRef = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
+  const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
 
   const { data: slots, isLoading: loadingSlots } = useCollection<TimeSlot>(slotsRef);
   const { data: rawClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments } = useCollection<Segment>(segmentsRef);
+  const { data: blocks, isLoading: loadingBlocks } = useCollection<ScheduleBlock>(blocksRef);
 
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
@@ -47,11 +54,11 @@ export default function SlotAdminPage() {
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [targetId, setTargetId] = useState('');
   
-  // Estado do Copiador
-  const [sourceType, setSourceType] = useState<'global' | 'segment' | 'class'>('global');
-  const [sourceId, setSourceId] = useState('');
-  const [destType, setDestType] = useState<'segment' | 'class'>('segment');
-  const [destId, setDestId] = useState('');
+  // Estado do Bloqueio
+  const [blockDate, setBlockDate] = useState<Date>();
+  const [blockStart, setBlockStart] = useState('07:00');
+  const [blockEnd, setBlockEnd] = useState('18:00');
+  const [blockReason, setBlockReason] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -66,11 +73,6 @@ export default function SlotAdminPage() {
       toast({ title: "Erro", description: "Selecione pelo menos um dia.", variant: "destructive" });
       return;
     }
-    if ((targetType === 'segment' || targetType === 'class') && !targetId) {
-      toast({ title: "Erro", description: "Selecione o destino.", variant: "destructive" });
-      return;
-    }
-
     setIsSaving(true);
     try {
       const batch = writeBatch(db);
@@ -95,52 +97,31 @@ export default function SlotAdminPage() {
     }
   };
 
-  const handleCopySlots = async () => {
-    if (!db || !slots) return;
-    if ((sourceType !== 'global' && !sourceId) || !destId) {
-      toast({ title: "Erro", description: "Selecione origem e destino corretamente.", variant: "destructive" });
+  const handleAddBlock = () => {
+    if (!db || !blockDate || !blockReason) {
+      toast({ title: "Erro", description: "Preencha a data e o motivo do bloqueio.", variant: "destructive" });
       return;
     }
 
-    setIsSaving(true);
-    try {
-      const sourceSlots = slots.filter(s => {
-        if (sourceType === 'global') return !s.schoolClassId && !s.schoolSegmentId;
-        if (sourceType === 'segment') return s.schoolSegmentId === sourceId;
-        if (sourceType === 'class') return s.schoolClassId === sourceId;
-        return false;
-      });
+    addDocumentNonBlocking(collection(db, 'schedule_blocks'), {
+      date: format(blockDate, 'yyyy-MM-dd'),
+      startTime: blockStart,
+      endTime: blockEnd,
+      reason: blockReason,
+      createdAt: serverTimestamp()
+    });
 
-      if (sourceSlots.length === 0) {
-        toast({ title: "Aviso", description: "A origem selecionada não possui horários para copiar.", variant: "secondary" });
-        return;
-      }
-
-      const batch = writeBatch(db);
-      const slotsCol = collection(db, 'available_time_slots');
-
-      sourceSlots.forEach(s => {
-        const newSlotRef = doc(slotsCol);
-        batch.set(newSlotRef, {
-          dayOfWeek: s.dayOfWeek,
-          startTime: s.startTime,
-          durationMinutes: s.durationMinutes,
-          schoolSegmentId: destType === 'segment' ? destId : null,
-          schoolClassId: destType === 'class' ? destId : null,
-          isActive: true
-        });
-      });
-
-      await batch.commit();
-      toast({ title: "Grade Copiada!", description: `${sourceSlots.length} horários foram replicados.` });
-    } catch (error) {
-      toast({ title: "Erro na cópia", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
+    setBlockReason('');
+    toast({ title: "Período Bloqueado", description: "Ninguém poderá reservar fotos neste intervalo." });
   };
 
-  const handleRemove = (id: string) => {
+  const handleRemoveBlock = (id: string) => {
+    if (!db) return;
+    deleteDocumentNonBlocking(doc(db, 'schedule_blocks', id));
+    toast({ title: "Bloqueio Removido" });
+  };
+
+  const handleRemoveSlot = (id: string) => {
     if (!db) return;
     deleteDocumentNonBlocking(doc(db, 'available_time_slots', id));
     toast({ title: "Horário Removido" });
@@ -161,8 +142,8 @@ export default function SlotAdminPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Grade de Horários</h1>
-        <p className="text-muted-foreground">Configure e replique os horários de fotos da escola.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Grade e Bloqueios</h1>
+        <p className="text-muted-foreground">Gerencie a estrutura de horários e eventos que impedem fotos.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -170,13 +151,13 @@ export default function SlotAdminPage() {
           <Tabs defaultValue="create" className="w-full">
             <TabsList className="grid w-full grid-cols-2 rounded-xl bg-white p-1 border shadow-sm">
               <TabsTrigger value="create" className="rounded-lg">Novo Horário</TabsTrigger>
-              <TabsTrigger value="copy" className="rounded-lg">Copiar Grade</TabsTrigger>
+              <TabsTrigger value="block" className="rounded-lg">Bloquear Data</TabsTrigger>
             </TabsList>
             
             <TabsContent value="create">
               <Card className="shadow-md border-none">
                 <CardHeader>
-                  <CardTitle className="text-lg">Gerar em Lote</CardTitle>
+                  <CardTitle className="text-lg">Gerar Grade</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-4 gap-1">
@@ -227,78 +208,114 @@ export default function SlotAdminPage() {
 
                   <Button onClick={handleBatchAdd} className="w-full rounded-xl gap-2 shadow-lg" disabled={isSaving}>
                     {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    Adicionar Horários
+                    Adicionar à Grade
                   </Button>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="copy">
-              <Card className="shadow-md border-none">
+            <TabsContent value="block">
+              <Card className="shadow-md border-none border-t-4 border-t-destructive">
                 <CardHeader>
-                  <CardTitle className="text-lg">Replicar Grade</CardTitle>
-                  <CardDescription className="text-xs">Copie todos os horários de um local para outro.</CardDescription>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5 text-destructive" />
+                    Travar Período
+                  </CardTitle>
+                  <CardDescription>Crie uma reserva administrativa para bloquear o dia/hora.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2 p-3 bg-primary/5 rounded-xl border border-primary/10">
-                    <label className="text-xs font-bold flex items-center gap-1 text-primary">
-                      <Globe className="w-3 h-3" /> Origem (De onde copiar)
-                    </label>
-                    <div className="flex gap-1 mb-2">
-                      <Button variant={sourceType === 'global' ? 'default' : 'outline'} size="sm" onClick={() => { setSourceType('global'); setSourceId(''); }} className="text-[10px] h-7 flex-1">Global</Button>
-                      <Button variant={sourceType === 'segment' ? 'default' : 'outline'} size="sm" onClick={() => { setSourceType('segment'); setSourceId(''); }} className="text-[10px] h-7 flex-1">Segmento</Button>
-                      <Button variant={sourceType === 'class' ? 'default' : 'outline'} size="sm" onClick={() => { setSourceType('class'); setSourceId(''); }} className="text-[10px] h-7 flex-1">Turma</Button>
-                    </div>
-                    {sourceType !== 'global' && (
-                      <Select onValueChange={setSourceId} value={sourceId}>
-                        <SelectTrigger className="rounded-xl h-9 bg-white">
-                          <SelectValue placeholder="Selecione a origem" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sourceType === 'segment' ? 
-                            sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
-                            sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
-                          }
-                        </SelectContent>
-                      </Select>
-                    )}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold">Data do Evento</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full h-10 justify-start text-left font-normal rounded-xl",
+                            !blockDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {blockDate ? format(blockDate, "dd/MM/yyyy") : <span>Escolha a data</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={blockDate}
+                          onSelect={setBlockDate}
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
-                  <div className="space-y-2 p-3 bg-accent/5 rounded-xl border border-accent/10">
-                    <label className="text-xs font-bold flex items-center gap-1 text-accent-foreground">
-                      <Copy className="w-3 h-3" /> Destino (Para onde copiar)
-                    </label>
-                    <div className="flex gap-1 mb-2">
-                      <Button variant={destType === 'segment' ? 'default' : 'outline'} size="sm" onClick={() => { setDestType('segment'); setDestId(''); }} className="text-[10px] h-7 flex-1">Segmento</Button>
-                      <Button variant={destType === 'class' ? 'default' : 'outline'} size="sm" onClick={() => { setDestType('class'); setDestId(''); }} className="text-[10px] h-7 flex-1">Turma</Button>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold">Bloquear De:</label>
+                      <Input type="time" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} className="rounded-xl h-10" />
                     </div>
-                    <Select onValueChange={setDestId} value={destId}>
-                      <SelectTrigger className="rounded-xl h-9 bg-white">
-                        <SelectValue placeholder="Selecione o destino" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {destType === 'segment' ? 
-                          sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) :
-                          sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
-                        }
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold">Até:</label>
+                      <Input type="time" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} className="rounded-xl h-10" />
+                    </div>
                   </div>
 
-                  <Button onClick={handleCopySlots} variant="secondary" className="w-full rounded-xl gap-2 shadow-sm border" disabled={isSaving || !destId}>
-                    {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    Copiar Agora
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold">Motivo do Bloqueio</label>
+                    <Input 
+                      placeholder="Ex: Reunião Pedagógica, Feriado..." 
+                      value={blockReason}
+                      onChange={(e) => setBlockReason(e.target.value)}
+                      className="rounded-xl h-10"
+                    />
+                  </div>
+
+                  <Button onClick={handleAddBlock} variant="destructive" className="w-full rounded-xl gap-2 shadow-lg">
+                    <ShieldAlert className="w-4 h-4" />
+                    Ativar Bloqueio
                   </Button>
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
+
+          <Card className="shadow-md border-none overflow-hidden bg-white">
+            <CardHeader className="bg-destructive/5 py-4">
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-destructive" />
+                Bloqueios Ativos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingBlocks ? (
+                <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-destructive" /></div>
+              ) : blocks && blocks.length > 0 ? (
+                <div className="divide-y max-h-[300px] overflow-auto">
+                  {blocks.sort((a,b) => a.date.localeCompare(b.date)).map(b => (
+                    <div key={b.id} className="p-4 flex justify-between items-center hover:bg-muted/10 transition-colors">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm">{format(new Date(b.date + 'T00:00:00'), 'dd/MM/yy')}</span>
+                        <span className="text-[10px] text-muted-foreground">{b.startTime} - {b.endTime}</span>
+                        <span className="text-xs font-medium text-destructive mt-1">{b.reason}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveBlock(b.id)} className="text-destructive rounded-full hover:bg-destructive/10">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-10 text-center text-xs text-muted-foreground">Nenhum bloqueio cadastrado.</div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Card className="lg:col-span-2 shadow-md border-none overflow-hidden bg-white">
           <CardHeader className="bg-muted/10">
-            <CardTitle className="text-xl">Grade Atual</CardTitle>
-            <CardDescription>Visualize os horários configurados por dia.</CardDescription>
+            <CardTitle className="text-xl">Grade de Horários</CardTitle>
+            <CardDescription>Visualize e remova horários padrão por dia.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             {loadingSlots ? (
@@ -350,7 +367,7 @@ export default function SlotAdminPage() {
                                 variant="ghost" 
                                 size="icon" 
                                 className="h-9 w-9 text-destructive opacity-0 md:group-hover:opacity-100 hover:bg-destructive/10 rounded-full transition-all"
-                                onClick={() => handleRemove(s.id)}
+                                onClick={() => handleRemoveSlot(s.id)}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>

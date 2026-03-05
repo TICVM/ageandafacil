@@ -3,15 +3,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * SISTEMA DE AGENDAMENTO ESCOLAR - REGRAS PÚBLICAS E PRIVADAS
-     */
-
     function isSignedIn() {
       return request.auth != null;
     }
-
-    // --- Regras de Coleção ---
 
     // Dados públicos necessários para preencher o formulário de reserva
     match /school_segments/{segmentId} {
@@ -34,7 +28,12 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Agendamentos: Qualquer pessoa pode criar, mas apenas logados veem/editam
+    match /schedule_blocks/{blockId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Agendamentos: Qualquer pessoa pode criar, mas apenas logados veem/editam no dashboard
     match /appointments/{appointmentId} {
       allow create: if true;
       allow read, write: if isSignedIn();

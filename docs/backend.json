@@ -17,7 +17,19 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "schoolSegmentId": { "type": "string" }
+        "schoolSegmentId": { "type": "string" },
+        "order": { "type": "number" }
+      }
+    },
+    "SchoolSegment": {
+      "title": "SchoolSegment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "unit": { "type": "string" },
+        "order": { "type": "number" },
+        "isActive": { "type": "boolean" }
       }
     },
     "Appointment": {
@@ -26,13 +38,28 @@
       "properties": {
         "id": { "type": "string" },
         "schoolClassId": { "type": "string" },
-        "teacherName": { "type": "string", "description": "Nome digitado pelo professor no ato da reserva" },
+        "teacherName": { "type": "string" },
         "photoLocationId": { "type": "string" },
+        "locationIdentifier": { "type": "string" },
         "appointmentDate": { "type": "string", "format": "date" },
         "startTime": { "type": "string" },
         "endTime": { "type": "string" },
         "status": { "type": "string" },
-        "observations": { "type": "string" }
+        "observations": { "type": "string" },
+        "aiBrief": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ScheduleBlock": {
+      "title": "ScheduleBlock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     }
   },
@@ -42,7 +69,12 @@
   "firestore": {
     "structure": [
       { "path": "/school_classes/{classId}", "definition": { "entityName": "SchoolClass" } },
-      { "path": "/appointments/{appointmentId}", "definition": { "entityName": "Appointment" } }
+      { "path": "/school_segments/{segmentId}", "definition": { "entityName": "SchoolSegment" } },
+      { "path": "/appointments/{appointmentId}", "definition": { "entityName": "Appointment" } },
+      { "path": "/photo_locations/{locationId}", "definition": { "entityName": "PhotoLocation" } },
+      { "path": "/available_time_slots/{slotId}", "definition": { "entityName": "TimeSlot" } },
+      { "path": "/schedule_blocks/{blockId}", "definition": { "entityName": "ScheduleBlock" } },
+      { "path": "/users/{userId}", "definition": { "entityName": "User" } }
     ]
   }
 }
