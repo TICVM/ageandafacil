@@ -12,12 +12,14 @@ export interface User {
 export interface Segment {
   id: string;
   name: string;
+  order?: number;
 }
 
 export interface Class {
   id: string;
   name: string;
   schoolSegmentId: string;
+  order?: number;
 }
 
 export interface PhotoLocation {
@@ -37,8 +39,8 @@ export interface AISessionBriefAssistantOutput {
 export interface Booking {
   id: string;
   schoolClassId: string;
-  teacherId?: string; // Opcional agora
-  teacherName: string; // Novo campo obrigatório
+  teacherId?: string;
+  teacherName: string;
   photoLocationId: string;
   appointmentDate: string; // ISO Date String YYYY-MM-DD
   startTime: string; // HH:mm

@@ -40,10 +40,15 @@ export default function PublicBookingPage() {
   const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
   const segmentsQuery = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
 
-  const { data: classes } = useCollection<Class>(classesQuery);
-  const { data: locations } = useCollection<PhotoLocation>(locationsQuery);
+  const { data: rawClasses } = useCollection<Class>(classesQuery);
+  const { data: rawLocations } = useCollection<PhotoLocation>(locationsQuery);
   const { data: slots } = useCollection<TimeSlot>(slotsQuery);
-  const { data: segments } = useCollection<Segment>(segmentsQuery);
+  const { data: rawSegments } = useCollection<Segment>(segmentsQuery);
+
+  // Ordenação das turmas e segmentos conforme definido pelo admin
+  const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+  const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+  const locations = rawLocations || [];
 
   const selectedClass = classes?.find(c => c.id === selectedClassId);
   const activeLocations = locations?.filter(l => l.isActive) || [];
