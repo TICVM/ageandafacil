@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment } from '@/lib/types';
+import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
@@ -40,11 +40,13 @@ export default function PublicBookingPage() {
   const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
   const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
   const segmentsQuery = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
+  const appointmentsQuery = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
 
   const { data: rawClasses } = useCollection<Class>(classesQuery);
   const { data: rawLocations } = useCollection<PhotoLocation>(locationsQuery);
   const { data: slots } = useCollection<TimeSlot>(slotsQuery);
   const { data: rawSegments } = useCollection<Segment>(segmentsQuery);
+  const { data: allAppointments } = useCollection<Booking>(appointmentsQuery);
 
   const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
@@ -54,14 +56,33 @@ export default function PublicBookingPage() {
   const selectedLocation = locations?.find(l => l.id === selectedLocationId);
   const activeLocations = locations?.filter(l => l.isActive) || [];
 
+  // Lógica para filtrar horários disponíveis, removendo os que já possuem agendamento para a data
   const availableSlots = slots?.filter(s => {
     if (!date) return false;
+    
+    // 1. Verifica se o dia da semana coincide
     const dayMatches = s.dayOfWeek === date.getDay().toString();
     if (!dayMatches) return false;
-    if (s.schoolClassId) return s.schoolClassId === selectedClassId;
-    if (s.schoolSegmentId) return s.schoolSegmentId === selectedClass?.schoolSegmentId;
-    return !s.schoolClassId && !s.schoolSegmentId;
-  }) || [];
+
+    // 2. Verifica regras de turma/segmento
+    const targetMatches = s.schoolClassId 
+      ? s.schoolClassId === selectedClassId
+      : s.schoolSegmentId 
+        ? s.schoolSegmentId === selectedClass?.schoolSegmentId
+        : !s.schoolClassId && !s.schoolSegmentId;
+    
+    if (!targetMatches) return false;
+
+    // 3. Bloqueio de duplicidade: Verifica se já existe um agendamento confirmado para este horário e data
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const isTaken = allAppointments?.some(app => 
+      app.appointmentDate === dateStr && 
+      app.startTime === s.startTime && 
+      app.status === 'CONFIRMED'
+    );
+
+    return !isTaken;
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || []; // Ordenação crescente por horário
 
   const handleGenerateAiBrief = async () => {
     if (!notes || !selectedClassId || !selectedLocationId) {
@@ -121,9 +142,12 @@ export default function PublicBookingPage() {
       updatedAt: serverTimestamp(),
     };
 
-    addDocumentNonBlocking(collection(db, 'appointments'), appointmentData);
-    setIsSuccess(true);
-    toast({ title: "Reserva Confirmada!" });
+    addDoc(collection(db, 'appointments'), appointmentData).then(() => {
+      setIsSuccess(true);
+      toast({ title: "Reserva Confirmada!" });
+    }).catch((e) => {
+      toast({ title: "Erro ao reservar", description: e.message, variant: "destructive" });
+    });
   };
 
   if (isSuccess) {
@@ -292,7 +316,9 @@ export default function PublicBookingPage() {
                             </SelectItem>
                           ))
                         ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground">Nenhum horário para este dia.</div>
+                          <div className="p-4 text-xs text-center text-muted-foreground">
+                            {!date ? "Selecione uma data primeiro." : "Todos os horários ocupados ou não disponíveis para este dia."}
+                          </div>
                         )}
                       </SelectContent>
                     </Select>
@@ -392,3 +418,4 @@ export default function PublicBookingPage() {
     </div>
   );
 }
+
