@@ -5,23 +5,26 @@ import { Button } from '@/components/ui/button';
 import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { Booking } from '@/lib/types';
 
 export default function Dashboard() {
   const db = useFirestore();
   const { user } = useUser();
 
+  // Removido o orderBy para evitar erro de índice composto no Firestore
   const appointmentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
       collection(db, 'appointments'),
-      where('teacherId', '==', user.uid),
-      orderBy('appointmentDate', 'asc')
+      where('teacherId', '==', user.uid)
     );
   }, [db, user]);
 
-  const { data: userBookings, isLoading } = useCollection<Booking>(appointmentsQuery);
+  const { data: rawBookings, isLoading } = useCollection<Booking>(appointmentsQuery);
+
+  // Ordenação realizada no cliente
+  const userBookings = rawBookings ? [...rawBookings].sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate)) : [];
 
   const nextBooking = userBookings?.find(b => b.status === 'CONFIRMED' && new Date(b.appointmentDate) >= new Date());
 

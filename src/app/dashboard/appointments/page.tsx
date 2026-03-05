@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Filter, Loader2 } from 'lucide-react';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, doc } from 'firebase/firestore';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
@@ -19,12 +19,12 @@ export default function AppointmentsPage() {
   const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Removido o orderBy para evitar erro de índice composto no Firestore
   const appointmentsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
       collection(db, 'appointments'),
-      where('teacherId', '==', user.uid),
-      orderBy('appointmentDate', 'desc')
+      where('teacherId', '==', user.uid)
     );
   }, [db, user]);
 
@@ -37,10 +37,13 @@ export default function AppointmentsPage() {
     toast({ title: "Agendamento Cancelado", description: "O horário foi liberado com sucesso." });
   };
 
-  const filtered = list?.filter(b => 
+  // Ordenação realizada no cliente (mais recente primeiro)
+  const sortedList = list ? [...list].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate)) : [];
+
+  const filtered = sortedList.filter(b => 
     b.status.toLowerCase().includes(searchTerm.toLowerCase()) || 
     b.appointmentDate.includes(searchTerm)
-  ) || [];
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
