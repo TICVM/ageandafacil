@@ -7,19 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy, ShieldAlert, CalendarIcon } from 'lucide-react';
+import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy, ShieldAlert, CalendarIcon, ListPlus } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { TimeSlot, Class, Segment, ScheduleBlock } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 const DAYS_OF_WEEK = [
   { id: '1', label: 'Segunda', short: 'Seg' },
@@ -56,9 +58,13 @@ export default function SlotAdminPage() {
   
   // Estado do Bloqueio
   const [blockDate, setBlockDate] = useState<Date>();
+  const [blockMultipleDates, setBlockMultipleDates] = useState<Date[]>([]);
   const [blockStart, setBlockStart] = useState('07:00');
   const [blockEnd, setBlockEnd] = useState('18:00');
   const [blockReason, setBlockReason] = useState('');
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [bulkDatesText, setBulkDatesText] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -97,22 +103,88 @@ export default function SlotAdminPage() {
     }
   };
 
-  const handleAddBlock = () => {
-    if (!db || !blockDate || !blockReason) {
-      toast({ title: "Erro", description: "Preencha a data e o motivo do bloqueio.", variant: "destructive" });
+  const handleAddBlock = async () => {
+    if (!db || !blockReason) {
+      toast({ title: "Erro", description: "Preencha o motivo do bloqueio.", variant: "destructive" });
       return;
     }
 
-    addDocumentNonBlocking(collection(db, 'schedule_blocks'), {
-      date: format(blockDate, 'yyyy-MM-dd'),
-      startTime: blockStart,
-      endTime: blockEnd,
-      reason: blockReason,
-      createdAt: serverTimestamp()
+    const datesToBlock = isBulkMode ? blockMultipleDates : (blockDate ? [blockDate] : []);
+
+    if (datesToBlock.length === 0) {
+      toast({ title: "Erro", description: "Selecione ao menos uma data.", variant: "destructive" });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const batch = writeBatch(db);
+      const blocksCol = collection(db, 'schedule_blocks');
+
+      datesToBlock.forEach(d => {
+        const newRef = doc(blocksCol);
+        batch.set(newRef, {
+          date: format(d, 'yyyy-MM-dd'),
+          startTime: blockStart,
+          endTime: blockEnd,
+          reason: blockReason,
+          createdAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+      toast({ title: datesToBlock.length > 1 ? "Bloqueios em Lote Criados" : "Período Bloqueado" });
+      setBlockReason('');
+      setBlockDate(undefined);
+      setBlockMultipleDates([]);
+    } catch (e) {
+      toast({ title: "Erro ao criar bloqueio", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleProcessBulkText = () => {
+    if (!bulkDatesText.trim()) return;
+
+    // Tenta processar datas no formato DD/MM/YYYY ou YYYY-MM-DD
+    const lines = bulkDatesText.split('\n');
+    const parsedDates: Date[] = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      try {
+        let d: Date;
+        if (trimmed.includes('/')) {
+          d = parse(trimmed, 'dd/MM/yyyy', new Date());
+        } else {
+          d = parse(trimmed, 'yyyy-MM-dd', new Date());
+        }
+        
+        if (!isNaN(d.getTime())) {
+          parsedDates.push(d);
+        }
+      } catch (e) {
+        console.warn("Data inválida ignorada:", trimmed);
+      }
     });
 
-    setBlockReason('');
-    toast({ title: "Período Bloqueado", description: "Ninguém poderá reservar fotos neste intervalo." });
+    if (parsedDates.length > 0) {
+      setBlockMultipleDates(prev => {
+        // Remove duplicatas
+        const existing = prev.map(p => format(p, 'yyyy-MM-dd'));
+        const uniqueNew = parsedDates.filter(p => !existing.includes(format(p, 'yyyy-MM-dd')));
+        return [...prev, ...uniqueNew];
+      });
+      setIsBulkMode(true);
+      setIsBulkImportOpen(false);
+      setBulkDatesText('');
+      toast({ title: `${parsedDates.length} datas identificadas.` });
+    } else {
+      toast({ title: "Nenhuma data válida encontrada.", variant: "destructive" });
+    }
   };
 
   const handleRemoveBlock = (id: string) => {
@@ -141,9 +213,11 @@ export default function SlotAdminPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Grade e Bloqueios</h1>
-        <p className="text-muted-foreground">Gerencie a estrutura de horários e eventos que impedem fotos.</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Grade e Bloqueios</h1>
+          <p className="text-muted-foreground">Gerencie a estrutura de horários e eventos que impedem fotos.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -216,36 +290,76 @@ export default function SlotAdminPage() {
 
             <TabsContent value="block">
               <Card className="shadow-md border-none border-t-4 border-t-destructive">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-destructive" />
-                    Travar Período
-                  </CardTitle>
+                <CardHeader className="pb-4">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <ShieldAlert className="w-5 h-5 text-destructive" />
+                      Travar Período
+                    </CardTitle>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setIsBulkImportOpen(true)}
+                      className="h-8 rounded-lg text-primary text-[10px] font-bold"
+                    >
+                      <ListPlus className="w-3 h-3 mr-1" />
+                      Importar Lista
+                    </Button>
+                  </div>
                   <CardDescription>Crie uma reserva administrativa para bloquear o dia/hora.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge 
+                      variant={isBulkMode ? "default" : "outline"} 
+                      className="cursor-pointer rounded-lg text-[10px]"
+                      onClick={() => {
+                        setIsBulkMode(prev => !prev);
+                        if (!isBulkMode) setBlockDate(undefined);
+                        else setBlockMultipleDates([]);
+                      }}
+                    >
+                      {isBulkMode ? "Múltiplas Datas Ativado" : "Clique para selecionar várias"}
+                    </Badge>
+                  </div>
+
                   <div className="space-y-2">
-                    <label className="text-xs font-bold">Data do Evento</label>
+                    <label className="text-xs font-bold">Data(s) do Evento</label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant={"outline"}
                           className={cn(
                             "w-full h-10 justify-start text-left font-normal rounded-xl",
-                            !blockDate && "text-muted-foreground"
+                            ((!isBulkMode && !blockDate) || (isBulkMode && blockMultipleDates.length === 0)) && "text-muted-foreground"
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {blockDate ? format(blockDate, "dd/MM/yyyy") : <span>Escolha a data</span>}
+                          {isBulkMode ? (
+                            blockMultipleDates.length > 0 
+                              ? `${blockMultipleDates.length} datas selecionadas`
+                              : "Escolha as datas"
+                          ) : (
+                            blockDate ? format(blockDate, "dd/MM/yyyy") : <span>Escolha a data</span>
+                          )}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={blockDate}
-                          onSelect={setBlockDate}
-                          locale={ptBR}
-                        />
+                        {isBulkMode ? (
+                          <Calendar
+                            mode="multiple"
+                            selected={blockMultipleDates}
+                            onSelect={(dates) => setBlockMultipleDates(dates || [])}
+                            locale={ptBR}
+                          />
+                        ) : (
+                          <Calendar
+                            mode="single"
+                            selected={blockDate}
+                            onSelect={setBlockDate}
+                            locale={ptBR}
+                          />
+                        )}
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -271,9 +385,14 @@ export default function SlotAdminPage() {
                     />
                   </div>
 
-                  <Button onClick={handleAddBlock} variant="destructive" className="w-full rounded-xl gap-2 shadow-lg">
-                    <ShieldAlert className="w-4 h-4" />
-                    Ativar Bloqueio
+                  <Button 
+                    onClick={handleAddBlock} 
+                    variant="destructive" 
+                    className="w-full rounded-xl gap-2 shadow-lg"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+                    {isBulkMode ? `Bloquear ${blockMultipleDates.length} Dias` : "Ativar Bloqueio"}
                   </Button>
                 </CardContent>
               </Card>
@@ -291,7 +410,7 @@ export default function SlotAdminPage() {
               {loadingBlocks ? (
                 <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-destructive" /></div>
               ) : blocks && blocks.length > 0 ? (
-                <div className="divide-y max-h-[300px] overflow-auto">
+                <div className="divide-y max-h-[400px] overflow-auto">
                   {blocks.sort((a,b) => a.date.localeCompare(b.date)).map(b => (
                     <div key={b.id} className="p-4 flex justify-between items-center hover:bg-muted/10 transition-colors">
                       <div className="flex flex-col">
@@ -387,6 +506,34 @@ export default function SlotAdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Importação em Lote */}
+      <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importar Lista de Datas</DialogTitle>
+            <DialogDescription>
+              Cole uma lista de datas para bloquear (uma por linha). 
+              Aceitamos formatos como 25/12/2025 ou 2025-12-25.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea 
+              placeholder="01/05/2025&#10;07/09/2025&#10;12/10/2025" 
+              className="rounded-xl min-h-[200px] font-mono text-sm"
+              value={bulkDatesText}
+              onChange={(e) => setBulkDatesText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkImportOpen(false)} className="rounded-xl">Cancelar</Button>
+            <Button onClick={handleProcessBulkText} className="rounded-xl gap-2">
+              <Plus className="w-4 h-4" />
+              Identificar Datas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
