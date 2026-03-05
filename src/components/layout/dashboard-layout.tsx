@@ -1,7 +1,6 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   SidebarProvider,
@@ -26,13 +25,14 @@ import {
   Clock,
   PieChart,
   UserCog,
+  Loader2,
 } from 'lucide-react';
 import { User } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useUser, useAuth, useFirestore } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -40,42 +40,17 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user: authUser } = useUser();
   const auth = useAuth();
   const db = useFirestore();
-  const [userData, setUserData] = useState<User | null>(null);
 
-  useEffect(() => {
-    async function loadUserProfile() {
-      if (!authUser || !db) return;
+  // Referência memoizada para o documento do usuário logado
+  const userProfileRef = useMemoFirebase(() => 
+    authUser && db ? doc(db, 'users', authUser.uid) : null, 
+    [authUser, db]
+  );
 
-      try {
-        const userDocRef = doc(db, 'users', authUser.uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          setUserData({
-            id: userSnap.id,
-            name: data.name || 'Usuário',
-            email: data.email || authUser.email || '',
-            role: data.role || 'TEACHER'
-          });
-        } else {
-          // Fallback para quando o perfil ainda não existe no Firestore
-          setUserData({
-            id: authUser.uid,
-            name: authUser.displayName || authUser.email?.split('@')[0] || 'Visitante',
-            email: authUser.email || '',
-            role: 'TEACHER'
-          });
-        }
-      } catch (error) {
-        console.error("Erro ao carregar perfil:", error);
-      }
-    }
+  // Hook reativo para buscar os dados do perfil (incluindo o papel/role)
+  const { data: profile, isLoading: loadingProfile } = useDoc<User>(userProfileRef);
 
-    loadUserProfile();
-  }, [authUser, db]);
-
-  const isAdmin = userData?.role === 'ADMIN';
+  const isAdmin = profile?.role === 'ADMIN';
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -95,6 +70,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     router.push('/');
   };
+
+  if (loadingProfile && !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -159,12 +142,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
             <Avatar className="w-8 h-8">
               <AvatarFallback className="bg-accent text-accent-foreground font-bold">
-                {userData?.name?.charAt(0) || 'U'}
+                {profile?.name?.charAt(0) || authUser?.email?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-sm font-semibold truncate max-w-[120px]">{userData?.name}</span>
-              <span className="text-[10px] text-muted-foreground">{userData?.role}</span>
+            <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[150px]">
+              <span className="text-sm font-semibold truncate">{profile?.name || authUser?.email}</span>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'PROFESSOR'}</span>
             </div>
             <button
               onClick={handleLogout}
@@ -182,7 +165,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
               <span className="text-xs text-muted-foreground font-medium">Bem-vindo</span>
-              <span className="text-sm font-bold">{userData?.name}</span>
+              <span className="text-sm font-bold">{profile?.name || authUser?.email}</span>
             </div>
           </div>
         </header>
