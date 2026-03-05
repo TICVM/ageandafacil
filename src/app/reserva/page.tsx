@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -307,6 +306,7 @@ export default function PublicBookingPage() {
                           mode="single"
                           selected={date}
                           onSelect={setDate}
+                          locale={ptBR}
                           initialFocus
                           disabled={(d) => d < new Date() || d > new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)}
                         />
