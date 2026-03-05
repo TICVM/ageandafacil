@@ -17,39 +17,44 @@ export interface Segment {
 export interface Class {
   id: string;
   name: string;
-  segmentId: string;
-  teacherId: string;
+  schoolSegmentId: string;
+  responsibleTeacherId: string;
 }
 
 export interface PhotoLocation {
   id: string;
   name: string;
   description: string;
-  active: boolean;
+  isActive: boolean;
+}
+
+export interface AISessionBriefAssistantOutput {
+  detailedBrief: string;
+  keyActivities: string[];
+  preferredShots: string[];
+  desiredMood: string;
 }
 
 export interface Booking {
   id: string;
-  classId: string;
+  schoolClassId: string;
   teacherId: string;
-  locationId: string;
-  date: string; // ISO Date String YYYY-MM-DD
+  photoLocationId: string;
+  appointmentDate: string; // ISO Date String YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
-  teacherNotes: string;
-  aiBrief?: {
-    detailedBrief: string;
-    keyActivities: string[];
-    preferredShots: string[];
-    desiredMood: string;
-  };
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  observations: string;
+  sessionDurationMinutes: number;
+  aiBrief?: AISessionBriefAssistantOutput | null;
 }
 
 export interface TimeSlot {
   id: string;
-  dayOfWeek: number; // 0-6
+  dayOfWeek: string; // 0-6
   startTime: string; // HH:mm
   durationMinutes: number;
-  segmentId?: string; // Optional: restrict slot to specific segment
+  schoolSegmentId?: string | null;
+  schoolClassId?: string | null;
+  isActive: boolean;
 }
