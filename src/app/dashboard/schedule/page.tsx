@@ -13,9 +13,9 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { collection, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, serverTimestamp, query, where } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { AISessionBriefAssistantOutput } from '@/lib/types';
+import { AISessionBriefAssistantOutput, TimeSlot } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
@@ -38,10 +38,32 @@ export default function SchedulePage() {
 
   const { data: classes } = useCollection(classesQuery);
   const { data: locations } = useCollection(locationsQuery);
-  const { data: slots } = useCollection(slotsQuery);
+  const { data: slots } = useCollection<TimeSlot>(slotsQuery);
 
+  const selectedClass = classes?.find(c => c.id === selectedClassId);
   const filteredClasses = classes?.filter(c => c.responsibleTeacherId === user?.uid) || [];
   const activeLocations = locations?.filter(l => l.isActive) || [];
+
+  // Lógica de filtragem de horários disponível
+  const availableSlots = slots?.filter(s => {
+    if (!date) return false;
+    
+    const dayMatches = s.dayOfWeek === date.getDay().toString();
+    if (!dayMatches) return false;
+
+    // Se o horário é específico para uma turma
+    if (s.schoolClassId) {
+      return s.schoolClassId === selectedClassId;
+    }
+
+    // Se o horário é específico para um segmento
+    if (s.schoolSegmentId) {
+      return s.schoolSegmentId === selectedClass?.schoolSegmentId;
+    }
+
+    // Se é global (não tem turma nem segmento vinculado)
+    return !s.schoolClassId && !s.schoolSegmentId;
+  }) || [];
 
   const handleGenerateAiBrief = async () => {
     if (!notes || !selectedClassId || !selectedLocationId) {
@@ -51,19 +73,18 @@ export default function SchedulePage() {
 
     setIsAiLoading(true);
     try {
-      const cls = classes?.find(c => c.id === selectedClassId);
       const loc = locations?.find(l => l.id === selectedLocationId);
 
       const result = await aiSessionBriefAssistant({
         briefNotes: notes,
-        className: cls?.name || 'Turma não identificada',
-        segmentName: 'Geral', // Contexto simplificado
+        className: selectedClass?.name || 'Turma não identificada',
+        segmentName: 'Geral',
         locationName: loc?.name || 'Local não identificado',
       });
       setAiBrief(result);
-      toast({ title: "Briefing gerado com sucesso!", description: "A IA expandiu suas notas para a equipe de marketing." });
+      toast({ title: "Briefing gerado com sucesso!" });
     } catch (error) {
-      toast({ title: "Erro ao gerar briefing", description: "Tente novamente mais tarde.", variant: "destructive" });
+      toast({ title: "Erro ao gerar briefing", variant: "destructive" });
     } finally {
       setIsAiLoading(false);
     }
@@ -78,9 +99,8 @@ export default function SchedulePage() {
     const slot = slots?.find(s => s.id === selectedSlotId);
     if (!slot) return;
 
-    // Calcular hora de término simplificada
     const [h, m] = slot.startTime.split(':').map(Number);
-    const endTotal = h * 60 + m + 60; // 60 minutos padrão
+    const endTotal = h * 60 + m + (slot.durationMinutes || 60);
     const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
     const endM = (endTotal % 60).toString().padStart(2, '0');
 
@@ -91,7 +111,7 @@ export default function SchedulePage() {
       appointmentDate: format(date, 'yyyy-MM-dd'),
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
-      sessionDurationMinutes: 60,
+      sessionDurationMinutes: slot.durationMinutes || 60,
       status: 'CONFIRMED',
       observations: notes,
       aiBrief: aiBrief || null,
@@ -100,8 +120,7 @@ export default function SchedulePage() {
     };
 
     addDocumentNonBlocking(collection(db, 'appointments'), appointmentData);
-
-    toast({ title: "Agendamento Realizado!", description: "Sua sessão de fotos foi confirmada." });
+    toast({ title: "Agendamento Realizado!" });
     router.push('/dashboard/appointments');
   };
 
@@ -109,7 +128,7 @@ export default function SchedulePage() {
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Novo Agendamento</h1>
-        <p className="text-muted-foreground">Siga os passos abaixo para reservar sua sessão de fotos no banco de dados real.</p>
+        <p className="text-muted-foreground">Reserve sua sessão de fotos personalizada.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -173,7 +192,7 @@ export default function SchedulePage() {
                         selected={date}
                         onSelect={setDate}
                         initialFocus
-                        disabled={(d) => d < new Date() || d > new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)}
+                        disabled={(d) => d < new Date() || d > new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)}
                       />
                     </PopoverContent>
                   </Popover>
@@ -181,21 +200,26 @@ export default function SchedulePage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Horário Disponível</label>
-                  <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date}>
+                  <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId}>
                     <SelectTrigger className="rounded-xl h-11">
-                      <SelectValue placeholder={date ? "Selecione o horário" : "Escolha a data primeiro"} />
+                      <SelectValue placeholder={!selectedClassId ? "Escolha a turma primeiro" : date ? "Selecione o horário" : "Escolha a data"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {slots?.filter(s => s.dayOfWeek === date?.getDay().toString() || s.dayOfWeek === date?.getDay()).map(s => (
-                        <SelectItem key={s.id} value={s.id}>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-muted-foreground" />
-                            {s.startTime}
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {availableSlots.length > 0 ? (
+                        availableSlots.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                              {s.startTime} ({s.durationMinutes} min)
+                            </div>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-4 text-xs text-center text-muted-foreground">Nenhum horário disponível para esta turma neste dia.</div>
+                      )}
                     </SelectContent>
                   </Select>
+                  <p className="text-[10px] text-muted-foreground px-1">Apenas horários configurados para esta turma/segmento aparecem aqui.</p>
                 </div>
               </div>
 
@@ -215,7 +239,7 @@ export default function SchedulePage() {
                   </Button>
                 </div>
                 <Textarea 
-                  placeholder="Ex: Alunos estarão fantasiados. Queremos fotos de ação na quadra..."
+                  placeholder="Ex: Alunos estarão fantasiados..."
                   className="rounded-xl min-h-[120px] bg-muted/20"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -236,7 +260,7 @@ export default function SchedulePage() {
                 <Sparkles className="w-5 h-5 text-accent-foreground" />
                 Assistente IA
               </CardTitle>
-              <CardDescription>O briefing detalhado que será enviado ao Marketing.</CardDescription>
+              <CardDescription>O briefing detalhado gerado para o Marketing.</CardDescription>
             </CardHeader>
             <CardContent className="p-6 pt-0">
               {aiBrief ? (
