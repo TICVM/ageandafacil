@@ -28,6 +28,7 @@ export interface PhotoLocation {
   unit?: string;
   description: string;
   isActive: boolean;
+  requiresIdentifier?: boolean; // Se true, abre campo para nº da sala
 }
 
 export interface AISessionBriefAssistantOutput {
@@ -43,6 +44,7 @@ export interface Booking {
   teacherId?: string;
   teacherName: string;
   photoLocationId: string;
+  locationIdentifier?: string; // Ex: "Sala 12", "Laboratório 2"
   appointmentDate: string; // ISO Date String YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm

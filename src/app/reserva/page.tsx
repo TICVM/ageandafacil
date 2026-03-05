@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2 } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
@@ -29,6 +29,7 @@ export default function PublicBookingPage() {
   const [teacherName, setTeacherName] = useState('');
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
+  const [locationIdentifier, setLocationIdentifier] = useState('');
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -45,7 +46,6 @@ export default function PublicBookingPage() {
   const { data: slots } = useCollection<TimeSlot>(slotsQuery);
   const { data: rawSegments } = useCollection<Segment>(segmentsQuery);
 
-  // Ordenação das turmas e segmentos conforme definido pelo admin
   const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const locations = rawLocations || [];
@@ -91,6 +91,12 @@ export default function PublicBookingPage() {
       toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
+    
+    if (selectedLocation?.requiresIdentifier && !locationIdentifier) {
+      toast({ title: "Campo faltante", description: "Por favor, identifique qual sala ou laboratório será usado.", variant: "destructive" });
+      return;
+    }
+
     const slot = slots?.find(s => s.id === selectedSlotId);
     if (!slot) return;
 
@@ -103,6 +109,7 @@ export default function PublicBookingPage() {
       schoolClassId: selectedClassId,
       teacherName: teacherName,
       photoLocationId: selectedLocationId,
+      locationIdentifier: locationIdentifier || null,
       appointmentDate: format(date, 'yyyy-MM-dd'),
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
@@ -130,12 +137,19 @@ export default function PublicBookingPage() {
           </div>
           <CardContent className="p-8 space-y-4">
             <div className="flex justify-between border-b pb-2">
+              <span className="text-muted-foreground">Professor:</span>
+              <span className="font-bold">{teacherName}</span>
+            </div>
+            <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Turma:</span>
               <span className="font-bold">{selectedClass?.name}</span>
             </div>
             <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Local:</span>
-              <span className="font-bold text-right">{selectedLocation?.name} {selectedLocation?.unit && `(${selectedLocation.unit})`}</span>
+              <div className="flex flex-col items-end">
+                <span className="font-bold">{selectedLocation?.name}</span>
+                {locationIdentifier && <span className="text-xs text-primary font-bold">({locationIdentifier})</span>}
+              </div>
             </div>
             <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Data:</span>
@@ -217,6 +231,21 @@ export default function PublicBookingPage() {
                     </Select>
                   </div>
                 </div>
+
+                {selectedLocation?.requiresIdentifier && (
+                  <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border border-primary/10 animate-in slide-in-from-left-2 duration-300">
+                    <label className="text-sm font-bold flex items-center gap-2 text-primary">
+                      <Hash className="w-4 h-4" /> Qual sala ou número?
+                    </label>
+                    <Input 
+                      placeholder="Ex: Sala 12, Lab 2, Sala do Infantil..." 
+                      value={locationIdentifier}
+                      onChange={(e) => setLocationIdentifier(e.target.value)}
+                      className="rounded-xl h-11 bg-white"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Este local possui múltiplas unidades. Por favor, especifique qual usará.</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -340,9 +369,14 @@ export default function PublicBookingPage() {
                   <MapPin className="w-4 h-4" /> Dica do Local
                 </h3>
                 {selectedLocation && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground mb-1">
-                    <Building2 className="w-3 h-3" />
-                    {selectedLocation.unit || 'Unidade não informada'}
+                  <div className="flex flex-col gap-1 mb-1">
+                    <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                      <Building2 className="w-3 h-3" />
+                      {selectedLocation.unit || 'Unidade não informada'}
+                    </div>
+                    {selectedLocation.requiresIdentifier && (
+                      <Badge variant="secondary" className="w-fit text-[9px] h-4">Requer Identificação</Badge>
+                    )}
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground leading-relaxed">

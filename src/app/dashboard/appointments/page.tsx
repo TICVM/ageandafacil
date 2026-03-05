@@ -7,13 +7,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Loader2, Trash2 } from 'lucide-react';
+import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Loader2, Trash2, Hash } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
-import { Booking, Class } from '@/lib/types';
+import { Booking, Class, PhotoLocation } from '@/lib/types';
 
 export default function AppointmentsPage() {
   const db = useFirestore();
@@ -21,9 +21,11 @@ export default function AppointmentsPage() {
 
   const appointmentsRef = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
+  const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
 
   const { data: list, isLoading } = useCollection<Booking>(appointmentsRef);
   const { data: classes } = useCollection<Class>(classesRef);
+  const { data: locations } = useCollection<PhotoLocation>(locationsRef);
 
   const handleCancel = (id: string) => {
     if (!db) return;
@@ -81,7 +83,7 @@ export default function AppointmentsPage() {
               <TableRow>
                 <TableHead className="font-bold">Data / Hora</TableHead>
                 <TableHead className="font-bold">Professor / Turma</TableHead>
-                <TableHead className="font-bold">Detalhes</TableHead>
+                <TableHead className="font-bold">Local</TableHead>
                 <TableHead className="font-bold">Status</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
@@ -90,6 +92,7 @@ export default function AppointmentsPage() {
               {filtered.length > 0 ? (
                 filtered.map((b) => {
                   const cls = classes?.find(c => c.id === b.schoolClassId);
+                  const loc = locations?.find(l => l.id === b.photoLocationId);
                   return (
                     <TableRow key={b.id} className="hover:bg-accent/5">
                       <TableCell>
@@ -110,7 +113,15 @@ export default function AppointmentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">{b.observations || '---'}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{loc?.name || '---'}</span>
+                          {b.locationIdentifier && (
+                            <span className="text-[10px] text-primary font-bold flex items-center gap-1">
+                              <Hash className="w-2.5 h-2.5" />
+                              {b.locationIdentifier}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(b.status)}

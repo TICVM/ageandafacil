@@ -7,13 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Plus, Trash2, Edit2, Search, Loader2, Building2 } from 'lucide-react';
+import { MapPin, Plus, Trash2, Edit2, Search, Loader2, Building2, Hash } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { PhotoLocation } from '@/lib/types';
 
 export default function LocationsAdminPage() {
@@ -23,10 +25,9 @@ export default function LocationsAdminPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newLoc, setNewLoc] = useState({ name: '', unit: '', description: '' });
+  const [newLoc, setNewLoc] = useState({ name: '', unit: '', description: '', requiresIdentifier: false });
   
-  // Estado para Edição
-  const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit: string; description: string } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit: string; description: string; requiresIdentifier: boolean } | null>(null);
 
   const handleAdd = () => {
     if (!newLoc.name || !db) return;
@@ -35,12 +36,13 @@ export default function LocationsAdminPage() {
       name: newLoc.name,
       unit: newLoc.unit,
       description: newLoc.description,
+      requiresIdentifier: newLoc.requiresIdentifier,
       isActive: true
     });
     
-    setNewLoc({ name: '', unit: '', description: '' });
+    setNewLoc({ name: '', unit: '', description: '', requiresIdentifier: false });
     setIsAddDialogOpen(false);
-    toast({ title: "Local Adicionado", description: "O novo local de foto está salvo no banco de dados." });
+    toast({ title: "Local Adicionado" });
   };
 
   const handleSaveEdit = () => {
@@ -49,17 +51,18 @@ export default function LocationsAdminPage() {
     updateDocumentNonBlocking(doc(db, 'photo_locations', editingItem.id), {
       name: editingItem.name,
       unit: editingItem.unit,
-      description: editingItem.description
+      description: editingItem.description,
+      requiresIdentifier: editingItem.requiresIdentifier
     });
 
     setEditingItem(null);
-    toast({ title: "Local Atualizado", description: "As alterações foram salvas com sucesso." });
+    toast({ title: "Local Atualizado" });
   };
 
   const handleRemove = (id: string) => {
     if (!db) return;
     deleteDocumentNonBlocking(doc(db, 'photo_locations', id));
-    toast({ title: "Local Removido", description: "O local foi excluído do banco de dados." });
+    toast({ title: "Local Removido" });
   };
 
   const toggleStatus = (id: string, currentStatus: boolean) => {
@@ -96,7 +99,7 @@ export default function LocationsAdminPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Nome do Local</label>
                   <Input 
-                    placeholder="Ex: Pátio Central" 
+                    placeholder="Ex: Sala de Aula" 
                     value={newLoc.name} 
                     onChange={(e) => setNewLoc({...newLoc, name: e.target.value})}
                     className="rounded-xl"
@@ -112,6 +115,19 @@ export default function LocationsAdminPage() {
                   />
                 </div>
               </div>
+
+              <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
+                <Switch 
+                  id="requires-id-new" 
+                  checked={newLoc.requiresIdentifier}
+                  onCheckedChange={(checked) => setNewLoc({...newLoc, requiresIdentifier: checked})}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="requires-id-new" className="font-bold">Exige identificação específica?</Label>
+                  <p className="text-xs text-muted-foreground">Habilite se for necessário pedir o número da sala ou nome do laboratório.</p>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Descrição/Dicas</label>
                 <Textarea 
@@ -152,7 +168,7 @@ export default function LocationsAdminPage() {
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold">Local</TableHead>
                 <TableHead className="font-bold">Unidade</TableHead>
-                <TableHead className="font-bold">Descrição</TableHead>
+                <TableHead className="font-bold text-center">Exige Identificação</TableHead>
                 <TableHead className="font-bold">Status</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
@@ -176,8 +192,14 @@ export default function LocationsAdminPage() {
                       </div>
                     ) : '---'}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[300px] truncate">
-                    {loc.description}
+                  <TableCell className="text-center">
+                    {loc.requiresIdentifier ? (
+                      <Badge variant="outline" className="gap-1 border-primary text-primary">
+                        <Hash className="w-3 h-3" /> Sim
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Não</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge 
@@ -194,7 +216,7 @@ export default function LocationsAdminPage() {
                         variant="ghost" 
                         size="icon" 
                         className="rounded-full hover:bg-primary/10 text-primary"
-                        onClick={() => setEditingItem({ id: loc.id, name: loc.name, unit: loc.unit || '', description: loc.description })}
+                        onClick={() => setEditingItem({ id: loc.id, name: loc.name, unit: loc.unit || '', description: loc.description, requiresIdentifier: !!loc.requiresIdentifier })}
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
@@ -210,19 +232,11 @@ export default function LocationsAdminPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                    Nenhum local encontrado.
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         )}
       </Card>
 
-      {/* Modal de Edição */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
@@ -247,6 +261,18 @@ export default function LocationsAdminPage() {
                 />
               </div>
             </div>
+
+            <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
+              <Switch 
+                id="requires-id-edit" 
+                checked={editingItem?.requiresIdentifier || false}
+                onCheckedChange={(checked) => setEditingItem(prev => prev ? {...prev, requiresIdentifier: checked} : null)}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <Label htmlFor="requires-id-edit" className="font-bold">Exige identificação específica?</Label>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-semibold">Descrição/Dicas</label>
               <Textarea 
