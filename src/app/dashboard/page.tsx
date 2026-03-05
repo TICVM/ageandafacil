@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart } from 'lucide-react';
 import { bookings, classes, locations } from '@/lib/db';
 import { Booking, User } from '@/lib/types';
 import Link from 'next/link';
