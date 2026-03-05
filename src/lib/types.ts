@@ -25,6 +25,7 @@ export interface Class {
 export interface PhotoLocation {
   id: string;
   name: string;
+  unit?: string;
   description: string;
   isActive: boolean;
 }

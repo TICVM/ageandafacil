@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
@@ -51,6 +51,7 @@ export default function PublicBookingPage() {
   const locations = rawLocations || [];
 
   const selectedClass = classes?.find(c => c.id === selectedClassId);
+  const selectedLocation = locations?.find(l => l.id === selectedLocationId);
   const activeLocations = locations?.filter(l => l.isActive) || [];
 
   const availableSlots = slots?.filter(s => {
@@ -69,13 +70,12 @@ export default function PublicBookingPage() {
     }
     setIsAiLoading(true);
     try {
-      const loc = locations?.find(l => l.id === selectedLocationId);
       const seg = segments?.find(s => s.id === selectedClass?.schoolSegmentId);
       const result = await aiSessionBriefAssistant({
         briefNotes: notes,
         className: selectedClass?.name || 'Turma não identificada',
         segmentName: seg?.name || 'Geral',
-        locationName: loc?.name || 'Local não identificado',
+        locationName: selectedLocation?.name || 'Local não identificado',
       });
       setAiBrief(result);
       toast({ title: "Briefing gerado com sucesso!" });
@@ -132,6 +132,10 @@ export default function PublicBookingPage() {
             <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Turma:</span>
               <span className="font-bold">{selectedClass?.name}</span>
+            </div>
+            <div className="flex justify-between border-b pb-2">
+              <span className="text-muted-foreground">Local:</span>
+              <span className="font-bold text-right">{selectedLocation?.name} {selectedLocation?.unit && `(${selectedLocation.unit})`}</span>
             </div>
             <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Data:</span>
@@ -202,7 +206,12 @@ export default function PublicBookingPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {activeLocations.map(l => (
-                          <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                          <SelectItem key={l.id} value={l.id}>
+                            <div className="flex flex-col items-start leading-none">
+                              <span>{l.name}</span>
+                              {l.unit && <span className="text-[10px] text-muted-foreground mt-0.5">{l.unit}</span>}
+                            </div>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -330,6 +339,12 @@ export default function PublicBookingPage() {
                 <h3 className="font-bold text-primary flex items-center gap-2">
                   <MapPin className="w-4 h-4" /> Dica do Local
                 </h3>
+                {selectedLocation && (
+                  <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground mb-1">
+                    <Building2 className="w-3 h-3" />
+                    {selectedLocation.unit || 'Unidade não informada'}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {selectedLocationId 
                     ? locations?.find(l => l.id === selectedLocationId)?.description 
