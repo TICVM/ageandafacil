@@ -17,13 +17,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const DAYS_OF_WEEK = [
-  { id: '1', label: 'Segunda' },
-  { id: '2', label: 'Terça' },
-  { id: '3', label: 'Quarta' },
-  { id: '4', label: 'Quinta' },
-  { id: '5', label: 'Sexta' },
-  { id: '6', label: 'Sábado' },
-  { id: '0', label: 'Domingo' },
+  { id: '1', label: 'Segunda', short: 'Seg' },
+  { id: '2', label: 'Terça', short: 'Ter' },
+  { id: '3', label: 'Quarta', short: 'Qua' },
+  { id: '4', label: 'Quinta', short: 'Qui' },
+  { id: '5', label: 'Sexta', short: 'Sex' },
+  { id: '6', label: 'Sábado', short: 'Sáb' },
+  { id: '0', label: 'Domingo', short: 'Dom' },
 ];
 
 export default function SlotAdminPage() {
@@ -37,7 +37,6 @@ export default function SlotAdminPage() {
   const { data: rawClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments } = useCollection<Segment>(segmentsRef);
 
-  // Ordenação garantida conforme a sequência definida pelo admin
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
@@ -299,58 +298,74 @@ export default function SlotAdminPage() {
         <Card className="lg:col-span-2 shadow-md border-none overflow-hidden bg-white">
           <CardHeader className="bg-muted/10">
             <CardTitle className="text-xl">Grade Atual</CardTitle>
-            <CardDescription>Horários ativos no banco de dados.</CardDescription>
+            <CardDescription>Visualize os horários configurados por dia.</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-6">
             {loadingSlots ? (
               <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
             ) : (
-              <div className="divide-y">
+              <Tabs defaultValue="1" className="w-full">
+                <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/20 p-1 mb-6 rounded-xl border">
+                  {DAYS_OF_WEEK.map((day) => (
+                    <TabsTrigger 
+                      key={day.id} 
+                      value={day.id} 
+                      className="rounded-lg flex-1 min-w-[60px] text-xs py-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+                    >
+                      {day.short}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                
                 {DAYS_OF_WEEK.map((day) => {
                   const daySlots = slots?.filter(s => s.dayOfWeek === day.id) || [];
-                  if (daySlots.length === 0) return null;
-
+                  
                   return (
-                    <div key={day.id} className="p-6">
-                      <h3 className="font-bold text-primary flex items-center gap-2 mb-4">
-                        <CalendarDays className="w-5 h-5" />
-                        {day.label}
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {daySlots.sort((a,b) => a.startTime.localeCompare(b.startTime)).map(s => (
-                          <div key={s.id} className="bg-muted/10 p-3 rounded-xl border flex justify-between items-center group hover:bg-white transition-colors">
-                            <div className="flex flex-col">
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-3 h-3 text-muted-foreground" />
-                                <span className="font-bold text-sm">{s.startTime}</span>
-                                <span className="text-[10px] text-muted-foreground">({s.durationMinutes} min)</span>
-                              </div>
-                              <div className="mt-1">
-                                <Badge variant="outline" className="text-[9px] h-4 font-normal bg-white">
-                                  {getTargetName(s)}
-                                </Badge>
-                              </div>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-full transition-all"
-                              onClick={() => handleRemove(s.id)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ))}
+                    <TabsContent key={day.id} value={day.id} className="mt-0 focus-visible:outline-none">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                          <CalendarDays className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-lg">{day.label}</h3>
+                        <Badge variant="secondary" className="ml-2 rounded-lg">{daySlots.length} horários</Badge>
                       </div>
-                    </div>
+
+                      {daySlots.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {daySlots.sort((a,b) => a.startTime.localeCompare(b.startTime)).map(s => (
+                            <div key={s.id} className="bg-muted/10 p-4 rounded-xl border flex justify-between items-center group hover:bg-white transition-all shadow-sm hover:shadow-md">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-3 h-3 text-muted-foreground" />
+                                  <span className="font-bold text-base">{s.startTime}</span>
+                                  <span className="text-xs text-muted-foreground">({s.durationMinutes} min)</span>
+                                </div>
+                                <div className="mt-2">
+                                  <Badge variant="outline" className="text-[10px] h-5 font-normal bg-white border-primary/20 text-primary">
+                                    {getTargetName(s)}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-9 w-9 text-destructive opacity-0 md:group-hover:opacity-100 hover:bg-destructive/10 rounded-full transition-all"
+                                onClick={() => handleRemove(s.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-20 text-center text-muted-foreground border-2 border-dashed rounded-3xl">
+                          Nenhum horário configurado para {day.label}.
+                        </div>
+                      )}
+                    </TabsContent>
                   );
                 })}
-                {slots?.length === 0 && (
-                  <div className="p-20 text-center text-muted-foreground">
-                    Nenhum horário configurado. Comece adicionando um lote ao lado.
-                  </div>
-                )}
-              </div>
+              </Tabs>
             )}
           </CardContent>
         </Card>
