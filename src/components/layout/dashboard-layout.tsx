@@ -30,9 +30,10 @@ import {
 import { User } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc, getDocs } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -41,17 +42,44 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const db = useFirestore();
 
-  // Consulta o perfil do usuário de forma segura e padronizada (sempre minúsculo)
-  const profileQuery = useMemoFirebase(() => {
-    if (!db || !authUser || !authUser.email) return null;
-    const emailToSearch = authUser.email.toLowerCase().trim();
-    return query(collection(db, 'users'), where('email', '==', emailToSearch));
-  }, [authUser, db]);
+  const [profile, setProfile] = useState<User | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  const { data: profiles, isLoading: loadingProfile } = useCollection<User>(profileQuery);
-  const profile = profiles?.[0] || null;
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!db || !authUser) return;
+      setLoadingProfile(true);
+      
+      try {
+        // 1. Tenta buscar pelo UID (id do documento) que é o padrão do Firebase Auth
+        const userDocRef = doc(db, 'users', authUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          setProfile(userDoc.data() as User);
+        } else {
+          // 2. Fallback: Busca pelo e-mail se o UID não for o ID do documento
+          // Isso resolve casos onde o usuário foi criado manualmente no console ou por outro fluxo
+          const usersRef = collection(db, 'users');
+          const emailToSearch = authUser.email?.toLowerCase().trim();
+          const q = query(usersRef, where('email', '==', emailToSearch));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            setProfile(querySnapshot.docs[0].data() as User);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao sincronizar perfil administrativo:", err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    }
 
-  // Verificação de Admin baseada no perfil encontrado no Firestore
+    fetchProfile();
+  }, [db, authUser]);
+
+  // Verificação final do cargo de Administrador
   const isAdmin = profile?.role === 'ADMIN';
 
   const menuItems = [
@@ -78,7 +106,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Verificando permissões de acesso...</p>
+          <p className="text-sm font-medium text-muted-foreground">Validando acesso administrativo...</p>
         </div>
       </div>
     );
