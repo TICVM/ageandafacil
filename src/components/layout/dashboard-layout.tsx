@@ -41,27 +41,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const db = useFirestore();
 
-  // Verifica se o usuário logou via validação de banco (professor)
-  const teacherEmail = typeof window !== 'undefined' ? localStorage.getItem('school_lens_teacher_email') : null;
-
-  // Consulta de perfil baseada no e-mail (mais robusto que UID para o fluxo híbrido)
+  // Consulta o perfil do usuário pelo e-mail (mais estável para reconhecimento de cargo)
   const profileQuery = useMemoFirebase(() => {
-    if (!db || !authUser) return null;
-    
-    // Prioriza o e-mail do objeto de autenticação ou o salvo no storage (professor)
-    const emailToSearch = authUser.email || (authUser.isAnonymous ? teacherEmail : null);
-    
-    if (emailToSearch) {
-      return query(collection(db, 'users'), where('email', '==', emailToSearch));
-    }
-    
-    // Fallback para UID se nada mais estiver disponível
-    return query(collection(db, 'users'), where('__name__', '==', authUser.uid));
-  }, [authUser, db, teacherEmail]);
+    if (!db || !authUser || !authUser.email) return null;
+    return query(collection(db, 'users'), where('email', '==', authUser.email));
+  }, [authUser, db]);
 
   const { data: profiles, isLoading: loadingProfile } = useCollection<User>(profileQuery);
   const profile = profiles?.[0] || null;
 
+  // Reconhecimento de cargo reativo
   const isAdmin = profile?.role === 'ADMIN';
 
   const menuItems = [
@@ -79,7 +68,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = async () => {
-    localStorage.removeItem('school_lens_teacher_email');
     await signOut(auth);
     router.push('/');
   };
@@ -102,7 +90,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-bold text-lg leading-none">SchoolLens</span>
-              <span className="text-xs text-muted-foreground">Painel de Controle</span>
+              <span className="text-xs text-muted-foreground">Scheduler</span>
             </div>
           </div>
         </SidebarHeader>
@@ -154,13 +142,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <Separator className="mb-4" />
           <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
             <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-accent text-accent-foreground font-bold uppercase">
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold uppercase">
                 {profile?.name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[150px]">
-              <span className="text-sm font-semibold truncate">{profile?.name || (loadingProfile ? 'Carregando...' : 'Desconhecido')}</span>
-              <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'Visitante'}</span>
+              <span className="text-sm font-semibold truncate">{profile?.name || authUser?.email?.split('@')[0]}</span>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'Acessando...'}</span>
             </div>
             <button
               onClick={handleLogout}
@@ -177,8 +165,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger />
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
-              <span className="text-xs text-muted-foreground font-medium">Bem-vindo</span>
-              <span className="text-sm font-bold">{profile?.name || (loadingProfile ? 'Acessando...' : 'Usuário')}</span>
+              <span className="text-xs text-muted-foreground font-medium">Logado como</span>
+              <span className="text-sm font-bold">{profile?.name || authUser?.email}</span>
             </div>
           </div>
         </header>

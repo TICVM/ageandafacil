@@ -7,15 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Camera, LogIn, GraduationCap, Loader2 } from 'lucide-react';
-import { useAuth, useUser, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useAuth, useUser } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
-  const db = useFirestore();
   const { user, isUserLoading } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,39 +30,22 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     try {
-      // 1. Tenta login oficial via Firebase Auth (Administradores)
       await signInWithEmailAndPassword(auth, email, password);
-      localStorage.removeItem('school_lens_teacher_email');
-      // Redirecionamento via useEffect
-    } catch (authErr: any) {
-      // 2. Se falhar, tenta login manual via Firestore (Professores)
-      try {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('email', '==', email), where('password', '==', password));
-        const snapshot = await getDocs(q);
-        
-        if (!snapshot.empty) {
-          // Salva e-mail localmente para o Dashboard reconhecer o perfil
-          localStorage.setItem('school_lens_teacher_email', email);
-          // Usa login anônimo como ponte para ter uma sessão ativa no app
-          await signInAnonymously(auth);
-          // Redirecionamento via useEffect
-        } else {
-          setIsSubmitting(false);
-          toast({
-            title: "Credenciais inválidas",
-            description: "E-mail ou senha incorretos.",
-            variant: "destructive"
-          });
-        }
-      } catch (dbErr: any) {
-        setIsSubmitting(false);
-        toast({
-          title: "Erro de conexão",
-          description: "Não foi possível validar seu acesso agora.",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Login realizado",
+        description: "Bem-vindo ao SchoolLens."
+      });
+    } catch (error: any) {
+      setIsSubmitting(false);
+      let message = "E-mail ou senha incorretos.";
+      if (error.code === 'auth/user-not-found') message = "Usuário não encontrado.";
+      if (error.code === 'auth/wrong-password') message = "Senha incorreta.";
+      
+      toast({
+        title: "Erro de acesso",
+        description: message,
+        variant: "destructive"
+      });
     }
   };
 
@@ -92,7 +73,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Acesso ao Sistema</CardTitle>
           <CardDescription className="text-center">
-            Entre como Administrador ou Professor
+            Entre com suas credenciais oficiais
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -128,7 +109,7 @@ export default function LoginPage() {
               {!isSubmitting && <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </Button>
             <div className="text-center text-xs text-muted-foreground mt-2">
-              <p>Login híbrido: Administradores e Professores</p>
+              <p>Autenticação oficial via Firebase</p>
             </div>
           </CardFooter>
         </form>
@@ -137,11 +118,11 @@ export default function LoginPage() {
       <div className="mt-8 flex gap-8 text-muted-foreground animate-in fade-in duration-1000">
         <div className="flex items-center gap-1.5">
           <GraduationCap className="w-4 h-4" />
-          <span className="text-sm">Para Professores</span>
+          <span className="text-sm">Área do Professor</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Camera className="w-4 h-4" />
-          <span className="text-sm">Equipe Marketing</span>
+          <span className="text-sm">Gestão Escolar</span>
         </div>
       </div>
     </div>

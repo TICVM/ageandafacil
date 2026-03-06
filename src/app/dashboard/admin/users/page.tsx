@@ -41,26 +41,26 @@ export default function UsersAdminPage() {
     try {
       let uid = `user-${Date.now()}`;
 
-      // Se for ADMIN, tenta criar também no Firebase Auth para login oficial
-      if (newUser.role === 'ADMIN') {
-        try {
-          const secondaryAppName = `Secondary-${Date.now()}`;
-          const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-          const secondaryAuth = getAuth(secondaryApp);
-          
-          const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
-          uid = userCredential.user.uid;
-          await deleteApp(secondaryApp);
-        } catch (authErr: any) {
-          console.warn("Não foi possível criar no Auth, mas criaremos no banco:", authErr.message);
+      // Cria a conta oficial no Firebase Auth usando uma instância secundária para não deslogar o admin atual
+      try {
+        const secondaryAppName = `Secondary-${Date.now()}`;
+        const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+        const secondaryAuth = getAuth(secondaryApp);
+        
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
+        uid = userCredential.user.uid;
+        await deleteApp(secondaryApp);
+      } catch (authErr: any) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          throw new Error("Este e-mail já está sendo usado por outro usuário.");
         }
+        throw authErr;
       }
 
-      // Salva os metadados no Firestore (incluindo senha para o login de professor)
+      // Salva os metadados no Firestore
       setDocumentNonBlocking(doc(db, 'users', uid), {
         name: newUser.name,
         email: newUser.email,
-        password: newUser.password, // Armazenado para conferência de professores
         role: newUser.role,
         isActive: true,
         createdAt: new Date().toISOString()
@@ -70,7 +70,7 @@ export default function UsersAdminPage() {
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
-        description: "O perfil foi salvo com sucesso e já pode acessar o sistema." 
+        description: "Conta criada e perfil salvo com sucesso." 
       });
     } catch (error: any) {
       toast({ 
@@ -99,7 +99,7 @@ export default function UsersAdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-          <p className="text-muted-foreground">Gerencie professores e administradores do SchoolLens.</p>
+          <p className="text-muted-foreground">Gerencie quem pode acessar o sistema.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -112,14 +112,14 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                Professores serão validados pelo banco de dados. Administradores também terão conta no sistema oficial.
+                O sistema criará uma conta oficial de autenticação para este e-mail.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Nome Completo</label>
                 <Input 
-                  placeholder="Ex: Prof. Maria Silva" 
+                  placeholder="Ex: Maria Silva" 
                   value={newUser.name} 
                   onChange={(e) => setNewUser({...newUser, name: e.target.value})}
                   className="rounded-xl"
@@ -138,11 +138,11 @@ export default function UsersAdminPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Senha de Acesso</label>
+                <label className="text-sm font-semibold">Senha Inicial</label>
                 <div className="relative">
                   <Input 
                     type={showPassword ? "text" : "password"}
-                    placeholder="Defina a senha do usuário" 
+                    placeholder="Mínimo 6 caracteres" 
                     value={newUser.password} 
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                     className="rounded-xl pr-10"
@@ -181,7 +181,7 @@ export default function UsersAdminPage() {
               </Button>
               <Button onClick={handleAdd} className="rounded-xl min-w-[120px]" disabled={isCreating}>
                 {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Salvar Perfil
+                Criar Conta
               </Button>
             </DialogFooter>
           </DialogContent>
