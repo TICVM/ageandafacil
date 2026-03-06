@@ -30,7 +30,8 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Login oficial via Firebase Auth
+      await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
       toast({
         title: "Login realizado",
         description: "Bem-vindo ao SchoolLens."
@@ -73,7 +74,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Acesso ao Sistema</CardTitle>
           <CardDescription className="text-center">
-            Entre com suas credenciais oficiais
+            Entre com suas credenciais oficiais do Firebase
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -108,23 +109,9 @@ export default function LoginPage() {
               {isSubmitting ? <Loader2 className="mr-2 w-5 h-5 animate-spin" /> : 'Entrar'}
               {!isSubmitting && <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </Button>
-            <div className="text-center text-xs text-muted-foreground mt-2">
-              <p>Autenticação oficial via Firebase</p>
-            </div>
           </CardFooter>
         </form>
       </Card>
-
-      <div className="mt-8 flex gap-8 text-muted-foreground animate-in fade-in duration-1000">
-        <div className="flex items-center gap-1.5">
-          <GraduationCap className="w-4 h-4" />
-          <span className="text-sm">Área do Professor</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Camera className="w-4 h-4" />
-          <span className="text-sm">Gestão Escolar</span>
-        </div>
-      </div>
     </div>
   );
 }

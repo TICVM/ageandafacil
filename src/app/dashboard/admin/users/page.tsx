@@ -42,7 +42,8 @@ export default function UsersAdminPage() {
     try {
       let uid = `user-${Date.now()}`;
 
-      // Cria a conta oficial no Firebase Auth usando uma instância secundária
+      // 1. Cria a conta oficial no Firebase Auth usando uma instância secundária 
+      // para não deslogar o administrador atual
       try {
         const secondaryAppName = `Secondary-${Date.now()}`;
         const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
@@ -53,14 +54,13 @@ export default function UsersAdminPage() {
         await deleteApp(secondaryApp);
       } catch (authErr: any) {
         if (authErr.code === 'auth/email-already-in-use') {
-          // Se já existe no Auth, tentamos apenas salvar/atualizar no Firestore usando o UID que o Admin já tem
           toast({ title: "Aviso", description: "Este e-mail já possui conta de acesso. Atualizando perfil no banco..." });
         } else {
           throw authErr;
         }
       }
 
-      // Salva os metadados no Firestore sempre em minúsculo
+      // 2. Salva os metadados no Firestore sempre com e-mail minúsculo
       setDocumentNonBlocking(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
@@ -102,7 +102,7 @@ export default function UsersAdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-          <p className="text-muted-foreground">Gerencie quem pode acessar o sistema.</p>
+          <p className="text-muted-foreground">Crie e gerencie contas de acesso oficiais.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -115,7 +115,7 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                A conta será criada com o e-mail em letras minúsculas para garantir o acesso.
+                A conta será criada oficialmente no Firebase. Use e-mail válido.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -141,7 +141,7 @@ export default function UsersAdminPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Senha Inicial</label>
+                <label className="text-sm font-semibold">Senha de Acesso</label>
                 <div className="relative">
                   <Input 
                     type={showPassword ? "text" : "password"}

@@ -41,19 +41,17 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const db = useFirestore();
 
-  // Consulta o perfil do usuário de forma robusta (checa original e minúsculo)
+  // Consulta o perfil do usuário de forma segura e padronizada (sempre minúsculo)
   const profileQuery = useMemoFirebase(() => {
     if (!db || !authUser || !authUser.email) return null;
-    const emailsToTry = [authUser.email, authUser.email.toLowerCase()];
-    // Remove duplicatas se o e-mail já for minúsculo
-    const uniqueEmails = Array.from(new Set(emailsToTry));
-    return query(collection(db, 'users'), where('email', 'in', uniqueEmails));
+    const emailToSearch = authUser.email.toLowerCase().trim();
+    return query(collection(db, 'users'), where('email', '==', emailToSearch));
   }, [authUser, db]);
 
   const { data: profiles, isLoading: loadingProfile } = useCollection<User>(profileQuery);
   const profile = profiles?.[0] || null;
 
-  // Verificação de Admin baseada no perfil encontrado
+  // Verificação de Admin baseada no perfil encontrado no Firestore
   const isAdmin = profile?.role === 'ADMIN';
 
   const menuItems = [
@@ -80,7 +78,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Verificando permissões...</p>
+          <p className="text-sm font-medium text-muted-foreground">Verificando permissões de acesso...</p>
         </div>
       </div>
     );
