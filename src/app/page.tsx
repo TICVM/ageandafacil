@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, LogIn, GraduationCap, Loader2 } from 'lucide-react';
+import { Camera, LogIn, Loader2 } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
@@ -18,19 +18,23 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (user && !isUserLoading) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && user && !isUserLoading) {
       router.push('/dashboard');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, mounted]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      // Login oficial via Firebase Auth
       await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
       toast({
         title: "Login realizado",
@@ -50,10 +54,13 @@ export default function LoginPage() {
     }
   };
 
-  if (isUserLoading) {
+  if (!mounted || isUserLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }

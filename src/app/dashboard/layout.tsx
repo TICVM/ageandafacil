@@ -18,16 +18,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const [profile, setProfile] = useState<User | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isUserLoading && !user) {
       router.push('/');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, mounted]);
 
   useEffect(() => {
     async function fetchProfile() {
-      if (!db || !user) {
+      if (!db || !user || !mounted) {
         if (!isUserLoading && !user) setLoadingProfile(false);
         return;
       }
@@ -61,12 +66,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (user) {
+    if (user && mounted) {
       fetchProfile();
     }
-  }, [db, user, isUserLoading]);
+  }, [db, user, isUserLoading, mounted]);
 
-  if (isUserLoading || (user && loadingProfile)) {
+  // Se não estiver montado ou estiver carregando, mostra o loader padronizado
+  if (!mounted || isUserLoading || (user && loadingProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
