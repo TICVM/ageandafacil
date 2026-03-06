@@ -41,19 +41,21 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const db = useFirestore();
 
-  // Verifica se o usuário logou via validação de banco (professor) ou via Auth (admin)
+  // Verifica se o usuário logou via validação de banco (professor)
   const teacherEmail = typeof window !== 'undefined' ? localStorage.getItem('school_lens_teacher_email') : null;
 
-  // Consulta de perfil baseada na forma de login
+  // Consulta de perfil baseada no e-mail (mais robusto que UID para o fluxo híbrido)
   const profileQuery = useMemoFirebase(() => {
     if (!db || !authUser) return null;
     
-    // Se for anônimo e tiver email no storage, busca por email
-    if (authUser.isAnonymous && teacherEmail) {
-      return query(collection(db, 'users'), where('email', '==', teacherEmail));
+    // Prioriza o e-mail do objeto de autenticação ou o salvo no storage (professor)
+    const emailToSearch = authUser.email || (authUser.isAnonymous ? teacherEmail : null);
+    
+    if (emailToSearch) {
+      return query(collection(db, 'users'), where('email', '==', emailToSearch));
     }
     
-    // Senão, tenta buscar pelo UID (Admin padrão)
+    // Fallback para UID se nada mais estiver disponível
     return query(collection(db, 'users'), where('__name__', '==', authUser.uid));
   }, [authUser, db, teacherEmail]);
 
@@ -157,8 +159,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[150px]">
-              <span className="text-sm font-semibold truncate">{profile?.name || 'Carregando...'}</span>
-              <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'PROFESSOR'}</span>
+              <span className="text-sm font-semibold truncate">{profile?.name || (loadingProfile ? 'Carregando...' : 'Desconhecido')}</span>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'Visitante'}</span>
             </div>
             <button
               onClick={handleLogout}
@@ -176,7 +178,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
               <span className="text-xs text-muted-foreground font-medium">Bem-vindo</span>
-              <span className="text-sm font-bold">{profile?.name || 'Acessando...'}</span>
+              <span className="text-sm font-bold">{profile?.name || (loadingProfile ? 'Acessando...' : 'Usuário')}</span>
             </div>
           </div>
         </header>
