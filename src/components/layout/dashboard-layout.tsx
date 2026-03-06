@@ -50,14 +50,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       try {
         const emailToSearch = authUser.email?.toLowerCase().trim();
         
-        // 1. Tenta buscar pelo UID
+        // Tenta buscar pelo UID e depois por E-mail
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: authUser.uid });
         } else if (emailToSearch) {
-          // 2. Fallback por e-mail
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', emailToSearch), limit(1));
           const querySnapshot = await getDocs(q);

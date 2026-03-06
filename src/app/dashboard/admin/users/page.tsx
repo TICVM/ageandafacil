@@ -10,12 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, setDoc } from 'firebase/firestore';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { User, UserRole } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { initializeApp, deleteApp } from 'firebase/app';
+import { initializeApp, deleteApp, getApps } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -40,7 +40,7 @@ export default function UsersAdminPage() {
     const normalizedEmail = newUser.email.toLowerCase().trim();
 
     try {
-      // 1. Criar no Firebase Auth usando instância secundária
+      // 1. Criar no Firebase Auth usando instância secundária para não deslogar o admin
       const secondaryAppName = `Secondary-${Date.now()}`;
       const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
@@ -48,11 +48,9 @@ export default function UsersAdminPage() {
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
       const uid = userCredential.user.uid;
       
-      // Logout imediato da instância secundária para não afetar o admin atual
-      await deleteApp(secondaryApp);
-
       // 2. Salvar metadados no Firestore usando o mesmo UID da conta oficial
-      setDocumentNonBlocking(doc(db, 'users', uid), {
+      // Usamos setDoc direto para garantir que o documento exista antes de fechar o modal
+      await setDoc(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
         role: newUser.role,
@@ -60,22 +58,23 @@ export default function UsersAdminPage() {
         createdAt: new Date().toISOString()
       }, { merge: true });
 
+      // Logout imediato da instância secundária
+      await deleteApp(secondaryApp);
+
       setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
-        description: "A conta de acesso e o perfil foram criados com sucesso." 
+        description: "Conta de acesso e perfil sincronizados com sucesso." 
       });
     } catch (error: any) {
       console.error("Erro ao cadastrar usuário:", error);
       let errorMsg = "Ocorreu um erro ao criar a conta.";
       
       if (error.code === 'auth/email-already-in-use') {
-        errorMsg = "Este e-mail já está em uso por outro usuário.";
+        errorMsg = "Este e-mail já está em uso.";
       } else if (error.code === 'auth/weak-password') {
         errorMsg = "A senha deve ter pelo menos 6 caracteres.";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMsg = "O formato do e-mail é inválido.";
       }
 
       toast({ 
@@ -104,7 +103,7 @@ export default function UsersAdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-          <p className="text-muted-foreground">Crie e gerencie contas de acesso oficiais.</p>
+          <p className="text-muted-foreground">Cadastre professores e outros administradores.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -117,40 +116,40 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                A conta será criada oficialmente no sistema de acesso.
+                Será criada uma conta de acesso oficial para este usuário.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Nome Completo</label>
-                <Input 
+                <input 
                   placeholder="Ex: Maria Silva" 
                   value={newUser.name} 
                   onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  className="rounded-xl"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isCreating}
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">E-mail</label>
-                <Input 
+                <input 
                   type="email"
                   placeholder="maria@escola.com" 
                   value={newUser.email} 
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                  className="rounded-xl"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isCreating}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Senha de Acesso</label>
+                <label className="text-sm font-semibold">Senha Inicial</label>
                 <div className="relative">
-                  <Input 
+                  <input 
                     type={showPassword ? "text" : "password"}
                     placeholder="Mínimo 6 caracteres" 
                     value={newUser.password} 
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                    className="rounded-xl pr-10"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pr-10"
                     disabled={isCreating}
                   />
                   <button 
@@ -164,7 +163,7 @@ export default function UsersAdminPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Papel / Função</label>
+                <label className="text-sm font-semibold">Papel no Sistema</label>
                 <Select 
                   value={newUser.role} 
                   onValueChange={(val) => setNewUser({...newUser, role: val as UserRole})}
@@ -185,8 +184,7 @@ export default function UsersAdminPage() {
                 Cancelar
               </Button>
               <Button onClick={handleAdd} className="rounded-xl min-w-[120px]" disabled={isCreating}>
-                {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Criar Conta
+                {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Criar Usuário"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -199,7 +197,7 @@ export default function UsersAdminPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
               placeholder="Buscar por nome ou e-mail..." 
-              className="pl-9 rounded-xl bg-white border-none shadow-inner"
+              className="pl-9 rounded-xl bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -213,7 +211,7 @@ export default function UsersAdminPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/5">
-                <TableHead className="font-bold">Usuário</TableHead>
+                <TableHead className="font-bold">Nome</TableHead>
                 <TableHead className="font-bold">E-mail</TableHead>
                 <TableHead className="font-bold">Papel</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
@@ -221,7 +219,7 @@ export default function UsersAdminPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((u) => (
-                <TableRow key={u.id} className="hover:bg-accent/5">
+                <TableRow key={u.id}>
                   <TableCell className="font-bold">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-primary/10 rounded-lg text-primary">
@@ -230,17 +228,9 @@ export default function UsersAdminPage() {
                       {u.name}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3 h-3" />
-                      {u.email}
-                    </div>
-                  </TableCell>
+                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
-                    <Badge 
-                      variant={u.role === 'ADMIN' ? 'default' : 'secondary'}
-                      className="rounded-lg"
-                    >
+                    <Badge variant={u.role === 'ADMIN' ? 'default' : 'secondary'} className="rounded-lg">
                       {u.role === 'ADMIN' ? 'Administrador' : 'Professor'}
                     </Badge>
                   </TableCell>

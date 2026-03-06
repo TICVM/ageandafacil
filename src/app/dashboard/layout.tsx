@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
 import { DashboardLayout as DashboardContainer } from '@/components/layout/dashboard-layout';
 import { Loader2 } from 'lucide-react';
@@ -22,7 +22,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  // Busca robusta de perfil
   useEffect(() => {
     async function fetchProfile() {
       if (!db || !user || !mounted) {
@@ -71,7 +70,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [user, isUserLoading, router, mounted]);
 
-  // Tela de carregamento unificada e sem erro de hidratação
+  // Tela de carregamento unificada
   if (!mounted || isUserLoading || (user && loadingProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
