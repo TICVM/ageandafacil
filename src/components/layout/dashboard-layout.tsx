@@ -44,13 +44,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Consulta o perfil do usuário pelo e-mail (mais estável para reconhecimento de cargo)
   const profileQuery = useMemoFirebase(() => {
     if (!db || !authUser || !authUser.email) return null;
-    return query(collection(db, 'users'), where('email', '==', authUser.email));
+    // Buscamos pelo e-mail exato para garantir que o cargo seja atribuído corretamente
+    return query(collection(db, 'users'), where('email', '==', authUser.email.toLowerCase()));
   }, [authUser, db]);
 
   const { data: profiles, isLoading: loadingProfile } = useCollection<User>(profileQuery);
   const profile = profiles?.[0] || null;
 
-  // Reconhecimento de cargo reativo
+  // Reconhecimento de cargo reativo baseado no banco de dados
   const isAdmin = profile?.role === 'ADMIN';
 
   const menuItems = [
@@ -72,10 +73,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     router.push('/');
   };
 
-  if (loadingProfile && !profile) {
+  // Enquanto carrega o perfil, mostramos um loader para não dar flash de conteúdo incorreto
+  if (loadingProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Carregando permissões...</p>
+        </div>
       </div>
     );
   }
@@ -89,8 +94,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <Camera className="w-5 h-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="font-bold text-lg leading-none">SchoolLens</span>
-              <span className="text-xs text-muted-foreground">Scheduler</span>
+              <span className="font-bold text-lg leading-none text-primary">SchoolLens</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Scheduler</span>
             </div>
           </div>
         </SidebarHeader>
@@ -115,8 +120,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           {isAdmin && (
             <>
-              <div className="mt-6 mb-2 px-4 group-data-[collapsible=icon]:hidden">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Administração</span>
+              <div className="mt-8 mb-2 px-4 group-data-[collapsible=icon]:hidden">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Administração</span>
               </div>
               <SidebarMenu>
                 {adminItems.map((item) => (
@@ -125,7 +130,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                       asChild
                       isActive={pathname === item.href}
                       tooltip={item.title}
-                      className="rounded-xl"
+                      className="rounded-xl hover:bg-primary/5 data-[active=true]:bg-primary/10"
                     >
                       <a href={item.href}>
                         <item.icon className="w-5 h-5" />
@@ -140,20 +145,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </SidebarContent>
         <SidebarFooter className="p-4">
           <Separator className="mb-4" />
-          <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-            <Avatar className="w-8 h-8">
+          <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center overflow-hidden">
+            <Avatar className="w-9 h-9 border-2 border-primary/20">
               <AvatarFallback className="bg-primary text-primary-foreground font-bold uppercase">
-                {profile?.name?.charAt(0) || 'U'}
+                {profile?.name?.charAt(0) || authUser?.email?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[150px]">
-              <span className="text-sm font-semibold truncate">{profile?.name || authUser?.email?.split('@')[0]}</span>
-              <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'Acessando...'}</span>
+            <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[130px]">
+              <span className="text-sm font-bold truncate">{profile?.name || authUser?.email?.split('@')[0]}</span>
+              <span className="text-[9px] text-primary font-bold uppercase tracking-tighter">
+                {profile?.role === 'ADMIN' ? 'Administrador' : 'Professor'}
+              </span>
             </div>
             <button
               onClick={handleLogout}
-              className="ml-auto p-1.5 hover:bg-destructive/10 hover:text-destructive rounded-lg transition-colors group-data-[collapsible=icon]:hidden"
-              title="Sair"
+              className="ml-auto p-2 hover:bg-destructive/10 hover:text-destructive rounded-xl transition-colors group-data-[collapsible=icon]:hidden"
+              title="Sair do sistema"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -161,13 +168,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="flex h-16 items-center border-b px-6 bg-white/50 backdrop-blur-sm sticky top-0 z-10">
-          <SidebarTrigger />
+        <header className="flex h-16 items-center border-b px-6 bg-white/70 backdrop-blur-md sticky top-0 z-10">
+          <SidebarTrigger className="text-primary" />
           <div className="ml-auto flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end">
-              <span className="text-xs text-muted-foreground font-medium">Logado como</span>
-              <span className="text-sm font-bold">{profile?.name || authUser?.email}</span>
+            <div className="hidden md:flex flex-col items-end mr-2">
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">Unidade Colégio VMS</span>
+              <span className="text-sm font-bold text-primary">{profile?.name || authUser?.email}</span>
             </div>
+            {isAdmin && (
+              <div className="bg-primary/10 px-3 py-1 rounded-full">
+                <span className="text-[10px] font-bold text-primary uppercase">Painel Gestor</span>
+              </div>
+            )}
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6 md:p-8 bg-[#ECF1FA]">
