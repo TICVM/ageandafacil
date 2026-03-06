@@ -25,7 +25,6 @@ import {
   Clock,
   PieChart,
   UserCog,
-  Loader2,
 } from 'lucide-react';
 import { User } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
@@ -43,16 +42,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
 
   const [profile, setProfile] = useState<User | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     async function fetchProfile() {
-      if (!db || !authUser) {
-        setLoadingProfile(false);
-        return;
-      }
-      
-      setLoadingProfile(true);
+      if (!db || !authUser) return;
       
       try {
         const emailToSearch = authUser.email?.toLowerCase().trim();
@@ -75,16 +68,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        console.error("Erro no layout do dashboard:", err);
-      } finally {
-        setLoadingProfile(false);
+        console.error("Erro ao sincronizar perfil lateral:", err);
       }
     }
 
     fetchProfile();
   }, [db, authUser]);
 
-  // Admin Master ou Cargo no Banco
+  // Reconhecimento Master do Administrador
   const userEmail = authUser?.email?.toLowerCase().trim();
   const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
 

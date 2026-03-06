@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Lock, Eye, EyeOff } from 'lucide-react';
+import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -51,7 +51,7 @@ export default function UsersAdminPage() {
       // Logout imediato da instância secundária para não afetar o admin atual
       await deleteApp(secondaryApp);
 
-      // 2. Salvar metadados no Firestore usando o mesmo UID
+      // 2. Salvar metadados no Firestore usando o mesmo UID da conta oficial
       setDocumentNonBlocking(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
@@ -117,7 +117,7 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                A conta será criada oficialmente. Use um e-mail válido.
+                A conta será criada oficialmente no sistema de acesso.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

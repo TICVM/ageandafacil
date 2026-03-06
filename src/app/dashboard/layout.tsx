@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useUser, useAuth, useFirestore } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { DashboardLayout as DashboardContainer } from '@/components/layout/dashboard-layout';
 import { Loader2 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
@@ -11,10 +11,8 @@ import { User } from '@/lib/types';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
-  const auth = useAuth();
 
   const [profile, setProfile] = useState<User | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -24,12 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (mounted && !isUserLoading && !user) {
-      router.push('/');
-    }
-  }, [user, isUserLoading, router, mounted]);
-
+  // Busca robusta de perfil
   useEffect(() => {
     async function fetchProfile() {
       if (!db || !user || !mounted) {
@@ -42,14 +35,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       try {
         const emailToSearch = user.email?.toLowerCase().trim();
         
-        // 1. Tenta buscar pelo UID
+        // 1. Tenta buscar pelo UID (ID técnico oficial)
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: user.uid });
         } else if (emailToSearch) {
-          // 2. Fallback: Busca pelo e-mail
+          // 2. Fallback: Busca pelo e-mail se o ID não bater
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', emailToSearch), limit(1));
           const querySnapshot = await getDocs(q);
@@ -60,7 +53,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        console.error("Erro ao carregar perfil:", err);
+        console.error("Erro ao carregar perfil no layout:", err);
       } finally {
         setLoadingProfile(false);
       }
@@ -71,7 +64,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [db, user, isUserLoading, mounted]);
 
-  // Se não estiver montado ou estiver carregando, mostra o loader padronizado
+  // Redireciona se não estiver logado
+  useEffect(() => {
+    if (mounted && !isUserLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router, mounted]);
+
+  // Tela de carregamento unificada e sem erro de hidratação
   if (!mounted || isUserLoading || (user && loadingProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
