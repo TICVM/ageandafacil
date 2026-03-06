@@ -41,17 +41,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const db = useFirestore();
 
-  // Consulta o perfil do usuário pelo e-mail (mais estável para reconhecimento de cargo)
+  // Consulta o perfil do usuário de forma robusta (checa original e minúsculo)
   const profileQuery = useMemoFirebase(() => {
     if (!db || !authUser || !authUser.email) return null;
-    // Buscamos pelo e-mail exato para garantir que o cargo seja atribuído corretamente
-    return query(collection(db, 'users'), where('email', '==', authUser.email.toLowerCase()));
+    const emailsToTry = [authUser.email, authUser.email.toLowerCase()];
+    // Remove duplicatas se o e-mail já for minúsculo
+    const uniqueEmails = Array.from(new Set(emailsToTry));
+    return query(collection(db, 'users'), where('email', 'in', uniqueEmails));
   }, [authUser, db]);
 
   const { data: profiles, isLoading: loadingProfile } = useCollection<User>(profileQuery);
   const profile = profiles?.[0] || null;
 
-  // Reconhecimento de cargo reativo baseado no banco de dados
+  // Verificação de Admin baseada no perfil encontrado
   const isAdmin = profile?.role === 'ADMIN';
 
   const menuItems = [
@@ -73,13 +75,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     router.push('/');
   };
 
-  // Enquanto carrega o perfil, mostramos um loader para não dar flash de conteúdo incorreto
   if (loadingProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Carregando permissões...</p>
+          <p className="text-sm font-medium text-muted-foreground">Verificando permissões...</p>
         </div>
       </div>
     );
@@ -154,7 +155,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[130px]">
               <span className="text-sm font-bold truncate">{profile?.name || authUser?.email?.split('@')[0]}</span>
               <span className="text-[9px] text-primary font-bold uppercase tracking-tighter">
-                {profile?.role === 'ADMIN' ? 'Administrador' : 'Professor'}
+                {isAdmin ? 'Administrador' : 'Professor'}
               </span>
             </div>
             <button

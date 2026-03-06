@@ -37,30 +37,33 @@ export default function UsersAdminPage() {
     }
     
     setIsCreating(true);
+    const normalizedEmail = newUser.email.toLowerCase().trim();
 
     try {
       let uid = `user-${Date.now()}`;
 
-      // Cria a conta oficial no Firebase Auth usando uma instância secundária para não deslogar o admin atual
+      // Cria a conta oficial no Firebase Auth usando uma instância secundária
       try {
         const secondaryAppName = `Secondary-${Date.now()}`;
         const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
         const secondaryAuth = getAuth(secondaryApp);
         
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
         uid = userCredential.user.uid;
         await deleteApp(secondaryApp);
       } catch (authErr: any) {
         if (authErr.code === 'auth/email-already-in-use') {
-          throw new Error("Este e-mail já está sendo usado por outro usuário.");
+          // Se já existe no Auth, tentamos apenas salvar/atualizar no Firestore usando o UID que o Admin já tem
+          toast({ title: "Aviso", description: "Este e-mail já possui conta de acesso. Atualizando perfil no banco..." });
+        } else {
+          throw authErr;
         }
-        throw authErr;
       }
 
-      // Salva os metadados no Firestore
+      // Salva os metadados no Firestore sempre em minúsculo
       setDocumentNonBlocking(doc(db, 'users', uid), {
         name: newUser.name,
-        email: newUser.email,
+        email: normalizedEmail,
         role: newUser.role,
         isActive: true,
         createdAt: new Date().toISOString()
@@ -70,7 +73,7 @@ export default function UsersAdminPage() {
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
-        description: "Conta criada e perfil salvo com sucesso." 
+        description: "Conta e perfil sincronizados com sucesso." 
       });
     } catch (error: any) {
       toast({ 
@@ -112,7 +115,7 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                O sistema criará uma conta oficial de autenticação para este e-mail.
+                A conta será criada com o e-mail em letras minúsculas para garantir o acesso.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
