@@ -6,14 +6,16 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, LogIn, GraduationCap, Loader2 } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { Camera, LogIn, GraduationCap, Loader2, ShieldCheck, UserCheck } from 'lucide-react';
+import { useAuth, useUser, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
+  const db = useFirestore();
   const { user, isUserLoading } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,24 +32,40 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      
-      toast({
-        title: "Login realizado",
-        description: "Bem-vindo ao SchoolLens.",
-      });
+      // 1. TENTATIVA 1: Login via Firebase Auth (ADMINS)
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        localStorage.removeItem('school_lens_teacher_email');
+        toast({ title: "Login Administrador", description: "Acesso via conta oficial do sistema." });
+        router.push('/dashboard');
+        return;
+      } catch (authErr: any) {
+        console.warn("Auth falhou, tentando validação no banco de dados...");
+      }
 
-      router.push('/dashboard');
+      // 2. TENTATIVA 2: Busca direta no Firestore (PROFESSORES)
+      if (db) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email), where('password', '==', password));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          // Usuário encontrado no banco! Entra de forma anônima para manter a sessão
+          await signInAnonymously(auth);
+          // Guarda o e-mail para que o layout saiba quem é o professor
+          localStorage.setItem('school_lens_teacher_email', email);
+          
+          toast({ title: "Acesso Permitido", description: "Bem-vindo ao SchoolLens." });
+          router.push('/dashboard');
+        } else {
+          throw new Error("E-mail ou senha incorretos.");
+        }
+      }
     } catch (error: any) {
       setIsSubmitting(false);
-      let message = "Verifique suas credenciais.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        message = "E-mail ou senha incorretos.";
-      }
-      
       toast({
         title: "Erro no login",
-        description: message,
+        description: error.message || "Verifique suas credenciais.",
         variant: "destructive"
       });
     }
@@ -63,7 +81,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="flex items-center gap-2 mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
+      <div className="flex items-center gap-2 mb-8">
         <div className="bg-primary p-3 rounded-xl shadow-lg">
           <Camera className="w-8 h-8 text-primary-foreground" />
         </div>
@@ -77,7 +95,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Acesso ao Sistema</CardTitle>
           <CardDescription className="text-center">
-            Utilize suas credenciais de acesso
+            Admins usam conta oficial. Professores usam registro escolar.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -91,7 +109,6 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-muted/30"
               />
             </div>
             <div className="space-y-2">
@@ -103,27 +120,26 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-muted/30"
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" disabled={isSubmitting} className="w-full h-11 text-lg font-semibold group">
+            <Button type="submit" disabled={isSubmitting} className="w-full h-11 text-lg font-semibold">
               {isSubmitting ? <Loader2 className="mr-2 w-5 h-5 animate-spin" /> : 'Entrar'}
-              {!isSubmitting && <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+              {!isSubmitting && <LogIn className="ml-2 w-5 h-5" />}
             </Button>
           </CardFooter>
         </form>
       </Card>
 
-      <div className="mt-8 flex gap-8 text-muted-foreground animate-in fade-in duration-1000">
+      <div className="mt-8 flex gap-8 text-muted-foreground">
         <div className="flex items-center gap-1.5">
-          <GraduationCap className="w-4 h-4" />
-          <span className="text-sm">Para Professores</span>
+          <UserCheck className="w-4 h-4 text-accent" />
+          <span className="text-xs">Registro Escolar</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Camera className="w-4 h-4" />
-          <span className="text-sm">Equipe Marketing</span>
+          <ShieldCheck className="w-4 h-4 text-primary" />
+          <span className="text-xs">Acesso Admin</span>
         </div>
       </div>
     </div>

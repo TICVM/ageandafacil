@@ -14,8 +14,8 @@ import { collection, doc } from 'firebase/firestore';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { User, UserRole } from '@/lib/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { initializeApp, getApps, deleteApp } from 'firebase/app';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -32,52 +32,50 @@ export default function UsersAdminPage() {
 
   const handleAdd = async () => {
     if (!newUser.name || !newUser.email || !newUser.password || !db) {
-      toast({ title: "Erro", description: "Preencha todos os campos, incluindo a senha.", variant: "destructive" });
+      toast({ title: "Erro", description: "Preencha todos os campos.", variant: "destructive" });
       return;
     }
     
     setIsCreating(true);
 
     try {
-      // 1. Criar o usuário no Firebase Auth usando uma instância secundária 
-      // para evitar que o administrador atual seja deslogado.
-      const secondaryAppName = `Secondary-${Date.now()}`;
-      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-      const secondaryAuth = getAuth(secondaryApp);
-      
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
-      const uid = userCredential.user.uid;
+      let uid = `user-${Date.now()}`;
 
-      // 2. Salvar os metadados no Firestore usando o mesmo UID do Auth
+      // Se for ADMIN, tenta criar também no Firebase Auth para login oficial
+      if (newUser.role === 'ADMIN') {
+        try {
+          const secondaryAppName = `Secondary-${Date.now()}`;
+          const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+          const secondaryAuth = getAuth(secondaryApp);
+          
+          const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
+          uid = userCredential.user.uid;
+          await deleteApp(secondaryApp);
+        } catch (authErr: any) {
+          console.warn("Não foi possível criar no Auth, mas criaremos no banco:", authErr.message);
+        }
+      }
+
+      // Salva os metadados no Firestore (incluindo senha para o login de professor)
       setDocumentNonBlocking(doc(db, 'users', uid), {
         name: newUser.name,
         email: newUser.email,
+        password: newUser.password, // Armazenado para conferência de professores
         role: newUser.role,
         isActive: true,
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      // Limpar instância secundária
-      await deleteApp(secondaryApp);
-
       setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
-        description: "A conta de acesso foi criada e o perfil foi salvo com sucesso." 
+        description: "O perfil foi salvo com sucesso e já pode acessar o sistema." 
       });
     } catch (error: any) {
-      console.error(error);
-      let message = "Ocorreu um erro ao criar a conta.";
-      if (error.code === 'auth/email-already-in-use') {
-        message = "Este e-mail já está em uso.";
-      } else if (error.code === 'auth/weak-password') {
-        message = "A senha é muito fraca (mínimo 6 caracteres).";
-      }
-      
       toast({ 
         title: "Erro no cadastro", 
-        description: message, 
+        description: error.message, 
         variant: "destructive" 
       });
     } finally {
@@ -114,7 +112,7 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                Ao salvar, uma conta de acesso será criada automaticamente no sistema.
+                Professores serão validados pelo banco de dados. Administradores também terão conta no sistema oficial.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -144,7 +142,7 @@ export default function UsersAdminPage() {
                 <div className="relative">
                   <Input 
                     type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 6 caracteres" 
+                    placeholder="Defina a senha do usuário" 
                     value={newUser.password} 
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                     className="rounded-xl pr-10"
@@ -153,7 +151,7 @@ export default function UsersAdminPage() {
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                     disabled={isCreating}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -253,13 +251,6 @@ export default function UsersAdminPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
-                    Nenhum usuário encontrado.
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         )}

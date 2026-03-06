@@ -30,9 +30,9 @@ import {
 import { User } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -41,14 +41,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const db = useFirestore();
 
-  // Referência memoizada para o documento do usuário logado
-  const userProfileRef = useMemoFirebase(() => 
-    authUser && db ? doc(db, 'users', authUser.uid) : null, 
-    [authUser, db]
-  );
+  // Verifica se o usuário logou via validação de banco (professor) ou via Auth (admin)
+  const teacherEmail = typeof window !== 'undefined' ? localStorage.getItem('school_lens_teacher_email') : null;
 
-  // Hook reativo para buscar os dados do perfil (incluindo o papel/role)
-  const { data: profile, isLoading: loadingProfile } = useDoc<User>(userProfileRef);
+  // Consulta de perfil baseada na forma de login
+  const profileQuery = useMemoFirebase(() => {
+    if (!db || !authUser) return null;
+    
+    // Se for anônimo e tiver email no storage, busca por email
+    if (authUser.isAnonymous && teacherEmail) {
+      return query(collection(db, 'users'), where('email', '==', teacherEmail));
+    }
+    
+    // Senão, tenta buscar pelo UID (Admin padrão)
+    return query(collection(db, 'users'), where('__name__', '==', authUser.uid));
+  }, [authUser, db, teacherEmail]);
+
+  const { data: profiles, isLoading: loadingProfile } = useCollection<User>(profileQuery);
+  const profile = profiles?.[0] || null;
 
   const isAdmin = profile?.role === 'ADMIN';
 
@@ -67,6 +77,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = async () => {
+    localStorage.removeItem('school_lens_teacher_email');
     await signOut(auth);
     router.push('/');
   };
@@ -141,12 +152,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <Separator className="mb-4" />
           <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
             <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-accent text-accent-foreground font-bold">
-                {profile?.name?.charAt(0) || authUser?.email?.charAt(0).toUpperCase() || 'U'}
+              <AvatarFallback className="bg-accent text-accent-foreground font-bold uppercase">
+                {profile?.name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[150px]">
-              <span className="text-sm font-semibold truncate">{profile?.name || authUser?.email}</span>
+              <span className="text-sm font-semibold truncate">{profile?.name || 'Carregando...'}</span>
               <span className="text-[10px] text-muted-foreground font-bold uppercase">{profile?.role || 'PROFESSOR'}</span>
             </div>
             <button
@@ -165,7 +176,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
               <span className="text-xs text-muted-foreground font-medium">Bem-vindo</span>
-              <span className="text-sm font-bold">{profile?.name || authUser?.email}</span>
+              <span className="text-sm font-bold">{profile?.name || 'Acessando...'}</span>
             </div>
           </div>
         </header>
