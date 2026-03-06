@@ -32,7 +32,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, where, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -47,22 +47,26 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function fetchProfile() {
-      if (!db || !authUser) return;
+      if (!db || !authUser) {
+        setLoadingProfile(false);
+        return;
+      }
+      
       setLoadingProfile(true);
       
       try {
-        // 1. Tenta buscar pelo UID (id do documento) que é o padrão do Firebase Auth
+        const emailToSearch = authUser.email?.toLowerCase().trim();
+        
+        // 1. Tenta buscar pelo UID (id do documento)
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile(userDoc.data() as User);
-        } else {
-          // 2. Fallback: Busca pelo e-mail se o UID não for o ID do documento
-          // Isso resolve casos onde o usuário foi criado manualmente no console ou por outro fluxo
+        } else if (emailToSearch) {
+          // 2. Fallback: Busca pelo e-mail se o UID não coincidir
           const usersRef = collection(db, 'users');
-          const emailToSearch = authUser.email?.toLowerCase().trim();
-          const q = query(usersRef, where('email', '==', emailToSearch));
+          const q = query(usersRef, where('email', '==', emailToSearch), limit(1));
           const querySnapshot = await getDocs(q);
           
           if (!querySnapshot.empty) {
@@ -70,7 +74,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        console.error("Erro ao sincronizar perfil administrativo:", err);
+        console.error("Erro ao sincronizar perfil:", err);
       } finally {
         setLoadingProfile(false);
       }
@@ -79,8 +83,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     fetchProfile();
   }, [db, authUser]);
 
-  // Verificação final do cargo de Administrador
-  const isAdmin = profile?.role === 'ADMIN';
+  // Verificação de Administrador: 
+  // 1. Verifica se o papel no banco é ADMIN
+  // 2. Ou se o e-mail logado é o e-mail mestre do administrador herbertpacheco@cvmsp.com.br
+  const userEmail = authUser?.email?.toLowerCase().trim();
+  const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -106,7 +113,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Validando acesso administrativo...</p>
+          <p className="text-sm font-medium text-muted-foreground">Validando credenciais...</p>
         </div>
       </div>
     );
