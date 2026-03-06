@@ -57,24 +57,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       try {
         const emailToSearch = authUser.email?.toLowerCase().trim();
         
-        // 1. Tenta buscar pelo UID (id do documento)
+        // 1. Tenta buscar pelo UID
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
-          setProfile(userDoc.data() as User);
+          setProfile({ ...userDoc.data() as User, id: authUser.uid });
         } else if (emailToSearch) {
-          // 2. Fallback: Busca pelo e-mail se o UID não coincidir
+          // 2. Fallback por e-mail
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', emailToSearch), limit(1));
           const querySnapshot = await getDocs(q);
           
           if (!querySnapshot.empty) {
-            setProfile(querySnapshot.docs[0].data() as User);
+            const docData = querySnapshot.docs[0];
+            setProfile({ ...docData.data() as User, id: docData.id });
           }
         }
       } catch (err) {
-        console.error("Erro ao sincronizar perfil:", err);
+        console.error("Erro no layout do dashboard:", err);
       } finally {
         setLoadingProfile(false);
       }
@@ -83,9 +84,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     fetchProfile();
   }, [db, authUser]);
 
-  // Verificação de Administrador: 
-  // 1. Verifica se o papel no banco é ADMIN
-  // 2. Ou se o e-mail logado é o e-mail mestre do administrador herbertpacheco@cvmsp.com.br
+  // Admin Master ou Cargo no Banco
   const userEmail = authUser?.email?.toLowerCase().trim();
   const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
 
@@ -107,17 +106,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     router.push('/');
   };
-
-  if (loadingProfile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Validando credenciais...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <SidebarProvider>

@@ -40,27 +40,18 @@ export default function UsersAdminPage() {
     const normalizedEmail = newUser.email.toLowerCase().trim();
 
     try {
-      let uid = `user-${Date.now()}`;
+      // 1. Criar no Firebase Auth usando instância secundária
+      const secondaryAppName = `Secondary-${Date.now()}`;
+      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+      
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
+      const uid = userCredential.user.uid;
+      
+      // Logout imediato da instância secundária para não afetar o admin atual
+      await deleteApp(secondaryApp);
 
-      // 1. Cria a conta oficial no Firebase Auth usando uma instância secundária 
-      // para não deslogar o administrador atual
-      try {
-        const secondaryAppName = `Secondary-${Date.now()}`;
-        const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-        const secondaryAuth = getAuth(secondaryApp);
-        
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
-        uid = userCredential.user.uid;
-        await deleteApp(secondaryApp);
-      } catch (authErr: any) {
-        if (authErr.code === 'auth/email-already-in-use') {
-          toast({ title: "Aviso", description: "Este e-mail já possui conta de acesso. Atualizando perfil no banco..." });
-        } else {
-          throw authErr;
-        }
-      }
-
-      // 2. Salva os metadados no Firestore sempre com e-mail minúsculo
+      // 2. Salvar metadados no Firestore usando o mesmo UID
       setDocumentNonBlocking(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
@@ -73,12 +64,23 @@ export default function UsersAdminPage() {
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
-        description: "Conta e perfil sincronizados com sucesso." 
+        description: "A conta de acesso e o perfil foram criados com sucesso." 
       });
     } catch (error: any) {
+      console.error("Erro ao cadastrar usuário:", error);
+      let errorMsg = "Ocorreu um erro ao criar a conta.";
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMsg = "Este e-mail já está em uso por outro usuário.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMsg = "A senha deve ter pelo menos 6 caracteres.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = "O formato do e-mail é inválido.";
+      }
+
       toast({ 
         title: "Erro no cadastro", 
-        description: error.message, 
+        description: errorMsg, 
         variant: "destructive" 
       });
     } finally {
@@ -115,7 +117,7 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                A conta será criada oficialmente no Firebase. Use e-mail válido.
+                A conta será criada oficialmente. Use um e-mail válido.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
