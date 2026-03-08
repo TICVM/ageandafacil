@@ -92,9 +92,9 @@ export default function PublicBookingPage() {
   const filteredClasses = rawClasses?.filter(c => {
     if (!profile || profile.role === 'ADMIN') return true;
     
-    // Coordenador: Vê turmas do seu segmento
+    // Coordenador: Vê turmas dos seus segmentos
     if (profile.role === 'COORDINATOR') {
-      return c.schoolSegmentId === profile.segmentId;
+      return profile.segmentIds?.includes(c.schoolSegmentId);
     }
     
     // Professor: Vê suas turmas atribuídas
@@ -235,7 +235,7 @@ export default function PublicBookingPage() {
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="bg-primary p-4 rounded-2xl shadow-lg mb-2"><Camera className="w-10 h-10 text-primary-foreground" /></div>
           <h1 className="text-4xl font-bold text-primary">SchoolLens</h1>
-          <p className="text-muted-foreground">{profile?.role === 'TEACHER' ? 'Minhas Turmas Atribuídas' : profile?.role === 'COORDINATOR' ? `Coordenação: ${segments?.find(s => s.id === profile.segmentId)?.name}` : 'Painel de Reserva Master'}</p>
+          <p className="text-muted-foreground">{profile?.role === 'TEACHER' ? 'Minhas Turmas Atribuídas' : profile?.role === 'COORDINATOR' ? `Coordenação` : 'Painel de Reserva Master'}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

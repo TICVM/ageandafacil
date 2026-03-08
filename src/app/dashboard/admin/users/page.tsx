@@ -44,8 +44,8 @@ export default function UsersAdminPage() {
     password: string;
     role: UserRole;
     classIds: string[];
-    segmentId: string;
-  }>({ name: '', email: '', password: '', role: 'TEACHER', classIds: [], segmentId: '' });
+    segmentIds: string[];
+  }>({ name: '', email: '', password: '', role: 'TEACHER', classIds: [], segmentIds: [] });
 
   // Estado para Edição
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -73,12 +73,12 @@ export default function UsersAdminPage() {
         email: normalizedEmail,
         role: newUser.role,
         classIds: newUser.role === 'TEACHER' ? newUser.classIds : [],
-        segmentId: newUser.role === 'COORDINATOR' ? newUser.segmentId : '',
+        segmentIds: newUser.role === 'COORDINATOR' ? newUser.segmentIds : [],
         isActive: true,
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      setNewUser({ name: '', email: '', password: '', role: 'TEACHER', classIds: [], segmentId: '' });
+      setNewUser({ name: '', email: '', password: '', role: 'TEACHER', classIds: [], segmentIds: [] });
       setIsDialogOpen(false);
       toast({ title: "Usuário Cadastrado" });
     } catch (error: any) {
@@ -86,7 +86,13 @@ export default function UsersAdminPage() {
       if (error.code === 'auth/email-already-in-use') errorMsg = "Este e-mail já possui uma conta.";
       toast({ title: "Erro no cadastro", description: errorMsg, variant: "destructive" });
     } finally {
-      if (secondaryApp) await deleteApp(secondaryApp);
+      if (secondaryApp) {
+        try {
+          await deleteApp(secondaryApp);
+        } catch (e) {
+          console.error("Erro ao deletar app secundário:", e);
+        }
+      }
       setIsCreating(false);
     }
   };
@@ -98,7 +104,7 @@ export default function UsersAdminPage() {
       name: editingUser.name,
       role: editingUser.role,
       classIds: editingUser.role === 'TEACHER' ? (editingUser.classIds || []) : [],
-      segmentId: editingUser.role === 'COORDINATOR' ? (editingUser.segmentId || '') : ''
+      segmentIds: editingUser.role === 'COORDINATOR' ? (editingUser.segmentIds || []) : []
     });
 
     setIsEditDialogOpen(false);
@@ -118,6 +124,22 @@ export default function UsersAdminPage() {
       setNewUser(prev => {
         const isSelected = prev.classIds.includes(classId);
         return { ...prev, classIds: isSelected ? prev.classIds.filter(id => id !== classId) : [...prev.classIds, classId] };
+      });
+    }
+  };
+
+  const handleToggleSegment = (segmentId: string, isEditing = false) => {
+    if (isEditing && editingUser) {
+      setEditingUser(prev => {
+        if (!prev) return null;
+        const currentIds = prev.segmentIds || [];
+        const isSelected = currentIds.includes(segmentId);
+        return { ...prev, segmentIds: isSelected ? currentIds.filter(id => id !== segmentId) : [...currentIds, segmentId] };
+      });
+    } else {
+      setNewUser(prev => {
+        const isSelected = prev.segmentIds.includes(segmentId);
+        return { ...prev, segmentIds: isSelected ? prev.segmentIds.filter(id => id !== segmentId) : [...prev.segmentIds, segmentId] };
       });
     }
   };
@@ -200,18 +222,18 @@ export default function UsersAdminPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-semibold flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" />
-                      Vincular Segmento
+                      Vincular Segmentos
                     </label>
-                    <Select value={newUser.segmentId} onValueChange={(val) => setNewUser({...newUser, segmentId: val})}>
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="Escolha o segmento" />
-                      </SelectTrigger>
-                      <SelectContent>
+                    <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
+                      <div className="space-y-3">
                         {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
-                          <SelectItem key={seg.id} value={seg.id}>{seg.name} {seg.unit ? `(${seg.unit})` : ''}</SelectItem>
+                          <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
+                            <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
+                            <label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    </ScrollArea>
                   </div>
                 )}
 
@@ -287,7 +309,7 @@ export default function UsersAdminPage() {
                       {getRoleBadge(u.role)}
                       {u.role === 'COORDINATOR' && (
                         <span className="text-[10px] text-muted-foreground font-medium">
-                          Seg: {segments?.find(s => s.id === u.segmentId)?.name || '---'}
+                          {u.segmentIds?.length || 0} segmentos vinculados
                         </span>
                       )}
                       {u.role === 'TEACHER' && (
@@ -339,13 +361,17 @@ export default function UsersAdminPage() {
             <div className="space-y-4 border-l pl-6">
               {editingUser?.role === 'COORDINATOR' && (
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Vincular Segmento</label>
-                  <Select value={editingUser.segmentId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, segmentId: val} : null)}>
-                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {segments?.map(seg => <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-semibold">Vincular Segmentos</label>
+                  <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
+                    <div className="space-y-3">
+                      {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
+                        <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
+                          <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
+                          <label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
               {editingUser?.role === 'TEACHER' && (

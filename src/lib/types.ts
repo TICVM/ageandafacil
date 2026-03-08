@@ -7,7 +7,7 @@ export interface User {
   email: string;
   password?: string;
   role: UserRole;
-  segmentId?: string; // Para Coordenadores
+  segmentIds?: string[]; // Para Coordenadores (múltiplos agora)
   classIds?: string[]; // Para Professores
   isActive?: boolean;
   createdAt?: string;
