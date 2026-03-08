@@ -10,14 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Eye, EyeOff, Layers } from 'lucide-react';
+import { UserCog, Plus, Trash2, Search, Loader2, User as UserIcon, Eye, EyeOff, Layers, Edit2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { User, UserRole, Class } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { initializeApp, deleteApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -31,8 +31,11 @@ export default function UsersAdminPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Estado para Novo Usuário
   const [newUser, setNewUser] = useState<{
     name: string;
     email: string;
@@ -40,6 +43,9 @@ export default function UsersAdminPage() {
     role: UserRole;
     classIds: string[];
   }>({ name: '', email: '', password: '', role: 'TEACHER', classIds: [] });
+
+  // Estado para Edição
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const handleAdd = async () => {
     if (!newUser.name || !newUser.email || !newUser.password || !db) {
@@ -101,14 +107,40 @@ export default function UsersAdminPage() {
     }
   };
 
-  const handleToggleClass = (classId: string) => {
-    setNewUser(prev => {
-      const isSelected = prev.classIds.includes(classId);
-      const newIds = isSelected 
-        ? prev.classIds.filter(id => id !== classId) 
-        : [...prev.classIds, classId];
-      return { ...prev, classIds: newIds };
+  const handleUpdate = () => {
+    if (!editingUser || !db) return;
+
+    updateDocumentNonBlocking(doc(db, 'users', editingUser.id), {
+      name: editingUser.name,
+      role: editingUser.role,
+      classIds: editingUser.classIds
     });
+
+    setIsEditDialogOpen(false);
+    setEditingUser(null);
+    toast({ title: "Usuário Atualizado" });
+  };
+
+  const handleToggleClass = (classId: string, isEditing = false) => {
+    if (isEditing && editingUser) {
+      setEditingUser(prev => {
+        if (!prev) return null;
+        const currentIds = prev.classIds || [];
+        const isSelected = currentIds.includes(classId);
+        const newIds = isSelected 
+          ? currentIds.filter(id => id !== classId) 
+          : [...currentIds, classId];
+        return { ...prev, classIds: newIds };
+      });
+    } else {
+      setNewUser(prev => {
+        const isSelected = prev.classIds.includes(classId);
+        const newIds = isSelected 
+          ? prev.classIds.filter(id => id !== classId) 
+          : [...prev.classIds, classId];
+        return { ...prev, classIds: newIds };
+      });
+    }
   };
 
   const handleRemove = (id: string) => {
@@ -211,9 +243,6 @@ export default function UsersAdminPage() {
                     <Layers className="w-4 h-4 text-primary" />
                     Vincular Turmas
                   </label>
-                  <p className="text-[10px] text-muted-foreground mb-2">
-                    O professor verá apenas as turmas marcadas aqui na tela de reserva.
-                  </p>
                   <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
@@ -232,11 +261,6 @@ export default function UsersAdminPage() {
                           </label>
                         </div>
                       ))}
-                      {(!schoolClasses || schoolClasses.length === 0) && (
-                        <p className="text-xs text-center text-muted-foreground py-10">
-                          Nenhuma turma cadastrada no sistema.
-                        </p>
-                      )}
                     </div>
                   </ScrollArea>
                 </div>
@@ -315,14 +339,27 @@ export default function UsersAdminPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-full text-destructive hover:bg-destructive/10"
-                      onClick={() => handleRemove(u.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-full hover:bg-primary/10 text-primary"
+                        onClick={() => {
+                          setEditingUser(u);
+                          setIsEditDialogOpen(true);
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-full text-destructive hover:bg-destructive/10"
+                        onClick={() => handleRemove(u.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -330,6 +367,89 @@ export default function UsersAdminPage() {
           </Table>
         )}
       </Card>
+
+      {/* Modal de Edição */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="rounded-2xl max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Atualize as informações de perfil e vínculos de turmas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Nome Completo</label>
+                <Input 
+                  value={editingUser?.name || ''} 
+                  onChange={(e) => setEditingUser(prev => prev ? {...prev, name: e.target.value} : null)}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">E-mail</label>
+                <Input 
+                  value={editingUser?.email || ''} 
+                  disabled
+                  className="rounded-xl bg-muted/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Papel no Sistema</label>
+                <Select 
+                  value={editingUser?.role} 
+                  onValueChange={(val) => setEditingUser(prev => prev ? {...prev, role: val as UserRole} : null)}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="Selecione o papel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEACHER">Professor(a)</SelectItem>
+                    <SelectItem value="ADMIN">Administrador(a)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-l pl-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-primary" />
+                  Vincular Turmas
+                </label>
+                <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
+                  <div className="space-y-3">
+                    {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
+                      <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20 transition-colors">
+                        <Checkbox 
+                          id={`edit-cls-${cls.id}`} 
+                          checked={editingUser?.classIds?.includes(cls.id) || false}
+                          onCheckedChange={() => handleToggleClass(cls.id, true)}
+                        />
+                        <label 
+                          htmlFor={`edit-cls-${cls.id}`} 
+                          className="text-xs font-medium cursor-pointer flex-1 py-1"
+                        >
+                          {cls.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdate} className="rounded-xl min-w-[120px]">
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
