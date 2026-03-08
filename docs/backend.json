@@ -18,7 +18,9 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Lista de IDs dos segmentos atribuídos ao coordenador."
-        }
+        },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     },
     "RoleConfig": {
@@ -43,7 +45,8 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "schoolSegmentId": { "type": "string" },
-        "order": { "type": "number" }
+        "order": { "type": "number" },
+        "isActive": { "type": "boolean" }
       }
     },
     "SchoolSegment": {
@@ -63,16 +66,42 @@
       "properties": {
         "id": { "type": "string" },
         "schoolClassId": { "type": "string" },
+        "teacherId": { "type": "string" },
         "teacherName": { "type": "string" },
         "photoLocationId": { "type": "string" },
         "locationIdentifier": { "type": "string" },
         "appointmentDate": { "type": "string", "format": "date" },
         "startTime": { "type": "string" },
         "endTime": { "type": "string" },
-        "status": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"] },
         "observations": { "type": "string" },
         "aiBrief": { "type": "object" },
         "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "PhotoLocation": {
+      "title": "PhotoLocation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "unit": { "type": "string" },
+        "description": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "requiresIdentifier": { "type": "boolean" }
+      }
+    },
+    "TimeSlot": {
+      "title": "TimeSlot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "startTime": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "schoolSegmentId": { "type": "string" },
+        "schoolClassId": { "type": "string" },
+        "isActive": { "type": "boolean" }
       }
     },
     "ScheduleBlock": {

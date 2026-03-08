@@ -43,6 +43,12 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // Configurações de Perfis e Permissões
+    match /roles_config/{roleId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    // Legado (se houver)
     match /roles_admin/{adminId} {
       allow read, write: if isSignedIn();
     }
