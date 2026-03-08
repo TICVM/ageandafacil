@@ -8,16 +8,43 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, Plus, Trash2, Users, Layers, Loader2, Edit2, ArrowUpDown, Building2 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { GraduationCap, Plus, Trash2, Users, Layers, Loader2, Edit2, ArrowUpDown, Building2, ShieldAlert } from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { Class, Segment } from '@/lib/types';
+import { Class, Segment, User, RoleConfig, AppPermissions } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 export default function ClassesAdminPage() {
   const db = useFirestore();
+  const { user: authUser } = useUser();
+  const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
+
+  useEffect(() => {
+    async function fetchPermissions() {
+      if (!db || !authUser) return;
+      const userDoc = await getDoc(doc(db, 'users', authUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as User;
+        if (userData.roleId === 'ADMIN' || authUser.email === 'herbertpacheco@cvmsp.com.br') {
+          setUserPerms({
+            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+            canViewSegmentAppointments: true, canViewClassAppointments: true,
+            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+            canCreateBookings: true
+          });
+        } else {
+          const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
+          if (roleDoc.exists()) {
+            setUserPerms(roleDoc.data() as RoleConfig);
+          }
+        }
+      }
+    }
+    fetchPermissions();
+  }, [db, authUser]);
 
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
@@ -25,7 +52,6 @@ export default function ClassesAdminPage() {
   const { data: rawClasses, isLoading: loadingClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments, isLoading: loadingSegments } = useCollection<Segment>(segmentsRef);
 
-  // Ordenação no cliente
   const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
@@ -37,10 +63,8 @@ export default function ClassesAdminPage() {
   const [newSegmentUnit, setNewSegmentUnit] = useState('');
   const [newSegmentOrder, setNewSegmentOrder] = useState('1');
 
-  // Estado para Edição
   const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit?: string; order: number; type: 'class' | 'segment', schoolSegmentId?: string } | null>(null);
 
-  // Efeito para sugerir automaticamente a próxima ordem ao carregar ou cadastrar
   useEffect(() => {
     if (classes.length > 0) {
       const maxOrder = Math.max(...classes.map(c => c.order ?? 0));
@@ -60,11 +84,14 @@ export default function ClassesAdminPage() {
   }, [rawSegments]);
 
   const handleAddClass = () => {
+    if (!userPerms?.canManageClasses) {
+      toast({ title: "Acesso Negado", description: "Você não tem permissão para gerenciar turmas.", variant: "destructive" });
+      return;
+    }
     if (!newClassName || !selectedSegment || !db) {
       toast({ title: "Erro", description: "Preencha o nome e o segmento da turma.", variant: "destructive" });
       return;
     }
-    
     const orderVal = parseInt(newClassOrder) || 0;
     addDocumentNonBlocking(collection(db, 'school_classes'), {
       name: newClassName,
@@ -72,15 +99,17 @@ export default function ClassesAdminPage() {
       order: orderVal,
       isActive: true
     });
-
     setNewClassName('');
     setNewClassOrder((orderVal + 1).toString());
     toast({ title: "Turma Cadastrada" });
   };
 
   const handleAddSegment = () => {
+    if (!userPerms?.canManageClasses) {
+      toast({ title: "Acesso Negado", variant: "destructive" });
+      return;
+    }
     if (!newSegmentName || !db) return;
-    
     const orderVal = parseInt(newSegmentOrder) || 0;
     addDocumentNonBlocking(collection(db, 'school_segments'), {
       name: newSegmentName,
@@ -88,7 +117,6 @@ export default function ClassesAdminPage() {
       order: orderVal,
       isActive: true
     });
-
     setNewSegmentName('');
     setNewSegmentUnit('');
     setNewSegmentOrder((orderVal + 1).toString());
@@ -96,39 +124,45 @@ export default function ClassesAdminPage() {
   };
 
   const handleSaveEdit = () => {
-    if (!editingItem || !db) return;
-    
+    if (!userPerms?.canManageClasses || !editingItem || !db) return;
     const collectionName = editingItem.type === 'class' ? 'school_classes' : 'school_segments';
     const updateData: any = {
       name: editingItem.name,
       order: editingItem.order
     };
-    
     if (editingItem.type === 'segment') {
       updateData.unit = editingItem.unit || '';
     } else if (editingItem.type === 'class') {
       updateData.schoolSegmentId = editingItem.schoolSegmentId;
     }
-
     updateDocumentNonBlocking(doc(db, collectionName, editingItem.id), updateData);
-
     setEditingItem(null);
     toast({ title: "Alterações Salvas" });
   };
 
   const handleRemoveClass = (id: string) => {
-    if (!db) return;
+    if (!userPerms?.canManageClasses || !db) return;
     deleteDocumentNonBlocking(doc(db, 'school_classes', id));
     toast({ title: "Turma Removida" });
   };
 
   const handleRemoveSegment = (id: string) => {
-    if (!db) return;
+    if (!userPerms?.canManageClasses || !db) return;
     deleteDocumentNonBlocking(doc(db, 'school_segments', id));
     toast({ title: "Segmento Removido" });
   };
 
-  const isLoading = loadingClasses || loadingSegments;
+  if (userPerms && !userPerms.canManageClasses) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+        <ShieldAlert className="w-16 h-16 text-destructive opacity-50" />
+        <h2 className="text-2xl font-bold">Acesso Restrito</h2>
+        <p className="text-muted-foreground">Seu perfil não tem permissão para gerenciar a estrutura escolar.</p>
+      </div>
+    );
+  }
+
+  const isLoading = loadingClasses || loadingSegments || !userPerms;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -347,7 +381,6 @@ export default function ClassesAdminPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Modal de Edição */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>

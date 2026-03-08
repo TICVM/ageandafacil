@@ -17,7 +17,7 @@ import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, U
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, query, where, getDocs, limit, getDoc } from 'firebase/firestore';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User } from '@/lib/types';
+import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
@@ -38,6 +38,7 @@ export default function PublicBookingPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   
   const [profile, setProfile] = useState<User | null>(null);
+  const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
@@ -67,13 +68,20 @@ export default function PublicBookingPage() {
           const profileData = userDoc.data() as User;
           setProfile(profileData);
           setTeacherName(profileData.name || '');
-        } else if (authUser.email) {
-          const q = query(collection(db, 'users'), where('email', '==', authUser.email.toLowerCase().trim()), limit(1));
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-            const profileData = snapshot.docs[0].data() as User;
-            setProfile(profileData);
-            setTeacherName(profileData.name || '');
+          
+          if (profileData.roleId === 'ADMIN' || authUser.email === 'herbertpacheco@cvmsp.com.br') {
+            setUserPerms({
+              canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+              canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+              canViewSegmentAppointments: true, canViewClassAppointments: true,
+              canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+              canCreateBookings: true
+            });
+          } else {
+            const roleDoc = await getDoc(doc(db, 'roles_config', profileData.roleId));
+            if (roleDoc.exists()) {
+              setUserPerms(roleDoc.data() as RoleConfig);
+            }
           }
         }
       } catch (err) {
@@ -88,20 +96,14 @@ export default function PublicBookingPage() {
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const locations = rawLocations || [];
 
-  // LÓGICA DE FILTRAGEM DE TURMAS POR PAPEL
   const filteredClasses = rawClasses?.filter(c => {
-    if (!profile || profile.role === 'ADMIN') return true;
-    
-    // Coordenador: Vê turmas dos seus segmentos
-    if (profile.role === 'COORDINATOR') {
+    if (!profile || profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br') return true;
+    if (userPerms?.canViewSegmentAppointments) {
       return profile.segmentIds?.includes(c.schoolSegmentId);
     }
-    
-    // Professor: Vê suas turmas atribuídas
-    if (profile.role === 'TEACHER') {
+    if (userPerms?.canViewClassAppointments) {
       return profile.classIds?.includes(c.id);
     }
-    
     return false;
   }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) || [];
 
@@ -177,8 +179,12 @@ export default function PublicBookingPage() {
   };
 
   const handleSchedule = () => {
+    if (!userPerms?.canCreateBookings) {
+      toast({ title: "Acesso Negado", description: "Seu perfil não tem permissão para criar reservas.", variant: "destructive" });
+      return;
+    }
     if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db) {
-      toast({ title: "Erro", description: "Preencha tudo.", variant: "destructive" });
+      toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
     
@@ -210,6 +216,17 @@ export default function PublicBookingPage() {
 
   if (loadingProfile) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><Loader2 className="animate-spin text-primary" /></div>;
 
+  if (userPerms && !userPerms.canCreateBookings) {
+    return (
+      <div className="min-h-screen bg-[#ECF1FA] flex flex-col items-center justify-center text-center p-4 space-y-4">
+        <ShieldAlert className="w-16 h-16 text-destructive opacity-50" />
+        <h2 className="text-3xl font-bold">Acesso Restrito</h2>
+        <p className="text-muted-foreground max-w-md">Seu perfil atual não permite a criação de agendamentos. Entre em contato com a administração.</p>
+        <Button onClick={() => router.push('/dashboard')} className="rounded-xl">Voltar ao Painel</Button>
+      </div>
+    );
+  }
+
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">
@@ -235,7 +252,7 @@ export default function PublicBookingPage() {
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="bg-primary p-4 rounded-2xl shadow-lg mb-2"><Camera className="w-10 h-10 text-primary-foreground" /></div>
           <h1 className="text-4xl font-bold text-primary">SchoolLens</h1>
-          <p className="text-muted-foreground">{profile?.role === 'TEACHER' ? 'Minhas Turmas Atribuídas' : profile?.role === 'COORDINATOR' ? `Coordenação` : 'Painel de Reserva Master'}</p>
+          <p className="text-muted-foreground">Sistema de Agendamento Inteligente</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -263,7 +280,7 @@ export default function PublicBookingPage() {
                     <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId}>
                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
                       <SelectContent>
-                        {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center">Nenhuma turma disponível.</div>}
+                        {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma atribuída ao seu perfil.</div>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -306,7 +323,7 @@ export default function PublicBookingPage() {
                     <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId}>
                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
                       <SelectContent>
-                        {availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>)}
+                        {availableSlots.length > 0 ? availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground">Indisponível para esta data.</div>}
                       </SelectContent>
                     </Select>
                   </div>
