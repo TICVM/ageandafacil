@@ -48,17 +48,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       if (!db || !authUser) return;
       
       try {
-        const emailToSearch = authUser.email?.toLowerCase().trim();
+        const userEmail = authUser.email?.toLowerCase().trim();
         
-        // Tenta buscar pelo UID e depois por E-mail
+        // Tenta buscar pelo UID primeiro
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: authUser.uid });
-        } else if (emailToSearch) {
+        } else if (userEmail) {
+          // Fallback por e-mail para garantir o reconhecimento
           const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('email', '==', emailToSearch), limit(1));
+          const q = query(usersRef, where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
           
           if (!querySnapshot.empty) {
@@ -74,7 +75,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     fetchProfile();
   }, [db, authUser]);
 
-  // Reconhecimento Master do Administrador
+  // Regras de Administração Master
   const userEmail = authUser?.email?.toLowerCase().trim();
   const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
 

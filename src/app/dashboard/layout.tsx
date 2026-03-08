@@ -25,25 +25,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function fetchProfile() {
       if (!db || !user || !mounted) {
-        if (!isUserLoading && !user) setLoadingProfile(false);
+        if (mounted && !isUserLoading && !user) setLoadingProfile(false);
         return;
       }
       
       setLoadingProfile(true);
       
       try {
-        const emailToSearch = user.email?.toLowerCase().trim();
+        const userEmail = user.email?.toLowerCase().trim();
         
-        // 1. Tenta buscar pelo UID (ID técnico oficial)
+        // 1. Tenta buscar pelo UID (Método mais rápido e seguro)
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: user.uid });
-        } else if (emailToSearch) {
-          // 2. Fallback: Busca pelo e-mail se o ID não bater
+        } else if (userEmail) {
+          // 2. Fallback: Busca pelo e-mail (Garante reconhecimento se o ID for diferente)
           const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('email', '==', emailToSearch), limit(1));
+          const q = query(usersRef, where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
           
           if (!querySnapshot.empty) {
@@ -60,6 +60,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     if (user && mounted) {
       fetchProfile();
+    } else if (!isUserLoading && !user) {
+      setLoadingProfile(false);
     }
   }, [db, user, isUserLoading, mounted]);
 

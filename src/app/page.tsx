@@ -35,16 +35,22 @@ export default function LoginPage() {
     setIsSubmitting(true);
     
     try {
-      await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+      const normalizedEmail = email.toLowerCase().trim();
+      await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      
       toast({
         title: "Login realizado",
         description: "Bem-vindo ao SchoolLens."
       });
+      
+      // Força o redirecionamento imediato
+      router.push('/dashboard');
     } catch (error: any) {
       setIsSubmitting(false);
       let message = "E-mail ou senha incorretos.";
       if (error.code === 'auth/user-not-found') message = "Usuário não encontrado.";
       if (error.code === 'auth/wrong-password') message = "Senha incorreta.";
+      if (error.code === 'auth/invalid-email') message = "E-mail inválido.";
       
       toast({
         title: "Erro de acesso",
@@ -59,7 +65,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Carregando...</p>
+          <p className="text-sm font-medium text-muted-foreground">Iniciando sistema...</p>
         </div>
       </div>
     );
@@ -81,7 +87,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Acesso ao Sistema</CardTitle>
           <CardDescription className="text-center">
-            Entre com suas credenciais oficiais do Firebase
+            Entre com suas credenciais oficiais
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
