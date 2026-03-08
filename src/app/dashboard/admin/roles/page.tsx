@@ -8,8 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -71,28 +70,12 @@ export default function RolesAdminPage() {
     toast({ title: "Perfil removido." });
   };
 
-  const renderPermissionToggle = (label: string, field: keyof AppPermissions, current: any, onChange: (val: boolean) => void, icon?: any) => {
-    const Icon = icon;
-    return (
-      <div className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
-          <span className="text-sm font-medium">{label}</span>
-        </div>
-        <Switch 
-          checked={current[field]} 
-          onCheckedChange={onChange}
-        />
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Perfis</h1>
-          <p className="text-muted-foreground">Configure os níveis de acesso dinamicamente para cada cargo.</p>
+          <p className="text-muted-foreground">Configure os níveis de acesso e sub-permissões dinamicamente.</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg">
           <Plus className="w-4 h-4" />
@@ -100,75 +83,63 @@ export default function RolesAdminPage() {
         </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card className="md:col-span-3 border-none shadow-md overflow-hidden bg-white">
-          {isLoading ? (
-            <div className="p-20 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader className="bg-muted/5">
-                <TableRow>
-                  <TableHead className="font-bold">Nome do Perfil</TableHead>
-                  <TableHead className="font-bold">Permissões de Agenda</TableHead>
-                  <TableHead className="text-right font-bold">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow className="bg-primary/5">
+      <Card className="border-none shadow-md overflow-hidden bg-white">
+        {isLoading ? (
+          <div className="p-20 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="bg-muted/5">
+              <TableRow>
+                <TableHead className="font-bold">Nome do Perfil</TableHead>
+                <TableHead className="font-bold">Nível de Agenda</TableHead>
+                <TableHead className="text-right font-bold">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow className="bg-primary/5">
+                <TableCell className="font-bold">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/20 rounded-lg text-primary"><ShieldCheck className="w-4 h-4" /></div>
+                    Administrador Master (Sistema)
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total Irrestrito</Badge>
+                </TableCell>
+                <TableCell className="text-right text-xs text-muted-foreground italic">Protegido</TableCell>
+              </TableRow>
+
+              {roles?.map((role) => (
+                <TableRow key={role.id}>
                   <TableCell className="font-bold">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/20 rounded-lg text-primary"><ShieldCheck className="w-4 h-4" /></div>
-                      Administrador Master (Sistema)
+                      <div className="p-2 bg-muted rounded-lg text-muted-foreground"><ShieldCheck className="w-4 h-4" /></div>
+                      {role.name}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total Irrestrito</Badge>
+                    <div className="flex flex-wrap gap-1">
+                      {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50">Global</Badge> : 
+                       role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50">Segmento</Badge> :
+                       <Badge variant="outline" className="text-[9px] bg-orange-50">Individual</Badge>}
+                      {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Ações Ativas</Badge>}
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground italic">Protegido</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)}><Edit2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
-                {roles?.map((role) => (
-                  <TableRow key={role.id}>
-                    <TableCell className="font-bold">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-muted rounded-lg text-muted-foreground"><ShieldCheck className="w-4 h-4" /></div>
-                        {role.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {role.canViewAllAppointments && <Badge variant="outline" className="text-[9px] bg-blue-50">Ver Tudo</Badge>}
-                        {role.canViewSegmentAppointments && <Badge variant="outline" className="text-[9px] bg-purple-50">Ver Segmento</Badge>}
-                        {role.canEditAppointments && <Badge variant="outline" className="text-[9px] bg-orange-50">Editar</Badge>}
-                        {role.canCancelAppointments && <Badge variant="outline" className="text-[9px] bg-red-50">Cancelar</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)}><Edit2 className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'}><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-
-        <Card className="border-none shadow-md bg-white p-6 h-fit">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /> Dicas de Hierarquia</h3>
-          <ul className="text-sm text-muted-foreground space-y-4">
-            <li><strong>Ver Tudo:</strong> Acesso total à agenda escolar completa.</li>
-            <li><strong>Ver Segmento:</strong> Restringe a visualização apenas aos segmentos vinculados ao usuário.</li>
-            <li><strong>Ver Turma:</strong> Restringe a visualização apenas às turmas vinculadas ao usuário.</li>
-          </ul>
-        </Card>
-      </div>
-
-      {/* Modais de Gestão (Mesmo Estilo) */}
       <RoleDialog 
         isOpen={isAddDialogOpen} 
         onClose={() => setIsAddDialogOpen(false)} 
@@ -211,38 +182,52 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-2xl max-w-2xl p-0 overflow-hidden">
+      <DialogContent className="rounded-2xl max-w-3xl p-0 overflow-hidden">
         <DialogHeader className="p-6 bg-primary text-primary-foreground">
           <DialogTitle className="text-xl text-primary-foreground">{title}</DialogTitle>
-          <DialogDescription className="text-primary-foreground/80">Configure as permissões específicas para este cargo.</DialogDescription>
+          <DialogDescription className="text-primary-foreground/80">Configure os módulos e as sub-permissões detalhadas da agenda.</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] p-6">
-          <div className="space-y-6">
+        <ScrollArea className="max-h-[75vh] p-6">
+          <div className="space-y-8">
             <div className="space-y-2">
               <label className="text-sm font-bold">Nome do Cargo</label>
               <Input placeholder="Ex: Coordenação de Ensino" value={role.name} onChange={(e) => setRole({ ...role, name: e.target.value })} className="rounded-xl" />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* CATEGORIA: MÓDULOS DE GESTÃO */}
               <div className="space-y-4">
-                <p className="text-xs font-bold uppercase text-muted-foreground">Acesso a Módulos</p>
-                {renderPermissionToggle("Gerenciar Equipe", "canManageUsers")}
-                {renderPermissionToggle("Ver Relatórios", "canViewReports")}
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                  <h3 className="font-bold text-sm uppercase tracking-wider">Módulos de Gestão</h3>
+                </div>
+                {renderPermissionToggle("Gestão de Equipe", "canManageUsers")}
                 {renderPermissionToggle("Configurar Locais", "canManageLocations")}
-                {renderPermissionToggle("Configurar Grade", "canConfigureSlots")}
-                {renderPermissionToggle("Gerenciar Turmas", "canManageClasses")}
+                {renderPermissionToggle("Configurar Grade Horária", "canConfigureSlots")}
+                {renderPermissionToggle("Gerenciar Turmas/Segmentos", "canManageClasses")}
+                {renderPermissionToggle("Ver Relatórios e Estatísticas", "canViewReports")}
               </div>
 
+              {/* CATEGORIA: AGENDA GLOBAL */}
               <div className="space-y-4">
-                <p className="text-xs font-bold uppercase text-muted-foreground">Acesso à Agenda (Filtros)</p>
-                {renderPermissionToggle("Ver Tudo (Global)", "canViewAllAppointments", Eye)}
-                {renderPermissionToggle("Ver do meu Segmento", "canViewSegmentAppointments", Eye)}
-                {renderPermissionToggle("Ver da minha Turma", "canViewClassAppointments", Eye)}
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  <ListTodo className="w-5 h-5 text-primary" />
+                  <h3 className="font-bold text-sm uppercase tracking-wider">Agenda Global</h3>
+                </div>
                 
-                <p className="text-xs font-bold uppercase text-muted-foreground mt-4">Ações na Agenda</p>
-                {renderPermissionToggle("Editar/Remarcar", "canEditAppointments", Edit3)}
-                {renderPermissionToggle("Cancelar Sessão", "canCancelAppointments", XCircle)}
-                {renderPermissionToggle("Excluir Registro", "canDeleteAppointments", Trash2)}
+                <div className="space-y-3 bg-primary/5 p-4 rounded-2xl">
+                  <p className="text-[10px] font-bold text-primary uppercase">Nível de Visualização</p>
+                  {renderPermissionToggle("Ver Agenda de TODA a escola", "canViewAllAppointments", Eye)}
+                  {renderPermissionToggle("Ver só do meu SEGMENTO", "canViewSegmentAppointments", Eye)}
+                  {renderPermissionToggle("Ver só da minha TURMA", "canViewClassAppointments", Eye)}
+                </div>
+
+                <div className="space-y-3 bg-destructive/5 p-4 rounded-2xl">
+                  <p className="text-[10px] font-bold text-destructive uppercase">Ações e Controles</p>
+                  {renderPermissionToggle("Editar / Reagendar", "canEditAppointments", Edit3)}
+                  {renderPermissionToggle("Cancelar Sessão", "canCancelAppointments", XCircle)}
+                  {renderPermissionToggle("Excluir Definitivamente", "canDeleteAppointments", Trash2)}
+                </div>
               </div>
             </div>
           </div>

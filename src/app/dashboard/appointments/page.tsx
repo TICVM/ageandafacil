@@ -7,12 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CalendarDays, MapPin, Users, Clock, Search, MoreHorizontal, Loader2, Trash2, Hash, Info, FileText, CheckCircle2, Edit3, XCircle } from 'lucide-react';
+import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, getDoc, query, where, limit, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -28,11 +28,13 @@ export default function AppointmentsPage() {
   useEffect(() => {
     async function fetchPermissions() {
       if (!db || !authUser) return;
+      
       const userDoc = await getDoc(doc(db, 'users', authUser.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data() as User;
         setProfile({ ...userData, id: authUser.uid });
 
+        // Administrador Master por e-mail ou por Role fixa
         if (userData.roleId === 'ADMIN' || authUser.email === 'herbertpacheco@cvmsp.com.br') {
           setUserPerms({
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
@@ -42,6 +44,7 @@ export default function AppointmentsPage() {
             canCreateBookings: true
           });
         } else {
+          // Busca permissões dinâmicas do cargo
           const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
           if (roleDoc.exists()) {
             setUserPerms(roleDoc.data() as RoleConfig);
@@ -72,20 +75,20 @@ export default function AppointmentsPage() {
     toast({ title: "Agendamento Excluído" });
   };
 
-  // FILTRAGEM DINÂMICA POR PERMISSÃO
+  // FILTRAGEM DINÂMICA POR NÍVEL DE VISUALIZAÇÃO
   const filteredByPermissions = list?.filter(booking => {
     if (!userPerms || !profile) return false;
     
-    // 1. Prioridade: Ver tudo
+    // Nível 1: Ver tudo
     if (userPerms.canViewAllAppointments) return true;
 
-    // 2. Filtro por Segmento
+    // Nível 2: Ver por Segmento
     if (userPerms.canViewSegmentAppointments) {
       const cls = classes?.find(c => c.id === booking.schoolClassId);
       if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
     }
 
-    // 3. Filtro por Turma/Docente
+    // Nível 3: Ver por Turma/Docente
     if (userPerms.canViewClassAppointments) {
       if (profile.classIds?.includes(booking.schoolClassId)) return true;
       if (booking.teacherId === profile.id) return true;
@@ -113,12 +116,12 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Global</h1>
-          <p className="text-muted-foreground">Histórico e próximos agendamentos de acordo com seu perfil.</p>
+          <p className="text-muted-foreground">Filtros aplicados conforme seu cargo e nível de acesso.</p>
         </div>
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            placeholder="Buscar por professor ou data..." 
+            placeholder="Buscar docente ou data..." 
             className="pl-9 rounded-xl h-11 bg-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -134,7 +137,7 @@ export default function AppointmentsPage() {
             <TableHeader className="bg-muted/20">
               <TableRow>
                 <TableHead className="font-bold">Data / Hora</TableHead>
-                <TableHead className="font-bold">Professor / Turma</TableHead>
+                <TableHead className="font-bold">Docente / Turma</TableHead>
                 <TableHead className="font-bold">Local</TableHead>
                 <TableHead className="font-bold">Status</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
@@ -164,24 +167,23 @@ export default function AppointmentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{loc?.name || '---'}</span>
-                          {b.locationIdentifier && <span className="text-[10px] text-primary font-bold">#{b.locationIdentifier}</span>}
-                        </div>
+                        <span className="text-sm font-medium">{loc?.name || '---'}</span>
                       </TableCell>
                       <TableCell>{getStatusBadge(b.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end items-center gap-2">
                           <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}><Info className="w-4 h-4" /></Button>
                           
-                          {/* Menu de Ações Respeitando Permissões */}
+                          {/* SUB-PERMISSÕES DE AÇÃO: Só aparecem se o cargo permitir */}
                           {(userPerms.canEditAppointments || userPerms.canCancelAppointments || userPerms.canDeleteAppointments) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="rounded-xl p-2">
-                                {userPerms.canEditAppointments && <DropdownMenuItem className="gap-2"><Edit3 className="w-3.5 h-3.5" /> Reagendar</DropdownMenuItem>}
+                                {userPerms.canEditAppointments && (
+                                  <DropdownMenuItem className="gap-2"><Edit3 className="w-3.5 h-3.5" /> Reagendar / Editar</DropdownMenuItem>
+                                )}
                                 {userPerms.canCancelAppointments && b.status !== 'CANCELLED' && (
                                   <DropdownMenuItem onClick={() => handleCancel(b.id)} className="gap-2 text-orange-600"><XCircle className="w-3.5 h-3.5" /> Cancelar Sessão</DropdownMenuItem>
                                 )}
@@ -200,14 +202,14 @@ export default function AppointmentsPage() {
                   );
                 })
               ) : (
-                <TableRow><TableCell colSpan={5} className="h-64 text-center text-muted-foreground">Nenhum registro disponível para seu nível de acesso.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="h-64 text-center text-muted-foreground">Nenhum registro encontrado para seu nível de acesso.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         )}
       </Card>
 
-      {/* Modal de Detalhes Completo */}
+      {/* Detalhes do Agendamento */}
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           {selectedBooking && (
@@ -223,18 +225,18 @@ export default function AppointmentsPage() {
                     <p className="text-sm text-muted-foreground">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase text-muted-foreground">Status do Agendamento</p>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Status</p>
                     <div className="mt-1">{getStatusBadge(selectedBooking.status)}</div>
                   </div>
                 </div>
                 <div className="bg-muted/30 p-5 rounded-2xl border border-dashed">
                   <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Notas do Professor</p>
-                  <p className="text-sm italic">{selectedBooking.observations || "Sem observações registradas."}</p>
+                  <p className="text-sm italic">{selectedBooking.observations || "Sem observações."}</p>
                 </div>
                 {selectedBooking.aiBrief && (
                   <div className="space-y-4">
-                    <p className="text-xs font-bold uppercase text-primary">Briefing Gerado pela IA</p>
-                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-sm">{selectedBooking.aiBrief.detailedBrief}</div>
+                    <p className="text-xs font-bold uppercase text-primary">Briefing IA</p>
+                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-sm whitespace-pre-wrap">{selectedBooking.aiBrief.detailedBrief}</div>
                   </div>
                 )}
               </ScrollArea>
