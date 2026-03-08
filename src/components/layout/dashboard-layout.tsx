@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
@@ -33,6 +34,7 @@ import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
+import { getPermissionsByRole } from '@/lib/permissions';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -77,25 +79,37 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const userEmail = authUser?.email?.toLowerCase().trim();
   const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
-  const isCoordinator = profile?.role === 'COORDINATOR';
-  const hasManagementAccess = isAdmin || isCoordinator;
+  const perms = getPermissionsByRole(profile?.role || 'TEACHER');
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { title: 'Fazer Reserva', icon: CalendarDays, href: '/reserva' },
-    { title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' },
   ];
+
+  // Agenda Global visível para Admin e Coordenador
+  if (isAdmin || perms.canViewAllAppointments) {
+    menuItems.push({ title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' });
+  }
 
   const adminItems = [];
   
-  if (hasManagementAccess) {
+  if (isAdmin || perms.canManageUsers) {
     adminItems.push({ title: 'Gestão de Usuários', icon: UserCog, href: '/dashboard/admin/users' });
   }
   
-  if (isAdmin) {
+  if (isAdmin || perms.canConfigureSlots) {
     adminItems.push({ title: 'Configurar Horários', icon: Clock, href: '/dashboard/admin/slots' });
+  }
+
+  if (isAdmin || perms.canManageLocations) {
     adminItems.push({ title: 'Locais de Foto', icon: MapPin, href: '/dashboard/admin/locations' });
+  }
+
+  if (isAdmin || perms.canManageClasses) {
     adminItems.push({ title: 'Turmas e Segmentos', icon: Users, href: '/dashboard/admin/classes' });
+  }
+
+  if (isAdmin || perms.canViewReports) {
     adminItems.push({ title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' });
   }
 
@@ -185,7 +199,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <span className="text-sm font-bold text-primary">{profile?.name || authUser?.email}</span>
             </div>
             {isAdmin && <Badge className="bg-blue-600">Gestor Master</Badge>}
-            {isCoordinator && <Badge className="bg-purple-600">Coordenador</Badge>}
+            {!isAdmin && profile?.role === 'COORDINATOR' && <Badge className="bg-purple-600">Coordenador</Badge>}
           </div>
         </header>
         <main className="flex-1 p-6 md:p-8 bg-[#ECF1FA]">{children}</main>
