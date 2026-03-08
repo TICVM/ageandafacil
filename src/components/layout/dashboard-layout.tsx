@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
@@ -74,13 +73,27 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         const userEmail = authUser.email?.toLowerCase().trim();
         let userDocData: User | null = null;
 
-        // 1. Busca perfil do usuário
+        // Verificação Master Admin por E-mail (Garante acesso absoluto)
+        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
+          setProfile({
+            id: authUser.uid,
+            email: userEmail,
+            name: 'Herbert Pacheco',
+            roleId: 'ADMIN'
+          });
+          setUserPerms(ADMIN_PERMS);
+          setRoleName('Administrador Master');
+          return;
+        }
+
+        // 1. Busca perfil do usuário pelo UID
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           userDocData = { ...userDoc.data() as User, id: authUser.uid };
         } else if (userEmail) {
+          // Fallback por e-mail
           const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
@@ -89,25 +102,33 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // 2. Determina permissões
-        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
-          setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', roleId: 'ADMIN' });
-          setUserPerms(ADMIN_PERMS);
-          setRoleName('Administrador Master');
-          return;
-        }
-
         if (userDocData) {
           setProfile(userDocData);
+          
+          // 2. Busca permissões baseadas no cargo (Role)
           if (userDocData.roleId) {
-            const roleDoc = await getDoc(doc(db, 'roles_config', userDocData.roleId));
-            if (roleDoc.exists()) {
-              const roleData = roleDoc.data() as RoleConfig;
-              setUserPerms(roleData);
-              setRoleName(roleData.name);
-            } else if (userDocData.roleId.toUpperCase() === 'ADMIN') {
+            // Se for string "ADMIN", dá perms totais
+            if (userDocData.roleId.toUpperCase() === 'ADMIN') {
               setUserPerms(ADMIN_PERMS);
               setRoleName('Administrador');
+            } else {
+              const roleDoc = await getDoc(doc(db, 'roles_config', userDocData.roleId));
+              if (roleDoc.exists()) {
+                const roleData = roleDoc.data() as RoleConfig;
+                setUserPerms({
+                  canManageUsers: !!roleData.canManageUsers,
+                  canConfigureSlots: !!roleData.canConfigureSlots,
+                  canManageLocations: !!roleData.canManageLocations,
+                  canManageClasses: !!roleData.canManageClasses,
+                  canViewReports: !!roleData.canViewReports,
+                  canViewAllAppointments: !!roleData.canViewAllAppointments,
+                  canCreateBookings: !!roleData.canCreateBookings,
+                });
+                setRoleName(roleData.name);
+              } else {
+                setUserPerms(DEFAULT_PERMS);
+                setRoleName('Usuário Padrão');
+              }
             }
           }
         }
@@ -117,8 +138,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
     fetchProfileAndPerms();
   }, [db, authUser]);
-
-  const isAdmin = userPerms.canManageUsers && userPerms.canManageClasses;
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -162,7 +181,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <Sidebar collapsible="icon" className="border-r border-border/40">
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3">
-            <div className="bg-primary p-2 rounded-lg"><Camera className="w-5 h-5 text-primary-foreground" /></div>
+            <div className="bg-primary p-2 rounded-lg shadow-sm"><Camera className="w-5 h-5 text-primary-foreground" /></div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-bold text-lg leading-none text-primary">SchoolLens</span>
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Scheduler</span>
@@ -232,7 +251,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <span className="text-sm font-bold text-primary">{profile?.name || authUser?.email}</span>
             </div>
             {roleName && (
-              <Badge className={roleName.includes('Admin') ? "bg-blue-600" : "bg-purple-600"}>
+              <Badge variant="secondary" className={roleName.includes('Admin') ? "bg-primary text-primary-foreground" : "bg-purple-100 text-purple-700"}>
                 {roleName}
               </Badge>
             )}

@@ -87,66 +87,98 @@ export default function RolesAdminPage() {
         </Button>
       </div>
 
-      <Card className="border-none shadow-md overflow-hidden bg-white">
-        {isLoading ? (
-          <div className="p-20 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <Table>
-            <TableHeader className="bg-muted/5">
-              <TableRow>
-                <TableHead className="font-bold">Nome do Perfil</TableHead>
-                <TableHead className="font-bold">Permissões Ativas</TableHead>
-                <TableHead className="text-right font-bold">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {roles?.map((role) => (
-                <TableRow key={role.id}>
+      <div className="grid gap-6 md:grid-cols-4">
+        <Card className="md:col-span-3 border-none shadow-md overflow-hidden bg-white">
+          {isLoading ? (
+            <div className="p-20 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-muted/5">
+                <TableRow>
+                  <TableHead className="font-bold">Nome do Perfil</TableHead>
+                  <TableHead className="font-bold">Permissões Ativas</TableHead>
+                  <TableHead className="text-right font-bold">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Linha Fixa do Master Admin para Contexto */}
+                <TableRow className="bg-primary/5">
                   <TableCell className="font-bold">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                      <div className="p-2 bg-primary/20 rounded-lg text-primary">
                         <ShieldCheck className="w-4 h-4" />
                       </div>
-                      {role.name}
+                      Administrador Master (Sistema)
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {role.canManageUsers && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Usuários</span>}
-                      {role.canViewAllAppointments && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">Agenda Global</span>}
-                      {role.canViewReports && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Relatórios</span>}
-                      {role.canConfigureSlots && <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Horários</span>}
-                    </div>
+                    <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total</Badge>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="rounded-full text-primary" 
-                        onClick={() => setEditingRole(role)}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="rounded-full text-destructive"
-                        onClick={() => handleRemove(role.id)}
-                        disabled={role.name.toUpperCase() === 'ADMIN'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground italic">Protegido</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+
+                {roles?.map((role) => (
+                  <TableRow key={role.id}>
+                    <TableCell className="font-bold">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-muted rounded-lg text-muted-foreground">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        {role.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {role.canManageUsers && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Usuários</span>}
+                        {role.canViewAllAppointments && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">Agenda</span>}
+                        {role.canViewReports && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Relatórios</span>}
+                        {role.canConfigureSlots && <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Grade</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="rounded-full text-primary" 
+                          onClick={() => setEditingRole(role)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="rounded-full text-destructive"
+                          onClick={() => handleRemove(role.id)}
+                          disabled={role.name.toUpperCase() === 'ADMIN'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+
+        <Card className="border-none shadow-md bg-white p-6">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-primary" />
+            Dicas
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Crie perfis específicos como <strong>Coordenação</strong> para dar acesso apenas aos segmentos responsáveis, ou <strong>Secretaria</strong> para gerenciar apenas a agenda.
+          </p>
+          <Separator className="my-4" />
+          <p className="text-[10px] text-muted-foreground italic">
+            O cargo de Administrador Master é reservado para o e-mail oficial de gestão e não pode ser alterado por outros usuários.
+          </p>
+        </Card>
+      </div>
 
       {/* Modal Adicionar */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -167,7 +199,7 @@ export default function RolesAdminPage() {
             </div>
             <div className="grid grid-cols-1 gap-2">
               <p className="text-xs font-bold uppercase text-muted-foreground mt-2">Permissões</p>
-              {renderPermissionToggle("Gerenciar Usuários", "canManageUsers", newRole, (v) => setNewRole({...newRole, canManageUsers: v}))}
+              {renderPermissionToggle("Gerenciar Equipe e Usuários", "canManageUsers", newRole, (v) => setNewRole({...newRole, canManageUsers: v}))}
               {renderPermissionToggle("Ver Agenda Global", "canViewAllAppointments", newRole, (v) => setNewRole({...newRole, canViewAllAppointments: v}))}
               {renderPermissionToggle("Gerenciar Turmas/Segmentos", "canManageClasses", newRole, (v) => setNewRole({...newRole, canManageClasses: v}))}
               {renderPermissionToggle("Configurar Locais", "canManageLocations", newRole, (v) => setNewRole({...newRole, canManageLocations: v}))}
@@ -187,6 +219,7 @@ export default function RolesAdminPage() {
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Perfil</DialogTitle>
+            <DialogDescription>Atualize as permissões deste cargo.</DialogDescription>
           </DialogHeader>
           {editingRole && (
             <div className="space-y-4 py-4">
@@ -200,7 +233,7 @@ export default function RolesAdminPage() {
               </div>
               <div className="grid grid-cols-1 gap-2">
                 <p className="text-xs font-bold uppercase text-muted-foreground mt-2">Permissões</p>
-                {renderPermissionToggle("Gerenciar Usuários", "canManageUsers", editingRole, (v) => setEditingRole({...editingRole, canManageUsers: v}))}
+                {renderPermissionToggle("Gerenciar Equipe e Usuários", "canManageUsers", editingRole, (v) => setEditingRole({...editingRole, canManageUsers: v}))}
                 {renderPermissionToggle("Ver Agenda Global", "canViewAllAppointments", editingRole, (v) => setEditingRole({...editingRole, canViewAllAppointments: v}))}
                 {renderPermissionToggle("Gerenciar Turmas/Segmentos", "canManageClasses", editingRole, (v) => setEditingRole({...editingRole, canManageClasses: v}))}
                 {renderPermissionToggle("Configurar Locais", "canManageLocations", editingRole, (v) => setEditingRole({...editingRole, canManageLocations: v}))}
