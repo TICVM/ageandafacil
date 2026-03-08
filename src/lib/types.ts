@@ -8,6 +8,11 @@ export interface AppPermissions {
   canManageClasses: boolean;
   canViewReports: boolean;
   canViewAllAppointments: boolean;
+  canViewSegmentAppointments: boolean;
+  canViewClassAppointments: boolean;
+  canEditAppointments: boolean;
+  canCancelAppointments: boolean;
+  canDeleteAppointments: boolean;
   canCreateBookings: boolean;
 }
 

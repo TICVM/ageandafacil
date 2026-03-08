@@ -8,17 +8,9 @@
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
-        "roleId": { "type": "string", "description": "ID do perfil/cargo definido na coleção roles_config." },
-        "classIds": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Lista de IDs das turmas atribuídas ao professor."
-        },
-        "segmentIds": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Lista de IDs dos segmentos atribuídos ao coordenador."
-        },
+        "roleId": { "type": "string" },
+        "classIds": { "type": "array", "items": { "type": "string" } },
+        "segmentIds": { "type": "array", "items": { "type": "string" } },
         "isActive": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       }
@@ -35,101 +27,26 @@
         "canManageClasses": { "type": "boolean" },
         "canViewReports": { "type": "boolean" },
         "canViewAllAppointments": { "type": "boolean" },
+        "canViewSegmentAppointments": { "type": "boolean" },
+        "canViewClassAppointments": { "type": "boolean" },
+        "canEditAppointments": { "type": "boolean" },
+        "canCancelAppointments": { "type": "boolean" },
+        "canDeleteAppointments": { "type": "boolean" },
         "canCreateBookings": { "type": "boolean" }
-      }
-    },
-    "SchoolClass": {
-      "title": "SchoolClass",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "schoolSegmentId": { "type": "string" },
-        "order": { "type": "number" },
-        "isActive": { "type": "boolean" }
-      }
-    },
-    "SchoolSegment": {
-      "title": "SchoolSegment",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "unit": { "type": "string" },
-        "order": { "type": "number" },
-        "isActive": { "type": "boolean" }
-      }
-    },
-    "Appointment": {
-      "title": "Appointment",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "schoolClassId": { "type": "string" },
-        "teacherId": { "type": "string" },
-        "teacherName": { "type": "string" },
-        "photoLocationId": { "type": "string" },
-        "locationIdentifier": { "type": "string" },
-        "appointmentDate": { "type": "string", "format": "date" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "status": { "type": "string", "enum": ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"] },
-        "observations": { "type": "string" },
-        "aiBrief": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "PhotoLocation": {
-      "title": "PhotoLocation",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "unit": { "type": "string" },
-        "description": { "type": "string" },
-        "isActive": { "type": "boolean" },
-        "requiresIdentifier": { "type": "boolean" }
-      }
-    },
-    "TimeSlot": {
-      "title": "TimeSlot",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "dayOfWeek": { "type": "string" },
-        "startTime": { "type": "string" },
-        "durationMinutes": { "type": "number" },
-        "schoolSegmentId": { "type": "string" },
-        "schoolClassId": { "type": "string" },
-        "isActive": { "type": "boolean" }
-      }
-    },
-    "ScheduleBlock": {
-      "title": "ScheduleBlock",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "reason": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
       }
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": ["password"]
   },
   "firestore": {
-    "structure": [
-      { "path": "/school_classes/{classId}", "definition": { "entityName": "SchoolClass" } },
-      { "path": "/school_segments/{segmentId}", "definition": { "entityName": "SchoolSegment" } },
-      { "path": "/appointments/{appointmentId}", "definition": { "entityName": "Appointment" } },
-      { "path": "/photo_locations/{locationId}", "definition": { "entityName": "PhotoLocation" } },
-      { "path": "/available_time_slots/{slotId}", "definition": { "entityName": "TimeSlot" } },
-      { "path": "/schedule_blocks/{blockId}", "definition": { "entityName": "ScheduleBlock" } },
-      { "path": "/users/{userId}", "definition": { "entityName": "User" } },
-      { "path": "/roles_config/{roleId}", "definition": { "entityName": "RoleConfig" } }
-    ]
+    "/school_classes/{classId}": { "schema": "SchoolClass", "description": "Classes" },
+    "/school_segments/{segmentId}": { "schema": "SchoolSegment", "description": "Segments" },
+    "/appointments/{appointmentId}": { "schema": "Appointment", "description": "Bookings" },
+    "/photo_locations/{locationId}": { "schema": "PhotoLocation", "description": "Locations" },
+    "/available_time_slots/{slotId}": { "schema": "TimeSlot", "description": "Slots" },
+    "/schedule_blocks/{blockId}": { "schema": "ScheduleBlock", "description": "Blocks" },
+    "/users/{userId}": { "schema": "User", "description": "Users" },
+    "/roles_config/{roleId}": { "schema": "RoleConfig", "description": "Role configurations" }
   }
 }

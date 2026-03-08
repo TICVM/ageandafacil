@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -8,13 +9,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { RoleConfig, AppPermissions } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const DEFAULT_PERMISSIONS: AppPermissions = {
   canManageUsers: false,
@@ -23,6 +25,11 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canManageClasses: false,
   canViewReports: false,
   canViewAllAppointments: false,
+  canViewSegmentAppointments: false,
+  canViewClassAppointments: false,
+  canEditAppointments: false,
+  canCancelAppointments: false,
+  canDeleteAppointments: false,
   canCreateBookings: true,
 };
 
@@ -41,7 +48,6 @@ export default function RolesAdminPage() {
 
   const handleAdd = () => {
     if (!newRole.name || !db) return;
-    
     addDocumentNonBlocking(collection(db, 'roles_config'), newRole);
     setNewRole({ name: '', ...DEFAULT_PERMISSIONS });
     setIsAddDialogOpen(false);
@@ -50,7 +56,6 @@ export default function RolesAdminPage() {
 
   const handleUpdate = () => {
     if (!editingRole || !db) return;
-    
     updateDocumentNonBlocking(doc(db, 'roles_config', editingRole.id), editingRole);
     setEditingRole(null);
     toast({ title: "Perfil atualizado!" });
@@ -66,22 +71,28 @@ export default function RolesAdminPage() {
     toast({ title: "Perfil removido." });
   };
 
-  const renderPermissionToggle = (label: string, field: keyof AppPermissions, current: any, onChange: (val: boolean) => void) => (
-    <div className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all">
-      <span className="text-sm font-medium">{label}</span>
-      <Switch 
-        checked={current[field]} 
-        onCheckedChange={onChange}
-      />
-    </div>
-  );
+  const renderPermissionToggle = (label: string, field: keyof AppPermissions, current: any, onChange: (val: boolean) => void, icon?: any) => {
+    const Icon = icon;
+    return (
+      <div className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+        <Switch 
+          checked={current[field]} 
+          onCheckedChange={onChange}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Perfis</h1>
-          <p className="text-muted-foreground">Determine quais ações cada tipo de usuário pode realizar no sistema.</p>
+          <p className="text-muted-foreground">Configure os níveis de acesso dinamicamente para cada cargo.</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg">
           <Plus className="w-4 h-4" />
@@ -100,23 +111,20 @@ export default function RolesAdminPage() {
               <TableHeader className="bg-muted/5">
                 <TableRow>
                   <TableHead className="font-bold">Nome do Perfil</TableHead>
-                  <TableHead className="font-bold">Permissões Ativas</TableHead>
+                  <TableHead className="font-bold">Permissões de Agenda</TableHead>
                   <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {/* Linha Fixa do Master Admin para Contexto */}
                 <TableRow className="bg-primary/5">
                   <TableCell className="font-bold">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/20 rounded-lg text-primary">
-                        <ShieldCheck className="w-4 h-4" />
-                      </div>
+                      <div className="p-2 bg-primary/20 rounded-lg text-primary"><ShieldCheck className="w-4 h-4" /></div>
                       Administrador Master (Sistema)
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total</Badge>
+                    <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total Irrestrito</Badge>
                   </TableCell>
                   <TableCell className="text-right text-xs text-muted-foreground italic">Protegido</TableCell>
                 </TableRow>
@@ -125,39 +133,22 @@ export default function RolesAdminPage() {
                   <TableRow key={role.id}>
                     <TableCell className="font-bold">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                          <ShieldCheck className="w-4 h-4" />
-                        </div>
+                        <div className="p-2 bg-muted rounded-lg text-muted-foreground"><ShieldCheck className="w-4 h-4" /></div>
                         {role.name}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {role.canManageUsers && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Usuários</span>}
-                        {role.canViewAllAppointments && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">Agenda</span>}
-                        {role.canViewReports && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Relatórios</span>}
-                        {role.canConfigureSlots && <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Grade</span>}
+                        {role.canViewAllAppointments && <Badge variant="outline" className="text-[9px] bg-blue-50">Ver Tudo</Badge>}
+                        {role.canViewSegmentAppointments && <Badge variant="outline" className="text-[9px] bg-purple-50">Ver Segmento</Badge>}
+                        {role.canEditAppointments && <Badge variant="outline" className="text-[9px] bg-orange-50">Editar</Badge>}
+                        {role.canCancelAppointments && <Badge variant="outline" className="text-[9px] bg-red-50">Cancelar</Badge>}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="rounded-full text-primary" 
-                          onClick={() => setEditingRole(role)}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="rounded-full text-destructive"
-                          onClick={() => handleRemove(role.id)}
-                          disabled={role.name.toUpperCase() === 'ADMIN'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)}><Edit2 className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -167,92 +158,100 @@ export default function RolesAdminPage() {
           )}
         </Card>
 
-        <Card className="border-none shadow-md bg-white p-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-primary" />
-            Dicas
-          </h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Crie perfis específicos como <strong>Coordenação</strong> para dar acesso apenas aos segmentos responsáveis, ou <strong>Secretaria</strong> para gerenciar apenas a agenda.
-          </p>
-          <Separator className="my-4" />
-          <p className="text-[10px] text-muted-foreground italic">
-            O cargo de Administrador Master é reservado para o e-mail oficial de gestão e não pode ser alterado por outros usuários.
-          </p>
+        <Card className="border-none shadow-md bg-white p-6 h-fit">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /> Dicas de Hierarquia</h3>
+          <ul className="text-sm text-muted-foreground space-y-4">
+            <li><strong>Ver Tudo:</strong> Acesso total à agenda escolar completa.</li>
+            <li><strong>Ver Segmento:</strong> Restringe a visualização apenas aos segmentos vinculados ao usuário.</li>
+            <li><strong>Ver Turma:</strong> Restringe a visualização apenas às turmas vinculadas ao usuário.</li>
+          </ul>
         </Card>
       </div>
 
-      {/* Modal Adicionar */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <DialogHeader>
-            <DialogTitle>Criar Novo Perfil</DialogTitle>
-            <DialogDescription>Dê um nome ao cargo e defina suas permissões.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+      {/* Modais de Gestão (Mesmo Estilo) */}
+      <RoleDialog 
+        isOpen={isAddDialogOpen} 
+        onClose={() => setIsAddDialogOpen(false)} 
+        role={newRole} 
+        setRole={setNewRole} 
+        onSave={handleAdd} 
+        title="Criar Novo Perfil"
+      />
+
+      <RoleDialog 
+        isOpen={!!editingRole} 
+        onClose={() => setEditingRole(null)} 
+        role={editingRole} 
+        setRole={setEditingRole} 
+        onSave={handleUpdate} 
+        title="Editar Perfil"
+      />
+    </div>
+  );
+}
+
+function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
+  if (!role) return null;
+
+  const renderPermissionToggle = (label: string, field: keyof AppPermissions, icon?: any) => {
+    const Icon = icon;
+    return (
+      <div className="flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-primary" />}
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+        <Switch 
+          checked={role[field]} 
+          onCheckedChange={(v) => setRole({ ...role, [field]: v })}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="rounded-2xl max-w-2xl p-0 overflow-hidden">
+        <DialogHeader className="p-6 bg-primary text-primary-foreground">
+          <DialogTitle className="text-xl text-primary-foreground">{title}</DialogTitle>
+          <DialogDescription className="text-primary-foreground/80">Configure as permissões específicas para este cargo.</DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[70vh] p-6">
+          <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-semibold">Nome do Perfil</label>
-              <Input 
-                placeholder="Ex: Secretaria, Direção..." 
-                value={newRole.name}
-                onChange={(e) => setNewRole({...newRole, name: e.target.value})}
-                className="rounded-xl"
-              />
+              <label className="text-sm font-bold">Nome do Cargo</label>
+              <Input placeholder="Ex: Coordenação de Ensino" value={role.name} onChange={(e) => setRole({ ...role, name: e.target.value })} className="rounded-xl" />
             </div>
-            <div className="grid grid-cols-1 gap-2">
-              <p className="text-xs font-bold uppercase text-muted-foreground mt-2">Permissões</p>
-              {renderPermissionToggle("Gerenciar Equipe e Usuários", "canManageUsers", newRole, (v) => setNewRole({...newRole, canManageUsers: v}))}
-              {renderPermissionToggle("Ver Agenda Global", "canViewAllAppointments", newRole, (v) => setNewRole({...newRole, canViewAllAppointments: v}))}
-              {renderPermissionToggle("Gerenciar Turmas/Segmentos", "canManageClasses", newRole, (v) => setNewRole({...newRole, canManageClasses: v}))}
-              {renderPermissionToggle("Configurar Locais", "canManageLocations", newRole, (v) => setNewRole({...newRole, canManageLocations: v}))}
-              {renderPermissionToggle("Configurar Grade Horária", "canConfigureSlots", newRole, (v) => setNewRole({...newRole, canConfigureSlots: v}))}
-              {renderPermissionToggle("Ver Relatórios", "canViewReports", newRole, (v) => setNewRole({...newRole, canViewReports: v}))}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Acesso a Módulos</p>
+                {renderPermissionToggle("Gerenciar Equipe", "canManageUsers")}
+                {renderPermissionToggle("Ver Relatórios", "canViewReports")}
+                {renderPermissionToggle("Configurar Locais", "canManageLocations")}
+                {renderPermissionToggle("Configurar Grade", "canConfigureSlots")}
+                {renderPermissionToggle("Gerenciar Turmas", "canManageClasses")}
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Acesso à Agenda (Filtros)</p>
+                {renderPermissionToggle("Ver Tudo (Global)", "canViewAllAppointments", Eye)}
+                {renderPermissionToggle("Ver do meu Segmento", "canViewSegmentAppointments", Eye)}
+                {renderPermissionToggle("Ver da minha Turma", "canViewClassAppointments", Eye)}
+                
+                <p className="text-xs font-bold uppercase text-muted-foreground mt-4">Ações na Agenda</p>
+                {renderPermissionToggle("Editar/Remarcar", "canEditAppointments", Edit3)}
+                {renderPermissionToggle("Cancelar Sessão", "canCancelAppointments", XCircle)}
+                {renderPermissionToggle("Excluir Registro", "canDeleteAppointments", Trash2)}
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">Cancelar</Button>
-            <Button onClick={handleAdd} className="rounded-xl">Criar Perfil</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Editar */}
-      <Dialog open={!!editingRole} onOpenChange={() => setEditingRole(null)}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar Perfil</DialogTitle>
-            <DialogDescription>Atualize as permissões deste cargo.</DialogDescription>
-          </DialogHeader>
-          {editingRole && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Nome do Perfil</label>
-                <Input 
-                  value={editingRole.name}
-                  onChange={(e) => setEditingRole({...editingRole, name: e.target.value})}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                <p className="text-xs font-bold uppercase text-muted-foreground mt-2">Permissões</p>
-                {renderPermissionToggle("Gerenciar Equipe e Usuários", "canManageUsers", editingRole, (v) => setEditingRole({...editingRole, canManageUsers: v}))}
-                {renderPermissionToggle("Ver Agenda Global", "canViewAllAppointments", editingRole, (v) => setEditingRole({...editingRole, canViewAllAppointments: v}))}
-                {renderPermissionToggle("Gerenciar Turmas/Segmentos", "canManageClasses", editingRole, (v) => setEditingRole({...editingRole, canManageClasses: v}))}
-                {renderPermissionToggle("Configurar Locais", "canManageLocations", editingRole, (v) => setEditingRole({...editingRole, canManageLocations: v}))}
-                {renderPermissionToggle("Configurar Grade Horária", "canConfigureSlots", editingRole, (v) => setEditingRole({...editingRole, canConfigureSlots: v}))}
-                {renderPermissionToggle("Ver Relatórios", "canViewReports", editingRole, (v) => setEditingRole({...editingRole, canViewReports: v}))}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingRole(null)} className="rounded-xl">Cancelar</Button>
-            <Button onClick={handleUpdate} className="rounded-xl gap-2">
-              <Save className="w-4 h-4" />
-              Salvar Alterações
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </ScrollArea>
+        <DialogFooter className="p-6 bg-muted/20">
+          <Button variant="outline" onClick={onClose} className="rounded-xl">Cancelar</Button>
+          <Button onClick={onSave} className="rounded-xl gap-2"><Save className="w-4 h-4" /> Salvar Perfil</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
