@@ -158,8 +158,9 @@ export default function UsersAdminPage() {
   ) || [];
 
   const getRoleName = (roleId: string) => {
+    if (roleId === 'ADMIN') return 'Administrador';
     const role = availableRoles?.find(r => r.id === roleId);
-    return role?.name || '---';
+    return role?.name || roleId;
   };
 
   return (
@@ -207,7 +208,8 @@ export default function UsersAdminPage() {
                       <SelectValue placeholder="Selecione o papel" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableRoles?.map(role => (
+                      <SelectItem value="ADMIN" className="font-bold text-primary">Administrador (Total)</SelectItem>
+                      {availableRoles?.filter(r => r.id !== 'ADMIN').map(role => (
                         <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -290,7 +292,9 @@ export default function UsersAdminPage() {
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 items-start">
-                      <Badge variant="outline" className="rounded-lg">{getRoleName(u.roleId)}</Badge>
+                      <Badge variant={u.roleId === 'ADMIN' ? 'default' : 'outline'} className="rounded-lg">
+                        {getRoleName(u.roleId)}
+                      </Badge>
                       <span className="text-[10px] text-muted-foreground font-medium">
                         {u.segmentIds?.length || 0} segmentos / {u.classIds?.length || 0} turmas
                       </span>
@@ -328,7 +332,8 @@ export default function UsersAdminPage() {
                 <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)}>
                   <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {availableRoles?.map(role => (
+                    <SelectItem value="ADMIN" className="font-bold text-primary">Administrador (Total)</SelectItem>
+                    {availableRoles?.filter(r => r.id !== 'ADMIN').map(role => (
                       <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
                     ))}
                   </SelectContent>
