@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,17 +13,18 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User, Building2, Hash, ShieldAlert } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock } from '@/lib/types';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, serverTimestamp, addDoc, doc, query, where, getDocs, limit } from 'firebase/firestore';
+import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
 export default function PublicBookingPage() {
   const router = useRouter();
   const db = useFirestore();
+  const { user: authUser } = useUser();
   
   const [date, setDate] = useState<Date>();
   const [teacherName, setTeacherName] = useState('');
@@ -35,7 +36,12 @@ export default function PublicBookingPage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiBrief, setAiBrief] = useState<AISessionBriefAssistantOutput | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  
+  // Estado para o perfil do professor logado
+  const [profile, setProfile] = useState<User | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
+  // Queries base
   const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
   const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
@@ -50,13 +56,61 @@ export default function PublicBookingPage() {
   const { data: allAppointments } = useCollection<Booking>(appointmentsQuery);
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksQuery);
 
-  const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+  // Carregar perfil para identificar turmas permitidas
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!db || !authUser) {
+        setLoadingProfile(false);
+        return;
+      }
+      
+      try {
+        const userEmail = authUser.email?.toLowerCase().trim();
+        const userDocRef = doc(db, 'users', authUser.uid);
+        const userDoc = await doc(db, 'users', authUser.uid);
+        
+        // Tentativa 1: Pelo UID
+        const { data: pData } = await import('firebase/firestore').then(f => f.getDoc(userDocRef));
+        
+        if (pData.exists()) {
+          const profileData = pData.data() as User;
+          setProfile(profileData);
+          setTeacherName(profileData.name || '');
+        } else if (userEmail) {
+          // Tentativa 2: Pelo e-mail (fallback robusto)
+          const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            const profileData = snapshot.docs[0].data() as User;
+            setProfile(profileData);
+            setTeacherName(profileData.name || '');
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar perfil na reserva:", err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    }
+    fetchProfile();
+  }, [db, authUser]);
+
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const locations = rawLocations || [];
 
-  const selectedClass = classes?.find(c => c.id === selectedClassId);
+  // FILTRAGEM DE TURMAS: Exibe apenas as turmas permitidas para o professor
+  const filteredClasses = rawClasses?.filter(c => {
+    // Se não houver perfil ou for ADMIN, vê tudo
+    if (!profile || profile.role === 'ADMIN') return true;
+    // Se for TEACHER, verifica a lista de Turmas Atribuídas (classIds)
+    if (profile.role === 'TEACHER') {
+      return profile.classIds?.includes(c.id);
+    }
+    return true;
+  }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) || [];
+
+  const selectedClass = filteredClasses?.find(c => c.id === selectedClassId);
   const selectedSegment = segments?.find(s => s.id === selectedClass?.schoolSegmentId);
-  
   const selectedLocation = locations?.find(l => l.id === selectedLocationId);
 
   const filteredLocations = locations?.filter(l => {
@@ -65,18 +119,11 @@ export default function PublicBookingPage() {
     return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
   }) || [];
 
-  // Lógica principal de filtragem de horários:
-  // Remove horários que:
-  // 1. Já estão agendados (CONFIRMED)
-  // 2. Estão dentro de um período bloqueado pelo administrador (ScheduleBlock)
   const availableSlots = slots?.filter(s => {
     if (!date) return false;
-    
-    // 1. Filtro básico de dia da semana
     const dayMatches = s.dayOfWeek === date.getDay().toString();
     if (!dayMatches) return false;
 
-    // 2. Filtro de alvo (Global, Segmento ou Turma)
     const targetMatches = s.schoolClassId 
       ? s.schoolClassId === selectedClassId
       : s.schoolSegmentId 
@@ -86,8 +133,6 @@ export default function PublicBookingPage() {
     if (!targetMatches) return false;
 
     const dateStr = format(date, 'yyyy-MM-dd');
-
-    // 3. Verifica se o horário já está ocupado por outro professor
     const isTaken = allAppointments?.some(app => 
       app.appointmentDate === dateStr && 
       app.startTime === s.startTime && 
@@ -95,29 +140,22 @@ export default function PublicBookingPage() {
     );
     if (isTaken) return false;
 
-    // 4. Verifica se o horário está dentro de um BLOQUEIO administrativo
     const isBlocked = allBlocks?.some(block => {
       if (block.date !== dateStr) return false;
-      
-      // Converte horários HH:mm para minutos totais para comparação fácil
       const timeToMin = (t: string) => {
         const [h, m] = t.split(':').map(Number);
         return h * 60 + m;
       };
-
       const slotStart = timeToMin(s.startTime);
       const slotEnd = slotStart + (s.durationMinutes || 60);
       const blockStart = timeToMin(block.startTime);
       const blockEnd = timeToMin(block.endTime);
-
-      // Existe sobreposição se: (slotStart < blockEnd) AND (slotEnd > blockStart)
       return slotStart < blockEnd && slotEnd > blockStart;
     });
 
     return !isBlocked;
   }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
 
-  // Verifica se o dia inteiro está bloqueado para exibir um aviso
   const dayBlock = allBlocks?.find(b => date && b.date === format(date, 'yyyy-MM-dd'));
 
   const handleGenerateAiBrief = async () => {
@@ -163,6 +201,7 @@ export default function PublicBookingPage() {
 
     const appointmentData = {
       schoolClassId: selectedClassId,
+      teacherId: authUser?.uid || null,
       teacherName: teacherName,
       photoLocationId: selectedLocationId,
       locationIdentifier: locationIdentifier || null,
@@ -184,6 +223,14 @@ export default function PublicBookingPage() {
       toast({ title: "Erro ao reservar", description: e.message, variant: "destructive" });
     });
   };
+
+  if (loadingProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -254,18 +301,21 @@ export default function PublicBookingPage() {
                   <CalendarIcon className="w-5 h-5" />
                   Dados da Reserva
                 </CardTitle>
-                <CardDescription className="text-primary-foreground/80">Selecione sua turma e o melhor horário.</CardDescription>
+                <CardDescription className="text-primary-foreground/80">
+                  {profile?.role === 'TEACHER' ? 'Selecione uma de suas turmas atribuídas.' : 'Selecione a turma e o local da sessão.'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-8 space-y-6 bg-white">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold flex items-center gap-2">
-                    <User className="w-4 h-4" /> Nome do Professor(a)
+                    <UserIcon className="w-4 h-4" /> Nome do Professor(a)
                   </label>
                   <Input 
                     placeholder="Seu nome completo" 
                     value={teacherName}
                     onChange={(e) => setTeacherName(e.target.value)}
                     className="rounded-xl h-11"
+                    readOnly={!!profile}
                   />
                 </div>
 
@@ -280,9 +330,15 @@ export default function PublicBookingPage() {
                         <SelectValue placeholder="Selecione a turma" />
                       </SelectTrigger>
                       <SelectContent>
-                        {classes?.map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
+                        {filteredClasses.length > 0 ? (
+                          filteredClasses.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-4 text-xs text-center text-muted-foreground">
+                            Nenhuma turma atribuída ao seu perfil.
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -371,7 +427,7 @@ export default function PublicBookingPage() {
                           ))
                         ) : (
                           <div className="p-4 text-xs text-center text-muted-foreground">
-                            {!date ? "Selecione uma data primeiro." : "Nenhum horário disponível para este dia ou período bloqueado."}
+                            {!date ? "Selecione uma data primeiro." : "Nenhum horário disponível para este dia."}
                           </div>
                         )}
                       </SelectContent>

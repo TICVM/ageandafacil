@@ -8,6 +8,7 @@ export interface User {
   password?: string;
   role: UserRole;
   segmentId?: string;
+  classIds?: string[];
 }
 
 export interface Segment {

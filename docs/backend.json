@@ -8,7 +8,12 @@
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
-        "role": { "type": "string", "enum": ["ADMIN", "TEACHER"] }
+        "role": { "type": "string", "enum": ["ADMIN", "TEACHER"] },
+        "classIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista de IDs das turmas atribuídas ao professor."
+        }
       }
     },
     "SchoolClass": {

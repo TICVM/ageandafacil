@@ -8,12 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Eye, EyeOff } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { UserCog, Plus, Trash2, Search, Loader2, Mail, User as UserIcon, Eye, EyeOff, Layers } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { User, UserRole } from '@/lib/types';
+import { User, UserRole, Class } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { initializeApp, deleteApp, getApps, getApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -22,17 +24,26 @@ import { firebaseConfig } from '@/firebase/config';
 export default function UsersAdminPage() {
   const db = useFirestore();
   const usersRef = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
+  const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
+  
   const { data: users, isLoading } = useCollection<User>(usersRef);
+  const { data: schoolClasses } = useCollection<Class>(classesRef);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'TEACHER' as UserRole });
+  const [newUser, setNewUser] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    role: UserRole;
+    classIds: string[];
+  }>({ name: '', email: '', password: '', role: 'TEACHER', classIds: [] });
 
   const handleAdd = async () => {
     if (!newUser.name || !newUser.email || !newUser.password || !db) {
-      toast({ title: "Erro", description: "Preencha todos os campos.", variant: "destructive" });
+      toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
     
@@ -52,11 +63,12 @@ export default function UsersAdminPage() {
         name: newUser.name,
         email: normalizedEmail,
         role: newUser.role,
+        classIds: newUser.classIds,
         isActive: true,
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
+      setNewUser({ name: '', email: '', password: '', role: 'TEACHER', classIds: [] });
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
@@ -70,8 +82,6 @@ export default function UsersAdminPage() {
         errorMsg = "Este e-mail já possui uma conta de acesso ativa.";
       } else if (error.code === 'auth/weak-password') {
         errorMsg = "A senha deve ter pelo menos 6 caracteres.";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMsg = "O formato do e-mail é inválido.";
       }
 
       toast({ 
@@ -91,6 +101,16 @@ export default function UsersAdminPage() {
     }
   };
 
+  const handleToggleClass = (classId: string) => {
+    setNewUser(prev => {
+      const isSelected = prev.classIds.includes(classId);
+      const newIds = isSelected 
+        ? prev.classIds.filter(id => id !== classId) 
+        : [...prev.classIds, classId];
+      return { ...prev, classIds: newIds };
+    });
+  };
+
   const handleRemove = (id: string) => {
     if (!db) return;
     deleteDocumentNonBlocking(doc(db, 'users', id));
@@ -107,7 +127,7 @@ export default function UsersAdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-          <p className="text-muted-foreground">Gerencie as contas de acesso de professores e administradores.</p>
+          <p className="text-muted-foreground">Gerencie as contas de acesso e turmas atribuídas.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -116,71 +136,110 @@ export default function UsersAdminPage() {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-2xl">
+          <DialogContent className="rounded-2xl max-w-2xl">
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                Este processo cria uma conta de acesso e um perfil no sistema.
+                Crie uma conta de acesso e vincule as turmas do professor.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Nome Completo</label>
-                <Input 
-                  placeholder="Ex: Maria Silva" 
-                  value={newUser.name} 
-                  onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  disabled={isCreating}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">E-mail</label>
-                <Input 
-                  type="email"
-                  placeholder="maria@escola.com" 
-                  value={newUser.email} 
-                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                  disabled={isCreating}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Senha Inicial</label>
-                <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Nome Completo</label>
                   <Input 
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 6 caracteres" 
-                    value={newUser.password} 
-                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    placeholder="Ex: Maria Silva" 
+                    value={newUser.name} 
+                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
                     disabled={isCreating}
-                    className="rounded-xl pr-10"
+                    className="rounded-xl"
                   />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">E-mail</label>
+                  <Input 
+                    type="email"
+                    placeholder="maria@escola.com" 
+                    value={newUser.email} 
+                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                    disabled={isCreating}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Senha Inicial</label>
+                  <div className="relative">
+                    <Input 
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Mínimo 6 caracteres" 
+                      value={newUser.password} 
+                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                      disabled={isCreating}
+                      className="rounded-xl pr-10"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                      disabled={isCreating}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Papel no Sistema</label>
+                  <Select 
+                    value={newUser.role} 
+                    onValueChange={(val) => setNewUser({...newUser, role: val as UserRole})}
                     disabled={isCreating}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Selecione o papel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TEACHER">Professor(a)</SelectItem>
+                      <SelectItem value="ADMIN">Administrador(a)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Papel no Sistema</label>
-                <Select 
-                  value={newUser.role} 
-                  onValueChange={(val) => setNewUser({...newUser, role: val as UserRole})}
-                  disabled={isCreating}
-                >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="Selecione o papel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TEACHER">Professor(a)</SelectItem>
-                    <SelectItem value="ADMIN">Administrador(a)</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="space-y-4 border-l pl-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    Vincular Turmas
+                  </label>
+                  <p className="text-[10px] text-muted-foreground mb-2">
+                    O professor verá apenas as turmas marcadas aqui na tela de reserva.
+                  </p>
+                  <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
+                    <div className="space-y-3">
+                      {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
+                        <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20 transition-colors">
+                          <Checkbox 
+                            id={`cls-${cls.id}`} 
+                            checked={newUser.classIds.includes(cls.id)}
+                            onCheckedChange={() => handleToggleClass(cls.id)}
+                            disabled={isCreating}
+                          />
+                          <label 
+                            htmlFor={`cls-${cls.id}`} 
+                            className="text-xs font-medium cursor-pointer flex-1 py-1"
+                          >
+                            {cls.name}
+                          </label>
+                        </div>
+                      ))}
+                      {(!schoolClasses || schoolClasses.length === 0) && (
+                        <p className="text-xs text-center text-muted-foreground py-10">
+                          Nenhuma turma cadastrada no sistema.
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -217,6 +276,7 @@ export default function UsersAdminPage() {
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold">Nome</TableHead>
                 <TableHead className="font-bold">E-mail</TableHead>
+                <TableHead className="font-bold">Turmas</TableHead>
                 <TableHead className="font-bold">Papel</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
@@ -233,6 +293,22 @@ export default function UsersAdminPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {u.classIds && u.classIds.length > 0 ? (
+                        u.classIds.map(cid => {
+                          const cls = schoolClasses?.find(c => c.id === cid);
+                          return cls ? (
+                            <Badge key={cid} variant="outline" className="text-[9px] h-5 rounded-lg border-primary/20 text-primary">
+                              {cls.name}
+                            </Badge>
+                          ) : null;
+                        })
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">Nenhuma</span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={u.role === 'ADMIN' ? 'default' : 'secondary'} className="rounded-lg">
                       {u.role === 'ADMIN' ? 'Administrador' : 'Professor'}
