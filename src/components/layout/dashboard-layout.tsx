@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
@@ -29,6 +28,7 @@ import {
 import { User, UserRole } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, doc, getDoc, getDocs, limit } from 'firebase/firestore';
@@ -48,12 +48,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       if (!db || !authUser) return;
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
+        
+        // Verificação de Admin Master por E-mail
         if (userEmail === 'herbertpacheco@cvmsp.com.br') {
           setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', role: 'ADMIN' });
           return;
         }
+
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
+        
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: authUser.uid });
         } else if (userEmail) {
