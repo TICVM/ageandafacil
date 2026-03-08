@@ -16,8 +16,7 @@ export interface AppPermissions {
 
 /**
  * Mapa de permissões por cargo.
- * O Administrador (ADMIN) é tratado como tendo acesso total por padrão em outros lugares,
- * mas definimos aqui para consistência.
+ * O Administrador (ADMIN) tem acesso total.
  */
 export const ROLE_PERMISSIONS: Record<UserRole, AppPermissions> = {
   ADMIN: {
@@ -35,7 +34,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, AppPermissions> = {
     canManageLocations: false,
     canManageClasses: false,
     canViewReports: false,
-    canViewAllAppointments: true, // Restrito por segmento via código na página
+    canViewAllAppointments: true, // Filtrado por segmento via código nas páginas
     canCreateBookings: true,
   },
   TEACHER: {
@@ -44,7 +43,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, AppPermissions> = {
     canManageLocations: false,
     canManageClasses: false,
     canViewReports: false,
-    canViewAllAppointments: false, // Vê apenas os seus
+    canViewAllAppointments: false, // Vê apenas os seus próprios
     canCreateBookings: true,
   },
 };
@@ -55,10 +54,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, AppPermissions> = {
  * @returns Um objeto AppPermissions com booleanos para cada funcionalidade.
  */
 export function getPermissionsByRole(role: UserRole): AppPermissions {
-  // Se for Admin, sempre retorna tudo true como salvaguarda
   if (role === 'ADMIN') {
     return ROLE_PERMISSIONS.ADMIN;
   }
-  
   return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.TEACHER;
 }

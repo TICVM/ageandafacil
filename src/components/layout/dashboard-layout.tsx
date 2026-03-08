@@ -51,7 +51,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
         
-        // Verificação de Admin Master por E-mail
+        // Verificação Master Admin (Salvaguarda por e-mail)
         if (userEmail === 'herbertpacheco@cvmsp.com.br') {
           setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', role: 'ADMIN' });
           return;
@@ -86,7 +86,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { title: 'Fazer Reserva', icon: CalendarDays, href: '/reserva' },
   ];
 
-  // Agenda Global visível para Admin e Coordenador
   if (isAdmin || perms.canViewAllAppointments) {
     menuItems.push({ title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' });
   }
