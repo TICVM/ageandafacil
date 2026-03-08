@@ -26,7 +26,7 @@ import {
   PieChart,
   UserCog,
 } from 'lucide-react';
-import { User } from '@/lib/types';
+import { User, UserRole } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useUser, useAuth, useFirestore } from '@/firebase';
@@ -46,26 +46,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function fetchProfile() {
       if (!db || !authUser) return;
-      
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
-        
-        // Identificação Master Admin
         if (userEmail === 'herbertpacheco@cvmsp.com.br') {
           setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', role: 'ADMIN' });
           return;
         }
-
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
-        
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: authUser.uid });
         } else if (userEmail) {
-          const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('email', '==', userEmail), limit(1));
+          const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
-          
           if (!querySnapshot.empty) {
             const docData = querySnapshot.docs[0];
             setProfile({ ...docData.data() as User, id: docData.id });
@@ -75,12 +68,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         console.error("Erro ao carregar perfil lateral:", err);
       }
     }
-
     fetchProfile();
   }, [db, authUser]);
 
   const userEmail = authUser?.email?.toLowerCase().trim();
   const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
+  const isCoordinator = profile?.role === 'COORDINATOR';
+  const hasManagementAccess = isAdmin || isCoordinator;
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -88,17 +82,28 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' },
   ];
 
-  const adminItems = [
-    { title: 'Gestão de Usuários', icon: UserCog, href: '/dashboard/admin/users' },
-    { title: 'Configurar Horários', icon: Clock, href: '/dashboard/admin/slots' },
-    { title: 'Locais de Foto', icon: MapPin, href: '/dashboard/admin/locations' },
-    { title: 'Turmas e Segmentos', icon: Users, href: '/dashboard/admin/classes' },
-    { title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' },
-  ];
+  const adminItems = [];
+  
+  if (hasManagementAccess) {
+    adminItems.push({ title: 'Gestão de Usuários', icon: UserCog, href: '/dashboard/admin/users' });
+  }
+  
+  if (isAdmin) {
+    adminItems.push({ title: 'Configurar Horários', icon: Clock, href: '/dashboard/admin/slots' });
+    adminItems.push({ title: 'Locais de Foto', icon: MapPin, href: '/dashboard/admin/locations' });
+    adminItems.push({ title: 'Turmas e Segmentos', icon: Users, href: '/dashboard/admin/classes' });
+    adminItems.push({ title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' });
+  }
 
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/');
+  };
+
+  const getRoleLabel = (role?: UserRole) => {
+    if (role === 'ADMIN') return 'Administrador';
+    if (role === 'COORDINATOR') return 'Coordenador';
+    return 'Professor';
   };
 
   return (
@@ -106,9 +111,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <Sidebar collapsible="icon" className="border-r border-border/40">
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3">
-            <div className="bg-primary p-2 rounded-lg">
-              <Camera className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <div className="bg-primary p-2 rounded-lg"><Camera className="w-5 h-5 text-primary-foreground" /></div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-bold text-lg leading-none text-primary">SchoolLens</span>
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Scheduler</span>
@@ -119,12 +122,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             {menuItems.map((item) => (
               <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === item.href}
-                  tooltip={item.title}
-                  className="rounded-xl"
-                >
+                <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title} className="rounded-xl">
                   <a href={item.href}>
                     <item.icon className="w-5 h-5" />
                     <span className="font-medium">{item.title}</span>
@@ -134,7 +132,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             ))}
           </SidebarMenu>
 
-          {isAdmin && (
+          {adminItems.length > 0 && (
             <>
               <div className="mt-8 mb-2 px-4 group-data-[collapsible=icon]:hidden">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Administração</span>
@@ -142,12 +140,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <SidebarMenu>
                 {adminItems.map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.href}
-                      tooltip={item.title}
-                      className="rounded-xl hover:bg-primary/5 data-[active=true]:bg-primary/10"
-                    >
+                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title} className="rounded-xl">
                       <a href={item.href}>
                         <item.icon className="w-5 h-5" />
                         <span className="font-medium">{item.title}</span>
@@ -170,14 +163,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[130px]">
               <span className="text-sm font-bold truncate">{profile?.name || authUser?.email?.split('@')[0]}</span>
               <span className="text-[9px] text-primary font-bold uppercase tracking-tighter">
-                {isAdmin ? 'Administrador' : 'Professor'}
+                {getRoleLabel(profile?.role)}
               </span>
             </div>
-            <button
-              onClick={handleLogout}
-              className="ml-auto p-2 hover:bg-destructive/10 hover:text-destructive rounded-xl transition-colors group-data-[collapsible=icon]:hidden"
-              title="Sair do sistema"
-            >
+            <button onClick={handleLogout} className="ml-auto p-2 hover:text-destructive transition-colors group-data-[collapsible=icon]:hidden">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -191,16 +180,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <span className="text-[10px] text-muted-foreground font-bold uppercase">Unidade Colégio VMS</span>
               <span className="text-sm font-bold text-primary">{profile?.name || authUser?.email}</span>
             </div>
-            {isAdmin && (
-              <div className="bg-primary/10 px-3 py-1 rounded-full">
-                <span className="text-[10px] font-bold text-primary uppercase">Painel Gestor</span>
-              </div>
-            )}
+            {isAdmin && <Badge className="bg-blue-600">Gestor Master</Badge>}
+            {isCoordinator && <Badge className="bg-purple-600">Coordenador</Badge>}
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6 md:p-8 bg-[#ECF1FA]">
-          {children}
-        </main>
+        <main className="flex-1 p-6 md:p-8 bg-[#ECF1FA]">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

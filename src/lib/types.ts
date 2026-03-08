@@ -1,5 +1,5 @@
 
-export type UserRole = 'ADMIN' | 'TEACHER';
+export type UserRole = 'ADMIN' | 'COORDINATOR' | 'TEACHER';
 
 export interface User {
   id: string;
@@ -7,8 +7,10 @@ export interface User {
   email: string;
   password?: string;
   role: UserRole;
-  segmentId?: string;
-  classIds?: string[];
+  segmentId?: string; // Para Coordenadores
+  classIds?: string[]; // Para Professores
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface Segment {
@@ -16,6 +18,7 @@ export interface Segment {
   name: string;
   unit?: string;
   order?: number;
+  isActive?: boolean;
 }
 
 export interface Class {
@@ -23,6 +26,7 @@ export interface Class {
   name: string;
   schoolSegmentId: string;
   order?: number;
+  isActive?: boolean;
 }
 
 export interface PhotoLocation {
