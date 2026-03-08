@@ -25,8 +25,9 @@ import {
   Clock,
   PieChart,
   UserCog,
+  ShieldAlert,
 } from 'lucide-react';
-import { User, UserRole } from '@/lib/types';
+import { User, RoleConfig, AppPermissions } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +35,26 @@ import { useUser, useAuth, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
-import { getPermissionsByRole } from '@/lib/permissions';
+
+const DEFAULT_PERMS: AppPermissions = {
+  canManageUsers: false,
+  canConfigureSlots: false,
+  canManageLocations: false,
+  canManageClasses: false,
+  canViewReports: false,
+  canViewAllAppointments: false,
+  canCreateBookings: true,
+};
+
+const ADMIN_PERMS: AppPermissions = {
+  canManageUsers: true,
+  canConfigureSlots: true,
+  canManageLocations: true,
+  canManageClasses: true,
+  canViewReports: true,
+  canViewAllAppointments: true,
+  canCreateBookings: true,
+};
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -44,83 +64,97 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
 
   const [profile, setProfile] = useState<User | null>(null);
+  const [userPerms, setUserPerms] = useState<AppPermissions>(DEFAULT_PERMS);
+  const [roleName, setRoleName] = useState('');
 
   useEffect(() => {
-    async function fetchProfile() {
+    async function fetchProfileAndPerms() {
       if (!db || !authUser) return;
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
-        
-        // Verificação Master Admin (Salvaguarda por e-mail)
-        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
-          setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', role: 'ADMIN' });
-          return;
-        }
+        let userDocData: User | null = null;
 
+        // 1. Busca perfil do usuário
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
-          setProfile({ ...userDoc.data() as User, id: authUser.uid });
+          userDocData = { ...userDoc.data() as User, id: authUser.uid };
         } else if (userEmail) {
           const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
             const docData = querySnapshot.docs[0];
-            setProfile({ ...docData.data() as User, id: docData.id });
+            userDocData = { ...docData.data() as User, id: docData.id };
+          }
+        }
+
+        // 2. Determina permissões
+        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
+          setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', roleId: 'ADMIN' });
+          setUserPerms(ADMIN_PERMS);
+          setRoleName('Administrador Master');
+          return;
+        }
+
+        if (userDocData) {
+          setProfile(userDocData);
+          if (userDocData.roleId) {
+            const roleDoc = await getDoc(doc(db, 'roles_config', userDocData.roleId));
+            if (roleDoc.exists()) {
+              const roleData = roleDoc.data() as RoleConfig;
+              setUserPerms(roleData);
+              setRoleName(roleData.name);
+            } else if (userDocData.roleId.toUpperCase() === 'ADMIN') {
+              setUserPerms(ADMIN_PERMS);
+              setRoleName('Administrador');
+            }
           }
         }
       } catch (err) {
-        console.error("Erro ao carregar perfil lateral:", err);
+        console.error("Erro ao carregar permissões laterais:", err);
       }
     }
-    fetchProfile();
+    fetchProfileAndPerms();
   }, [db, authUser]);
 
-  const userEmail = authUser?.email?.toLowerCase().trim();
-  const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
-  const perms = getPermissionsByRole(profile?.role || 'TEACHER');
+  const isAdmin = userPerms.canManageUsers && userPerms.canManageClasses;
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { title: 'Fazer Reserva', icon: CalendarDays, href: '/reserva' },
   ];
 
-  if (isAdmin || perms.canViewAllAppointments) {
+  if (userPerms.canViewAllAppointments) {
     menuItems.push({ title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' });
   }
 
   const adminItems = [];
   
-  if (isAdmin || perms.canManageUsers) {
-    adminItems.push({ title: 'Gestão de Usuários', icon: UserCog, href: '/dashboard/admin/users' });
+  if (userPerms.canManageUsers) {
+    adminItems.push({ title: 'Gestão de Equipe', icon: UserCog, href: '/dashboard/admin/users' });
+    adminItems.push({ title: 'Perfis e Permissões', icon: ShieldAlert, href: '/dashboard/admin/roles' });
   }
   
-  if (isAdmin || perms.canConfigureSlots) {
+  if (userPerms.canConfigureSlots) {
     adminItems.push({ title: 'Configurar Horários', icon: Clock, href: '/dashboard/admin/slots' });
   }
 
-  if (isAdmin || perms.canManageLocations) {
+  if (userPerms.canManageLocations) {
     adminItems.push({ title: 'Locais de Foto', icon: MapPin, href: '/dashboard/admin/locations' });
   }
 
-  if (isAdmin || perms.canManageClasses) {
+  if (userPerms.canManageClasses) {
     adminItems.push({ title: 'Turmas e Segmentos', icon: Users, href: '/dashboard/admin/classes' });
   }
 
-  if (isAdmin || perms.canViewReports) {
+  if (userPerms.canViewReports) {
     adminItems.push({ title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' });
   }
 
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/');
-  };
-
-  const getRoleLabel = (role?: UserRole) => {
-    if (role === 'ADMIN') return 'Administrador';
-    if (role === 'COORDINATOR') return 'Coordenador';
-    return 'Professor';
   };
 
   return (
@@ -180,7 +214,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-col group-data-[collapsible=icon]:hidden max-w-[130px]">
               <span className="text-sm font-bold truncate">{profile?.name || authUser?.email?.split('@')[0]}</span>
               <span className="text-[9px] text-primary font-bold uppercase tracking-tighter">
-                {getRoleLabel(profile?.role)}
+                {roleName || 'Perfil Padrão'}
               </span>
             </div>
             <button onClick={handleLogout} className="ml-auto p-2 hover:text-destructive transition-colors group-data-[collapsible=icon]:hidden">
@@ -197,8 +231,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <span className="text-[10px] text-muted-foreground font-bold uppercase">Unidade Colégio VMS</span>
               <span className="text-sm font-bold text-primary">{profile?.name || authUser?.email}</span>
             </div>
-            {isAdmin && <Badge className="bg-blue-600">Gestor Master</Badge>}
-            {!isAdmin && profile?.role === 'COORDINATOR' && <Badge className="bg-purple-600">Coordenador</Badge>}
+            {roleName && (
+              <Badge className={roleName.includes('Admin') ? "bg-blue-600" : "bg-purple-600"}>
+                {roleName}
+              </Badge>
+            )}
           </div>
         </header>
         <main className="flex-1 p-6 md:p-8 bg-[#ECF1FA]">{children}</main>

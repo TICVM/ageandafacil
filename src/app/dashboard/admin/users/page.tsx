@@ -15,7 +15,7 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { User, UserRole, Class, Segment } from '@/lib/types';
+import { User, Class, Segment, RoleConfig } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -26,10 +26,12 @@ export default function UsersAdminPage() {
   const usersRef = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
+  const rolesRef = useMemoFirebase(() => db ? collection(db, 'roles_config') : null, [db]);
   
   const { data: users, isLoading } = useCollection<User>(usersRef);
   const { data: schoolClasses } = useCollection<Class>(classesRef);
   const { data: segments } = useCollection<Segment>(segmentsRef);
+  const { data: availableRoles } = useCollection<RoleConfig>(rolesRef);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -42,16 +44,16 @@ export default function UsersAdminPage() {
     name: string;
     email: string;
     password: string;
-    role: UserRole;
+    roleId: string;
     classIds: string[];
     segmentIds: string[];
-  }>({ name: '', email: '', password: '', role: 'TEACHER', classIds: [], segmentIds: [] });
+  }>({ name: '', email: '', password: '', roleId: '', classIds: [], segmentIds: [] });
 
   // Estado para Edição
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const handleAdd = async () => {
-    if (!newUser.name || !newUser.email || !newUser.password || !db) {
+    if (!newUser.name || !newUser.email || !newUser.password || !newUser.roleId || !db) {
       toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
@@ -71,14 +73,14 @@ export default function UsersAdminPage() {
       await setDoc(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
-        role: newUser.role,
-        classIds: newUser.role === 'TEACHER' ? newUser.classIds : [],
-        segmentIds: newUser.role === 'COORDINATOR' ? newUser.segmentIds : [],
+        roleId: newUser.roleId,
+        classIds: newUser.classIds,
+        segmentIds: newUser.segmentIds,
         isActive: true,
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      setNewUser({ name: '', email: '', password: '', role: 'TEACHER', classIds: [], segmentIds: [] });
+      setNewUser({ name: '', email: '', password: '', roleId: '', classIds: [], segmentIds: [] });
       setIsDialogOpen(false);
       toast({ title: "Usuário Cadastrado" });
     } catch (error: any) {
@@ -102,9 +104,9 @@ export default function UsersAdminPage() {
 
     updateDocumentNonBlocking(doc(db, 'users', editingUser.id), {
       name: editingUser.name,
-      role: editingUser.role,
-      classIds: editingUser.role === 'TEACHER' ? (editingUser.classIds || []) : [],
-      segmentIds: editingUser.role === 'COORDINATOR' ? (editingUser.segmentIds || []) : []
+      roleId: editingUser.roleId,
+      classIds: editingUser.classIds || [],
+      segmentIds: editingUser.segmentIds || []
     });
 
     setIsEditDialogOpen(false);
@@ -155,13 +157,9 @@ export default function UsersAdminPage() {
     u.email?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case 'ADMIN': return <Badge className="rounded-lg bg-blue-600">Admin</Badge>;
-      case 'COORDINATOR': return <Badge className="rounded-lg bg-purple-600">Coordenação</Badge>;
-      case 'TEACHER': return <Badge variant="secondary" className="rounded-lg">Professor</Badge>;
-      default: return null;
-    }
+  const getRoleName = (roleId: string) => {
+    const role = availableRoles?.find(r => r.id === roleId);
+    return role?.name || '---';
   };
 
   return (
@@ -204,67 +202,53 @@ export default function UsersAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Papel no Sistema</label>
-                  <Select value={newUser.role} onValueChange={(val) => setNewUser({...newUser, role: val as UserRole})}>
+                  <Select value={newUser.roleId} onValueChange={(val) => setNewUser({...newUser, roleId: val})}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue placeholder="Selecione o papel" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TEACHER">Professor(a)</SelectItem>
-                      <SelectItem value="COORDINATOR">Coordenação</SelectItem>
-                      <SelectItem value="ADMIN">Administrador(a)</SelectItem>
+                      {availableRoles?.map(role => (
+                        <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-4 border-l pl-6">
-                {newUser.role === 'COORDINATOR' && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4 text-primary" />
-                      Vincular Segmentos
-                    </label>
-                    <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
-                      <div className="space-y-3">
-                        {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
-                          <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
-                            <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
-                            <label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {newUser.role === 'TEACHER' && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-primary" />
-                      Vincular Turmas
-                    </label>
-                    <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
-                      <div className="space-y-3">
-                        {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
-                          <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
-                            <Checkbox id={`cls-${cls.id}`} checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
-                            <label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {newUser.role === 'ADMIN' && (
-                  <div className="h-full flex items-center justify-center p-6 text-center text-muted-foreground bg-blue-50/50 rounded-2xl border border-blue-100">
-                    <div className="space-y-2">
-                      <ShieldCheck className="w-10 h-10 text-blue-600 mx-auto" />
-                      <p className="text-xs font-bold text-blue-800">Acesso Total</p>
-                      <p className="text-[10px]">Administradores gerenciam todos os segmentos, locais e usuários.</p>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-primary" />
+                    Vincular Segmentos
+                  </label>
+                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                    <div className="space-y-3">
+                      {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
+                        <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
+                          <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
+                          <label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                )}
+                  </ScrollArea>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    Vincular Turmas
+                  </label>
+                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                    <div className="space-y-3">
+                      {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
+                        <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
+                          <Checkbox id={`cls-${cls.id}`} checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
+                          <label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -306,17 +290,10 @@ export default function UsersAdminPage() {
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 items-start">
-                      {getRoleBadge(u.role)}
-                      {u.role === 'COORDINATOR' && (
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          {u.segmentIds?.length || 0} segmentos vinculados
-                        </span>
-                      )}
-                      {u.role === 'TEACHER' && (
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          {u.classIds?.length || 0} turmas vinculadas
-                        </span>
-                      )}
+                      <Badge variant="outline" className="rounded-lg">{getRoleName(u.roleId)}</Badge>
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        {u.segmentIds?.length || 0} segmentos / {u.classIds?.length || 0} turmas
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -348,47 +325,43 @@ export default function UsersAdminPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Papel no Sistema</label>
-                <Select value={editingUser?.role} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, role: val as UserRole} : null)}>
+                <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)}>
                   <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="TEACHER">Professor(a)</SelectItem>
-                    <SelectItem value="COORDINATOR">Coordenação</SelectItem>
-                    <SelectItem value="ADMIN">Administrador(a)</SelectItem>
+                    {availableRoles?.map(role => (
+                      <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-4 border-l pl-6">
-              {editingUser?.role === 'COORDINATOR' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Vincular Segmentos</label>
-                  <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
-                    <div className="space-y-3">
-                      {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
-                        <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
-                          <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
-                          <label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-              {editingUser?.role === 'TEACHER' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Turmas do Professor</label>
-                  <ScrollArea className="h-[250px] rounded-xl border p-4 bg-muted/20">
-                    <div className="space-y-3">
-                      {schoolClasses?.map(cls => (
-                        <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
-                          <Checkbox id={`edit-cls-${cls.id}`} checked={editingUser.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
-                          <label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Vincular Segmentos</label>
+                <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                  <div className="space-y-3">
+                    {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
+                      <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
+                        <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser?.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
+                        <label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Turmas do Professor</label>
+                <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                  <div className="space-y-3">
+                    {schoolClasses?.map(cls => (
+                      <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
+                        <Checkbox id={`edit-cls-${cls.id}`} checked={editingUser?.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
+                        <label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
             </div>
           </div>
           <DialogFooter>

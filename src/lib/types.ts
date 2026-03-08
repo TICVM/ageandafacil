@@ -1,16 +1,33 @@
 
-export type UserRole = 'ADMIN' | 'COORDINATOR' | 'TEACHER';
+export type UserRole = string;
+
+export interface AppPermissions {
+  canManageUsers: boolean;
+  canConfigureSlots: boolean;
+  canManageLocations: boolean;
+  canManageClasses: boolean;
+  canViewReports: boolean;
+  canViewAllAppointments: boolean;
+  canCreateBookings: boolean;
+}
+
+export interface RoleConfig extends AppPermissions {
+  id: string;
+  name: string;
+}
 
 export interface User {
   id: string;
   name: string;
   email: string;
   password?: string;
-  role: UserRole;
-  segmentIds?: string[]; // Para Coordenadores (múltiplos segmentos)
-  classIds?: string[];   // Para Professores (múltiplas turmas)
+  roleId: string;
+  segmentIds?: string[];
+  classIds?: string[];
   isActive?: boolean;
   createdAt?: string;
+  // Propriedade virtual para facilitar verificações legadas
+  role?: string; 
 }
 
 export interface Segment {

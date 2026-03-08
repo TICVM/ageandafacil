@@ -8,7 +8,7 @@
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
-        "role": { "type": "string", "enum": ["ADMIN", "COORDINATOR", "TEACHER"] },
+        "roleId": { "type": "string", "description": "ID do perfil/cargo definido na coleção roles_config." },
         "classIds": {
           "type": "array",
           "items": { "type": "string" },
@@ -19,6 +19,21 @@
           "items": { "type": "string" },
           "description": "Lista de IDs dos segmentos atribuídos ao coordenador."
         }
+      }
+    },
+    "RoleConfig": {
+      "title": "RoleConfig",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "canManageUsers": { "type": "boolean" },
+        "canConfigureSlots": { "type": "boolean" },
+        "canManageLocations": { "type": "boolean" },
+        "canManageClasses": { "type": "boolean" },
+        "canViewReports": { "type": "boolean" },
+        "canViewAllAppointments": { "type": "boolean" },
+        "canCreateBookings": { "type": "boolean" }
       }
     },
     "SchoolClass": {
@@ -84,7 +99,8 @@
       { "path": "/photo_locations/{locationId}", "definition": { "entityName": "PhotoLocation" } },
       { "path": "/available_time_slots/{slotId}", "definition": { "entityName": "TimeSlot" } },
       { "path": "/schedule_blocks/{blockId}", "definition": { "entityName": "ScheduleBlock" } },
-      { "path": "/users/{userId}", "definition": { "entityName": "User" } }
+      { "path": "/users/{userId}", "definition": { "entityName": "User" } },
+      { "path": "/roles_config/{roleId}", "definition": { "entityName": "RoleConfig" } }
     ]
   }
 }
