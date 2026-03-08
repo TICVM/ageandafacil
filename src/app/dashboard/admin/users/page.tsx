@@ -15,7 +15,7 @@ import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { User, UserRole } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { initializeApp, deleteApp, getApps } from 'firebase/app';
+import { initializeApp, deleteApp, getApps, getApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -38,18 +38,16 @@ export default function UsersAdminPage() {
     
     setIsCreating(true);
     const normalizedEmail = newUser.email.toLowerCase().trim();
+    let secondaryApp;
 
     try {
-      // 1. Criar no Firebase Auth usando instância secundária para não deslogar o admin
-      const secondaryAppName = `Secondary-${Date.now()}`;
-      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAppName = `Admin-Creation-${Date.now()}`;
+      secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
       
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
       const uid = userCredential.user.uid;
       
-      // 2. Salvar metadados no Firestore usando o mesmo UID da conta oficial
-      // Usamos setDoc direto para garantir que o documento exista antes de fechar o modal
       await setDoc(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
@@ -58,23 +56,22 @@ export default function UsersAdminPage() {
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      // Logout imediato da instância secundária
-      await deleteApp(secondaryApp);
-
       setNewUser({ name: '', email: '', password: '', role: 'TEACHER' });
       setIsDialogOpen(false);
       toast({ 
         title: "Usuário Cadastrado", 
-        description: "Conta de acesso e perfil sincronizados com sucesso." 
+        description: `O perfil de ${newUser.name} foi criado com sucesso.` 
       });
     } catch (error: any) {
-      console.error("Erro ao cadastrar usuário:", error);
-      let errorMsg = "Ocorreu um erro ao criar a conta.";
+      console.error("Erro no cadastro:", error);
+      let errorMsg = "Não foi possível criar o usuário.";
       
       if (error.code === 'auth/email-already-in-use') {
-        errorMsg = "Este e-mail já está em uso.";
+        errorMsg = "Este e-mail já possui uma conta de acesso ativa.";
       } else if (error.code === 'auth/weak-password') {
         errorMsg = "A senha deve ter pelo menos 6 caracteres.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = "O formato do e-mail é inválido.";
       }
 
       toast({ 
@@ -83,6 +80,13 @@ export default function UsersAdminPage() {
         variant: "destructive" 
       });
     } finally {
+      if (secondaryApp) {
+        try {
+          await deleteApp(secondaryApp);
+        } catch (e) {
+          console.error("Erro ao limpar app secundário", e);
+        }
+      }
       setIsCreating(false);
     }
   };
@@ -94,8 +98,8 @@ export default function UsersAdminPage() {
   };
 
   const filtered = users?.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   return (
@@ -103,7 +107,7 @@ export default function UsersAdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-          <p className="text-muted-foreground">Cadastre professores e outros administradores.</p>
+          <p className="text-muted-foreground">Gerencie as contas de acesso de professores e administradores.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -116,41 +120,41 @@ export default function UsersAdminPage() {
             <DialogHeader>
               <DialogTitle>Adicionar Usuário</DialogTitle>
               <DialogDescription>
-                Será criada uma conta de acesso oficial para este usuário.
+                Este processo cria uma conta de acesso e um perfil no sistema.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Nome Completo</label>
-                <input 
+                <Input 
                   placeholder="Ex: Maria Silva" 
                   value={newUser.name} 
                   onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isCreating}
+                  className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">E-mail</label>
-                <input 
+                <Input 
                   type="email"
                   placeholder="maria@escola.com" 
                   value={newUser.email} 
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isCreating}
+                  className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Senha Inicial</label>
                 <div className="relative">
-                  <input 
+                  <Input 
                     type={showPassword ? "text" : "password"}
                     placeholder="Mínimo 6 caracteres" 
                     value={newUser.password} 
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pr-10"
                     disabled={isCreating}
+                    className="rounded-xl pr-10"
                   />
                   <button 
                     type="button"

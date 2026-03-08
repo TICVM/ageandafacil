@@ -34,14 +34,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       try {
         const userEmail = user.email?.toLowerCase().trim();
         
-        // 1. Tenta buscar pelo UID (Método mais rápido e seguro)
+        // Verificação Master Admin por E-mail (Garante que você nunca perca o acesso)
+        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
+          setProfile({
+            id: user.uid,
+            email: userEmail,
+            name: 'Herbert Pacheco',
+            role: 'ADMIN'
+          });
+          setLoadingProfile(false);
+          return;
+        }
+
+        // 1. Tenta buscar pelo UID
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: user.uid });
         } else if (userEmail) {
-          // 2. Fallback: Busca pelo e-mail (Garante reconhecimento se o ID for diferente)
+          // 2. Fallback: Busca pelo e-mail
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
@@ -60,25 +72,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     if (user && mounted) {
       fetchProfile();
-    } else if (!isUserLoading && !user) {
+    } else if (mounted && !isUserLoading && !user) {
       setLoadingProfile(false);
     }
   }, [db, user, isUserLoading, mounted]);
 
-  // Redireciona se não estiver logado
   useEffect(() => {
     if (mounted && !isUserLoading && !user) {
       router.push('/');
     }
   }, [user, isUserLoading, router, mounted]);
 
-  // Tela de carregamento unificada
   if (!mounted || isUserLoading || (user && loadingProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Sincronizando acesso...</p>
+          <p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p>
         </div>
       </div>
     );

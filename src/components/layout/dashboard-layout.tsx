@@ -50,14 +50,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
         
-        // Tenta buscar pelo UID primeiro
+        // Identificação Master Admin
+        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
+          setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', role: 'ADMIN' });
+          return;
+        }
+
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           setProfile({ ...userDoc.data() as User, id: authUser.uid });
         } else if (userEmail) {
-          // Fallback por e-mail para garantir o reconhecimento
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
@@ -68,14 +72,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        console.error("Erro ao sincronizar perfil lateral:", err);
+        console.error("Erro ao carregar perfil lateral:", err);
       }
     }
 
     fetchProfile();
   }, [db, authUser]);
 
-  // Regras de Administração Master
   const userEmail = authUser?.email?.toLowerCase().trim();
   const isAdmin = profile?.role === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br';
 
