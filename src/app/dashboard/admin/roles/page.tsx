@@ -260,7 +260,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                   {renderPermissionToggle("Fazer Novas Reservas", "canCreateBookings", Plus, "text-orange-700")}
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Visualização</p>
-                    {renderPermissionToggle("Ver Agenda Total", "canViewAllAppointments", Eye, "bg-blue-50/30")}
+                    {renderPermissionToggle("Ver Agenda", "canViewAllAppointments", Eye, "bg-blue-50/30")}
                     {renderPermissionToggle("Agenda por Segmento", "canViewSegmentAppointments", Eye, "bg-purple-50/30")}
                     {renderPermissionToggle("Agenda por Turma", "canViewClassAppointments", Eye, "bg-orange-50/30")}
                   </div>
