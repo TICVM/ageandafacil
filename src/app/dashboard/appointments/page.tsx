@@ -44,7 +44,6 @@ export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
@@ -353,7 +352,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)} aria-haspopup="listbox">
                               <status.icon className="w-3 h-3" />
@@ -394,7 +393,7 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
                           setTimeout(() => setSelectedBooking(b), 100);
                         }} aria-haspopup="dialog"><Info className="w-4 h-4" /></Button>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="listbox"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
@@ -434,7 +433,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
@@ -498,7 +497,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
             <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
@@ -508,7 +507,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <Popover modal={false}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
@@ -522,7 +521,6 @@ export default function AppointmentsPage() {
                           if (d) {
                             setEditDate(d);
                             setEditSlotId('');
-                            setTimeout(() => setIsCalendarOpen(false), 100);
                           }
                         }} 
                         locale={ptBR} 
@@ -533,7 +531,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Novo Horário</label>
-                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
+                  <Select modal={false} value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
                     <SelectTrigger className="rounded-xl h-11" aria-haspopup="listbox">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -554,7 +552,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" /> Local</label>
-                  <Select value={editLocationId} onValueChange={setEditLocationId}>
+                  <Select modal={false} value={editLocationId} onValueChange={setEditLocationId}>
                     <SelectTrigger className="rounded-xl h-11" aria-haspopup="listbox"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
