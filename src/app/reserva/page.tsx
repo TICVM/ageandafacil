@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -274,6 +274,17 @@ export default function PublicBookingPage() {
   return (
     <div className="min-h-screen bg-[#ECF1FA] py-12 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex justify-between items-center">
+          <Button 
+            variant="ghost" 
+            onClick={() => router.push('/dashboard')} 
+            className="rounded-xl gap-2 text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Voltar ao Painel
+          </Button>
+        </div>
+
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="bg-primary p-4 rounded-2xl shadow-lg mb-2"><Camera className="w-10 h-10 text-primary-foreground" /></div>
           <h1 className="text-4xl font-bold text-primary">SchoolLens</h1>
