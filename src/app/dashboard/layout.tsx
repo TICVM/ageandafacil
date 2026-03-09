@@ -34,13 +34,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       try {
         const userEmail = user.email?.toLowerCase().trim();
         
-        // Verificação Master Admin por E-mail (Garante que você nunca perca o acesso)
+        // Verificação Master Admin por E-mail (Garante acesso absoluto)
         if (userEmail === 'herbertpacheco@cvmsp.com.br') {
           setProfile({
             id: user.uid,
             email: userEmail,
             name: 'Herbert Pacheco',
-            role: 'ADMIN'
+            roleId: 'ADMIN'
           });
           setLoadingProfile(false);
           return;

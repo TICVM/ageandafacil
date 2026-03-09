@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
@@ -42,6 +43,11 @@ const DEFAULT_PERMS: AppPermissions = {
   canManageClasses: false,
   canViewReports: false,
   canViewAllAppointments: false,
+  canViewSegmentAppointments: false,
+  canViewClassAppointments: false,
+  canEditAppointments: false,
+  canCancelAppointments: false,
+  canDeleteAppointments: false,
   canCreateBookings: true,
 };
 
@@ -52,6 +58,11 @@ const ADMIN_PERMS: AppPermissions = {
   canManageClasses: true,
   canViewReports: true,
   canViewAllAppointments: true,
+  canViewSegmentAppointments: true,
+  canViewClassAppointments: true,
+  canEditAppointments: true,
+  canCancelAppointments: true,
+  canDeleteAppointments: true,
   canCreateBookings: true,
 };
 
@@ -122,6 +133,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   canManageClasses: !!roleData.canManageClasses,
                   canViewReports: !!roleData.canViewReports,
                   canViewAllAppointments: !!roleData.canViewAllAppointments,
+                  canViewSegmentAppointments: !!roleData.canViewSegmentAppointments,
+                  canViewClassAppointments: !!roleData.canViewClassAppointments,
+                  canEditAppointments: !!roleData.canEditAppointments,
+                  canCancelAppointments: !!roleData.canCancelAppointments,
+                  canDeleteAppointments: !!roleData.canDeleteAppointments,
                   canCreateBookings: !!roleData.canCreateBookings,
                 });
                 setRoleName(roleData.name);
@@ -144,7 +160,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { title: 'Fazer Reserva', icon: CalendarDays, href: '/reserva' },
   ];
 
-  if (userPerms.canViewAllAppointments) {
+  if (userPerms.canViewAllAppointments || userPerms.canViewSegmentAppointments || userPerms.canViewClassAppointments) {
     menuItems.push({ title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' });
   }
 

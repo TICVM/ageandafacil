@@ -70,12 +70,15 @@ export default function UsersAdminPage() {
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
       const uid = userCredential.user.uid;
       
+      // Se for ADMIN, garantimos que os arrays de vinculação fiquem vazios por padrão (pois tem acesso total)
+      const isAdmin = newUser.roleId === 'ADMIN';
+
       await setDoc(doc(db, 'users', uid), {
         name: newUser.name,
         email: normalizedEmail,
         roleId: newUser.roleId,
-        classIds: newUser.classIds,
-        segmentIds: newUser.segmentIds,
+        classIds: isAdmin ? [] : newUser.classIds,
+        segmentIds: isAdmin ? [] : newUser.segmentIds,
         isActive: true,
         createdAt: new Date().toISOString()
       }, { merge: true });
@@ -102,11 +105,13 @@ export default function UsersAdminPage() {
   const handleUpdate = () => {
     if (!editingUser || !db) return;
 
+    const isAdmin = editingUser.roleId === 'ADMIN';
+
     updateDocumentNonBlocking(doc(db, 'users', editingUser.id), {
       name: editingUser.name,
       roleId: editingUser.roleId,
-      classIds: editingUser.classIds || [],
-      segmentIds: editingUser.segmentIds || []
+      classIds: isAdmin ? [] : (editingUser.classIds || []),
+      segmentIds: isAdmin ? [] : (editingUser.segmentIds || [])
     });
 
     setIsEditDialogOpen(false);
@@ -217,41 +222,50 @@ export default function UsersAdminPage() {
                 </div>
               </div>
 
-              <div className="space-y-4 border-l pl-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-primary" />
-                    Vincular Segmentos
-                  </label>
-                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
-                    <div className="space-y-3">
-                      {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
-                        <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
-                          <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
-                          <label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
+              {/* Oculta vinculação se for administrador (já tem acesso total por padrão) */}
+              {newUser.roleId !== 'ADMIN' ? (
+                <div className="space-y-4 border-l pl-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-primary" />
+                      Vincular Segmentos
+                    </label>
+                    <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                      <div className="space-y-3">
+                        {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
+                          <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
+                            <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
+                            <label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-primary" />
-                    Vincular Turmas
-                  </label>
-                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
-                    <div className="space-y-3">
-                      {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
-                        <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
-                          <Checkbox id={`cls-${cls.id}`} checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
-                          <label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-primary" />
+                      Vincular Turmas
+                    </label>
+                    <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                      <div className="space-y-3">
+                        {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
+                          <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
+                            <Checkbox id={`cls-${cls.id}`} checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
+                            <label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center border-l pl-6 bg-primary/5 rounded-r-2xl text-center p-6 space-y-3">
+                  <ShieldCheck className="w-12 h-12 text-primary opacity-50" />
+                  <p className="text-xs font-bold text-primary uppercase">Administrador Master</p>
+                  <p className="text-[10px] text-muted-foreground italic">Este perfil possui acesso automático a todos os segmentos e turmas da escola.</p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl" disabled={isCreating}>Cancelar</Button>
@@ -296,7 +310,7 @@ export default function UsersAdminPage() {
                         {getRoleName(u.roleId)}
                       </Badge>
                       <span className="text-[10px] text-muted-foreground font-medium">
-                        {u.segmentIds?.length || 0} segmentos / {u.classIds?.length || 0} turmas
+                        {u.roleId === 'ADMIN' ? 'Acesso Total' : `${u.segmentIds?.length || 0} segmentos / ${u.classIds?.length || 0} turmas`}
                       </span>
                     </div>
                   </TableCell>
@@ -340,34 +354,43 @@ export default function UsersAdminPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-4 border-l pl-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Vincular Segmentos</label>
-                <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
-                  <div className="space-y-3">
-                    {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
-                      <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
-                        <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser?.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
-                        <label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+            
+            {editingUser?.roleId !== 'ADMIN' ? (
+              <div className="space-y-4 border-l pl-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Vincular Segmentos</label>
+                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                    <div className="space-y-3">
+                      {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
+                        <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
+                          <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser?.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
+                          <label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">Turmas do Docente</label>
+                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                    <div className="space-y-3">
+                      {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
+                        <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
+                          <Checkbox id={`edit-cls-${cls.id}`} checked={editingUser?.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
+                          <label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Turmas do Professor</label>
-                <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
-                  <div className="space-y-3">
-                    {schoolClasses?.map(cls => (
-                      <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
-                        <Checkbox id={`edit-cls-${cls.id}`} checked={editingUser?.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
-                        <label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+            ) : (
+              <div className="flex flex-col items-center justify-center border-l pl-6 bg-primary/5 rounded-r-2xl text-center p-6 space-y-3">
+                <ShieldCheck className="w-12 h-12 text-primary opacity-50" />
+                <p className="text-xs font-bold text-primary uppercase">Administrador Master</p>
+                <p className="text-[10px] text-muted-foreground italic">Este perfil possui acesso automático a todos os segmentos e turmas da escola.</p>
               </div>
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl">Cancelar</Button>
