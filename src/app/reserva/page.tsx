@@ -79,7 +79,7 @@ export default function PublicBookingPage() {
               canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
               canViewSegmentAppointments: true, canViewClassAppointments: true,
               canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-              canCreateBookings: true
+              canCreateBookings: true, canChangeStatus: true
             });
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', profileData.roleId));
@@ -95,7 +95,7 @@ export default function PublicBookingPage() {
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
             canViewSegmentAppointments: true, canViewClassAppointments: true,
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true
+            canCreateBookings: true, canChangeStatus: true
           });
         }
       } catch (err) {
@@ -112,15 +112,9 @@ export default function PublicBookingPage() {
 
   const filteredClasses = rawClasses?.filter(c => {
     if (!profile || !userPerms) return false;
-    // Administradores veem todas as turmas
     if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) return true;
-    
-    if (userPerms.canViewSegmentAppointments) {
-      return profile.segmentIds?.includes(c.schoolSegmentId);
-    }
-    if (userPerms.canViewClassAppointments) {
-      return profile.classIds?.includes(c.id);
-    }
+    if (userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(c.schoolSegmentId)) return true;
+    if (userPerms.canViewClassAppointments && profile.classIds?.includes(c.id)) return true;
     return false;
   }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) || [];
 
@@ -130,7 +124,6 @@ export default function PublicBookingPage() {
 
   const filteredLocations = locations?.filter(l => {
     if (!l.isActive) return false;
-    // Administradores veem todos os locais ativos
     if (profile?.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br') return true;
     if (!selectedSegment || !selectedSegment.unit) return true;
     return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
@@ -141,7 +134,6 @@ export default function PublicBookingPage() {
     const dayMatches = s.dayOfWeek === date.getDay().toString();
     if (!dayMatches) return false;
 
-    // Slots específicos ou globais
     const targetMatches = s.schoolClassId 
       ? s.schoolClassId === selectedClassId
       : s.schoolSegmentId 
@@ -154,7 +146,7 @@ export default function PublicBookingPage() {
     const isTaken = allAppointments?.some(app => 
       app.appointmentDate === dateStr && 
       app.startTime === s.startTime && 
-      app.status === 'CONFIRMED'
+      app.status !== 'CANCELLED'
     );
     if (isTaken) return false;
 
@@ -225,7 +217,7 @@ export default function PublicBookingPage() {
       appointmentDate: format(date, 'yyyy-MM-dd'),
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
-      status: 'CONFIRMED',
+      status: 'PENDING',
       observations: notes,
       aiBrief: aiBrief || null,
       createdAt: serverTimestamp(),
@@ -253,11 +245,13 @@ export default function PublicBookingPage() {
         <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden">
           <div className="bg-primary p-8 text-center text-primary-foreground">
             <CheckCircle2 className="w-16 h-16 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold">Reserva Concluída!</h2>
+            <h2 className="text-3xl font-bold">Sessão Agendada!</h2>
+            <p className="text-primary-foreground/80">Sua reserva foi enviada e aguarda confirmação da equipe.</p>
           </div>
           <CardContent className="p-8 space-y-4">
             <div className="flex justify-between border-b pb-2"><span>Turma:</span><span className="font-bold">{selectedClass?.name}</span></div>
             <div className="flex justify-between border-b pb-2"><span>Data:</span><span className="font-bold">{date && format(date, 'dd/MM/yyyy')}</span></div>
+            <div className="flex justify-between border-b pb-2"><span>Status:</span><Badge variant="secondary" className="bg-orange-100 text-orange-700">Aguardando Validação</Badge></div>
             <Button onClick={() => window.location.reload()} className="w-full rounded-xl h-12 mt-4">Fazer outra reserva</Button>
             <Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full">Ir para o Painel</Button>
           </CardContent>
@@ -287,6 +281,7 @@ export default function PublicBookingPage() {
             <Card className="shadow-xl border-none rounded-3xl overflow-hidden">
               <CardHeader className="bg-primary text-primary-foreground p-6">
                 <CardTitle className="flex items-center gap-2"><CalendarIcon className="w-5 h-5" /> Reserva de Sessão</CardTitle>
+                <CardDescription className="text-primary-foreground/80">Selecione os detalhes abaixo para agendar suas fotos.</CardDescription>
               </CardHeader>
               <CardContent className="p-8 space-y-6 bg-white">
                 <div className="space-y-2">
@@ -351,7 +346,7 @@ export default function PublicBookingPage() {
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <label className="text-sm font-semibold">Observações</label>
+                    <label className="text-sm font-semibold">Observações (Para o Briefing)</label>
                     <Button type="button" variant="ghost" size="sm" className="text-primary gap-1" onClick={handleGenerateAiBrief} disabled={isAiLoading || !notes}>
                       {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} Assistente IA
                     </Button>
@@ -369,7 +364,7 @@ export default function PublicBookingPage() {
             <Card className="border-none shadow-xl bg-accent/5 rounded-3xl">
               <CardHeader className="p-6"><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent-foreground" /> Briefing IA</CardTitle></CardHeader>
               <CardContent className="p-6 pt-0">
-                {aiBrief ? <div className="p-4 bg-white rounded-2xl border text-xs text-muted-foreground">{aiBrief.detailedBrief}</div> : <div className="text-center py-10 px-4 border-2 border-dashed rounded-2xl text-xs text-muted-foreground italic">Escreva suas notas para gerar um briefing detalhado.</div>}
+                {aiBrief ? <div className="p-4 bg-white rounded-2xl border text-xs text-muted-foreground">{aiBrief.detailedBrief}</div> : <div className="text-center py-10 px-4 border-2 border-dashed rounded-2xl text-xs text-muted-foreground italic">Escreva suas notas para gerar um briefing detalhado automaticamente.</div>}
               </CardContent>
             </Card>
           </div>

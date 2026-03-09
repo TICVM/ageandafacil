@@ -21,7 +21,7 @@ const ADMIN_PERMS: AppPermissions = {
   canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
   canViewSegmentAppointments: true, canViewClassAppointments: true,
   canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-  canCreateBookings: true
+  canCreateBookings: true, canChangeStatus: true
 };
 
 export default function ClassesAdminPage() {

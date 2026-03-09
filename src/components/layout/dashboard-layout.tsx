@@ -49,6 +49,7 @@ const DEFAULT_PERMS: AppPermissions = {
   canCancelAppointments: false,
   canDeleteAppointments: false,
   canCreateBookings: true,
+  canChangeStatus: false,
 };
 
 const ADMIN_PERMS: AppPermissions = {
@@ -64,6 +65,7 @@ const ADMIN_PERMS: AppPermissions = {
   canCancelAppointments: true,
   canDeleteAppointments: true,
   canCreateBookings: true,
+  canChangeStatus: true,
 };
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -84,27 +86,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         const userEmail = authUser.email?.toLowerCase().trim();
         let userDocData: User | null = null;
 
-        // Verificação Master Admin por E-mail (Garante acesso absoluto)
         if (userEmail === 'herbertpacheco@cvmsp.com.br') {
-          setProfile({
-            id: authUser.uid,
-            email: userEmail,
-            name: 'Herbert Pacheco',
-            roleId: 'ADMIN'
-          });
+          setProfile({ id: authUser.uid, email: userEmail, name: 'Herbert Pacheco', roleId: 'ADMIN' });
           setUserPerms(ADMIN_PERMS);
           setRoleName('Administrador Master');
           return;
         }
 
-        // 1. Busca perfil do usuário pelo UID
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
           userDocData = { ...userDoc.data() as User, id: authUser.uid };
         } else if (userEmail) {
-          // Fallback por e-mail
           const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
@@ -115,10 +109,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         if (userDocData) {
           setProfile(userDocData);
-          
-          // 2. Busca permissões baseadas no cargo (Role)
           if (userDocData.roleId) {
-            // Se for string "ADMIN", dá perms totais
             if (userDocData.roleId.toUpperCase() === 'ADMIN') {
               setUserPerms(ADMIN_PERMS);
               setRoleName('Administrador');
@@ -139,6 +130,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   canCancelAppointments: !!roleData.canCancelAppointments,
                   canDeleteAppointments: !!roleData.canDeleteAppointments,
                   canCreateBookings: !!roleData.canCreateBookings,
+                  canChangeStatus: !!roleData.canChangeStatus,
                 });
                 setRoleName(roleData.name);
               } else {

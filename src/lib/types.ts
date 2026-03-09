@@ -14,6 +14,7 @@ export interface AppPermissions {
   canCancelAppointments: boolean;
   canDeleteAppointments: boolean;
   canCreateBookings: boolean;
+  canChangeStatus: boolean;
 }
 
 export interface RoleConfig extends AppPermissions {
@@ -77,7 +78,7 @@ export interface Booking {
   appointmentDate: string;
   startTime: string;
   endTime: string;
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'RESCHEDULED';
   observations: string;
   sessionDurationMinutes: number;
   aiBrief?: AISessionBriefAssistantOutput | null;

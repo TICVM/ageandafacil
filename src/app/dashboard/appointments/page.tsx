@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save } from 'lucide-react';
+import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -26,6 +26,13 @@ const timeToMin = (t: string) => {
   if (!t) return 0;
   const [h, m] = t.split(':').map(Number);
   return (h * 60) + m;
+};
+
+const STATUS_CONFIG = {
+  PENDING: { label: 'Agendado', color: 'bg-orange-500 text-white', icon: Clock },
+  CONFIRMED: { label: 'Confirmado', color: 'bg-green-600 text-white', icon: CheckCircle2 },
+  RESCHEDULED: { label: 'Reagendado', color: 'bg-blue-500 text-white', icon: Edit3 },
+  CANCELLED: { label: 'Cancelado', color: 'bg-destructive text-white', icon: XCircle },
 };
 
 export default function AppointmentsPage() {
@@ -60,7 +67,7 @@ export default function AppointmentsPage() {
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
             canViewSegmentAppointments: true, canViewClassAppointments: true,
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true
+            canCreateBookings: true, canChangeStatus: true
           };
           setUserPerms(masterPerms);
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: authUser.email || '', roleId: 'ADMIN' });
@@ -78,7 +85,7 @@ export default function AppointmentsPage() {
               canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
               canViewSegmentAppointments: true, canViewClassAppointments: true,
               canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-              canCreateBookings: true
+              canCreateBookings: true, canChangeStatus: true
             });
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
@@ -116,7 +123,7 @@ export default function AppointmentsPage() {
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
-      app.status === 'CONFIRMED'
+      app.status !== 'CANCELLED'
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
@@ -193,14 +200,20 @@ export default function AppointmentsPage() {
       photoLocationId: editLocationId,
       locationIdentifier: editIdentifier || null,
       observations: editNotes,
-      status: 'CONFIRMED'
+      status: 'RESCHEDULED'
     };
 
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
     setEditingBooking(null);
     setIsSaving(false);
-    toast({ title: "Sessão Atualizada!" });
+    toast({ title: "Sessão Reagendada!" });
+  };
+
+  const handleUpdateStatus = (bookingId: string, newStatus: Booking['status']) => {
+    if (!db) return;
+    updateDocumentNonBlocking(doc(db, 'appointments', bookingId), { status: newStatus });
+    toast({ title: "Status Atualizado", description: `Sessão marcada como ${STATUS_CONFIG[newStatus].label}.` });
   };
 
   const filtered = useMemo(() => {
@@ -208,18 +221,10 @@ export default function AppointmentsPage() {
     
     return list.filter(booking => {
       if (isMaster || userPerms.canViewAllAppointments) return true;
-
       const cls = classes?.find(c => c.id === booking.schoolClassId);
-      
-      if (userPerms.canViewSegmentAppointments) {
-        if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
-      }
-
-      if (userPerms.canViewClassAppointments) {
-        if (profile.classIds?.includes(booking.schoolClassId)) return true;
-        if (booking.teacherId === profile.id) return true;
-      }
-
+      if (userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
+      if (userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId)) return true;
+      if (booking.teacherId === profile.id) return true;
       return false;
     }).filter(b => {
       if (!searchTerm) return true;
@@ -227,14 +232,12 @@ export default function AppointmentsPage() {
       return b.teacherName?.toLowerCase().includes(lowerSearch) || 
              b.appointmentDate.includes(searchTerm);
     }).sort((a, b) => {
-      // Ordenação crescente por dia e hora
       const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
       if (dateCompare !== 0) return dateCompare;
-      return a.startTime.compare(b.startTime);
+      return a.startTime.localeCompare(b.startTime);
     });
   }, [list, userPerms, profile, classes, isMaster, searchTerm]);
 
-  // Função para formatar o timestamp de criação de forma amigável
   const formatCreatedAt = (createdAt: any) => {
     if (!createdAt) return null;
     try {
@@ -254,7 +257,7 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Global</h1>
-          <p className="text-muted-foreground">Visualize e gerencie as sessões de fotos (Ordem Cronológica).</p>
+          <p className="text-muted-foreground">Visualize e valide as sessões de fotos escolares.</p>
         </div>
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -284,6 +287,7 @@ export default function AppointmentsPage() {
                 const cls = classes?.find(c => c.id === b.schoolClassId);
                 const loc = locations?.find(l => l.id === b.photoLocationId);
                 const creationTime = formatCreatedAt(b.createdAt);
+                const status = STATUS_CONFIG[b.status] || STATUS_CONFIG.PENDING;
 
                 return (
                   <TableRow key={b.id} className="hover:bg-accent/5">
@@ -309,9 +313,28 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
-                      <Badge className={cn("rounded-lg", b.status === 'CONFIRMED' ? "bg-green-500" : "bg-destructive")}>
-                        {b.status === 'CONFIRMED' ? 'Confirmado' : 'Cancelado'}
-                      </Badge>
+                      {userPerms.canChangeStatus ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
+                              <status.icon className="w-3 h-3" />
+                              {status.label}
+                            </Badge>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="rounded-xl p-2">
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Agendado (Pendente)</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge className={cn("rounded-lg flex items-center gap-1.5", status.color)}>
+                          <status.icon className="w-3 h-3" />
+                          {status.label}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
@@ -327,7 +350,7 @@ export default function AppointmentsPage() {
                               </DropdownMenuItem>
                             )}
                             {userPerms.canCancelAppointments && b.status !== 'CANCELLED' && (
-                              <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, 'appointments', b.id), { status: 'CANCELLED' })} className="gap-2 text-orange-600 cursor-pointer">
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer">
                                 <XCircle className="w-3.5 h-3.5" /> Cancelar Sessão
                               </DropdownMenuItem>
                             )}
@@ -368,9 +391,9 @@ export default function AppointmentsPage() {
                   <p className="text-sm text-muted-foreground">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase text-muted-foreground">Status</p>
-                  <Badge className={cn("rounded-lg mt-1", selectedBooking.status === 'CONFIRMED' ? "bg-green-500" : "bg-destructive")}>
-                    {selectedBooking.status === 'CONFIRMED' ? 'Confirmado' : 'Cancelado'}
+                  <p className="text-xs font-bold uppercase text-muted-foreground">Status Atual</p>
+                  <Badge className={cn("rounded-lg mt-1", STATUS_CONFIG[selectedBooking.status]?.color)}>
+                    {STATUS_CONFIG[selectedBooking.status]?.label}
                   </Badge>
                 </div>
               </div>

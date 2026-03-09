@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -30,6 +30,7 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canCancelAppointments: false,
   canDeleteAppointments: false,
   canCreateBookings: true,
+  canChangeStatus: false,
 };
 
 export default function RolesAdminPage() {
@@ -125,6 +126,7 @@ export default function RolesAdminPage() {
                        role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-200 text-purple-700">Segmento</Badge> :
                        <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Individual</Badge>}
                       {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Pode Editar</Badge>}
+                      {role.canChangeStatus && <Badge variant="secondary" className="text-[9px] bg-green-50 text-green-700 border-green-200">Validador</Badge>}
                       {role.canManageUsers && <Badge variant="secondary" className="text-[9px]">Gestor</Badge>}
                     </div>
                   </TableCell>
@@ -207,7 +209,6 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              {/* COLUNA 1: GESTÃO ESTRUTURAL */}
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
@@ -215,7 +216,6 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                     <h3 className="font-bold text-sm uppercase">Módulo Equipe</h3>
                   </div>
                   {renderPermissionToggle("Pode Gerenciar Usuários", "canManageUsers", UserCog, "text-blue-700")}
-                  <p className="text-[10px] text-muted-foreground px-1 italic">Permite criar, editar e excluir membros da equipe.</p>
                 </div>
 
                 <div className="space-y-4">
@@ -239,7 +239,6 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                 </div>
               </div>
 
-              {/* COLUNA 2: RESERVAS E AGENDA */}
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-orange-600 border-b border-orange-600/10 pb-2">
@@ -247,6 +246,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                     <h3 className="font-bold text-sm uppercase">Módulo de Reservas</h3>
                   </div>
                   {renderPermissionToggle("Permitir Fazer Novas Reservas", "canCreateBookings", Plus, "text-orange-700 bg-orange-50/50")}
+                  {renderPermissionToggle("Validar/Alterar Status (Marketing)", "canChangeStatus", CheckCircle2, "text-green-700 bg-green-50/50")}
                 </div>
 
                 <div className="space-y-4">
