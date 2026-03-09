@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart, Loader2, Building2 } from 'lucide-react';
+import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart, Loader2, Building2, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, getDoc } from 'firebase/firestore';
@@ -114,6 +114,13 @@ export default function Dashboard() {
         bg: 'bg-blue-100'
       },
       {
+        title: 'Reagendados',
+        value: userBookings.filter(b => b.status === 'RESCHEDULED').length,
+        icon: Edit3,
+        color: 'text-orange-600',
+        bg: 'bg-orange-100'
+      },
+      {
         title: 'Próximos 7 Dias',
         value: userBookings.filter(b => b.appointmentDate >= todayStr && b.appointmentDate <= nextWeekStr).length,
         icon: CalendarDays,
@@ -145,7 +152,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title} className="border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow bg-white">
             <CardContent className="p-6">
