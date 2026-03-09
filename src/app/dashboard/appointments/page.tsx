@@ -181,7 +181,7 @@ export default function AppointmentsPage() {
     
     setTimeout(() => {
       setEditingBooking(booking);
-    }, 200);
+    }, 150);
   }, [slots]);
 
   const handleSaveEdit = () => {
@@ -391,7 +391,7 @@ export default function AppointmentsPage() {
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
-                          setTimeout(() => setSelectedBooking(b), 150);
+                          setTimeout(() => setSelectedBooking(b), 100);
                         }}><Info className="w-4 h-4" /></Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
