@@ -399,7 +399,9 @@ export default function AppointmentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
-                              <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer">
+                              <DropdownMenuItem onSelect={() => {
+                                setTimeout(() => handleOpenEdit(b), 100);
+                              }} className="gap-2 cursor-pointer">
                                 <Edit3 className="w-3.5 h-3.5" /> Reagendar / Editar
                               </DropdownMenuItem>
                             )}
@@ -512,7 +514,17 @@ export default function AppointmentsPage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={editDate} onSelect={setEditDate} locale={ptBR} disabled={(d) => d < new Date()} />
+                      <Calendar 
+                        mode="single" 
+                        selected={editDate} 
+                        onSelect={(d) => {
+                          setEditDate(d);
+                          // Resetamos o slot se a data mudar para garantir que um novo horário válido seja escolhido
+                          setEditSlotId('');
+                        }} 
+                        locale={ptBR} 
+                        disabled={(d) => d < new Date()} 
+                      />
                     </PopoverContent>
                   </Popover>
                 </div>
