@@ -226,8 +226,24 @@ export default function AppointmentsPage() {
       const lowerSearch = searchTerm.toLowerCase();
       return b.teacherName?.toLowerCase().includes(lowerSearch) || 
              b.appointmentDate.includes(searchTerm);
-    }).sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate));
+    }).sort((a, b) => {
+      // Ordenação crescente por dia e hora
+      const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
+      if (dateCompare !== 0) return dateCompare;
+      return a.startTime.compare(b.startTime);
+    });
   }, [list, userPerms, profile, classes, isMaster, searchTerm]);
+
+  // Função para formatar o timestamp de criação de forma amigável
+  const formatCreatedAt = (createdAt: any) => {
+    if (!createdAt) return null;
+    try {
+      const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+      return format(date, "dd/MM HH:mm", { locale: ptBR });
+    } catch (e) {
+      return null;
+    }
+  };
 
   if (isLoading || !userPerms) {
     return <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -238,7 +254,7 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Global</h1>
-          <p className="text-muted-foreground">Visualize e gerencie as sessões de fotos.</p>
+          <p className="text-muted-foreground">Visualize e gerencie as sessões de fotos (Ordem Cronológica).</p>
         </div>
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -267,6 +283,7 @@ export default function AppointmentsPage() {
               filtered.map((b) => {
                 const cls = classes?.find(c => c.id === b.schoolClassId);
                 const loc = locations?.find(l => l.id === b.photoLocationId);
+                const creationTime = formatCreatedAt(b.createdAt);
 
                 return (
                   <TableRow key={b.id} className="hover:bg-accent/5">
@@ -283,6 +300,11 @@ export default function AppointmentsPage() {
                       <div className="flex flex-col">
                         <span className="font-bold">{b.teacherName}</span>
                         <span className="text-xs text-muted-foreground">{cls?.name || '---'}</span>
+                        {creationTime && (
+                          <span className="text-[10px] text-muted-foreground/50 mt-1 italic">
+                            Agendado em: {creationTime}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
