@@ -62,14 +62,18 @@ export default function PublicBookingPage() {
         return;
       }
       try {
+        const userEmail = authUser.email?.toLowerCase().trim();
+        const isMasterEmail = userEmail === 'herbertpacheco@cvmsp.com.br';
+
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
+        
         if (userDoc.exists()) {
           const profileData = userDoc.data() as User;
           setProfile(profileData);
           setTeacherName(profileData.name || '');
           
-          if (profileData.roleId === 'ADMIN' || authUser.email === 'herbertpacheco@cvmsp.com.br') {
+          if (profileData.roleId === 'ADMIN' || isMasterEmail) {
             setUserPerms({
               canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
               canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
@@ -83,6 +87,16 @@ export default function PublicBookingPage() {
               setUserPerms(roleDoc.data() as RoleConfig);
             }
           }
+        } else if (isMasterEmail) {
+          setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: userEmail || '', roleId: 'ADMIN' });
+          setTeacherName('Herbert Pacheco');
+          setUserPerms({
+            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+            canViewSegmentAppointments: true, canViewClassAppointments: true,
+            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+            canCreateBookings: true
+          });
         }
       } catch (err) {
         console.error("Erro ao carregar perfil na reserva:", err);
@@ -97,11 +111,14 @@ export default function PublicBookingPage() {
   const locations = rawLocations || [];
 
   const filteredClasses = rawClasses?.filter(c => {
-    if (!profile || profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br') return true;
-    if (userPerms?.canViewSegmentAppointments) {
+    if (!profile || !userPerms) return false;
+    // Administradores veem todas as turmas
+    if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) return true;
+    
+    if (userPerms.canViewSegmentAppointments) {
       return profile.segmentIds?.includes(c.schoolSegmentId);
     }
-    if (userPerms?.canViewClassAppointments) {
+    if (userPerms.canViewClassAppointments) {
       return profile.classIds?.includes(c.id);
     }
     return false;
@@ -113,6 +130,8 @@ export default function PublicBookingPage() {
 
   const filteredLocations = locations?.filter(l => {
     if (!l.isActive) return false;
+    // Administradores veem todos os locais ativos
+    if (profile?.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br') return true;
     if (!selectedSegment || !selectedSegment.unit) return true;
     return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
   }) || [];
@@ -122,6 +141,7 @@ export default function PublicBookingPage() {
     const dayMatches = s.dayOfWeek === date.getDay().toString();
     if (!dayMatches) return false;
 
+    // Slots específicos ou globais
     const targetMatches = s.schoolClassId 
       ? s.schoolClassId === selectedClassId
       : s.schoolSegmentId 
@@ -221,7 +241,7 @@ export default function PublicBookingPage() {
       <div className="min-h-screen bg-[#ECF1FA] flex flex-col items-center justify-center text-center p-4 space-y-4">
         <ShieldAlert className="w-16 h-16 text-destructive opacity-50" />
         <h2 className="text-3xl font-bold">Acesso Restrito</h2>
-        <p className="text-muted-foreground max-w-md">Seu perfil atual não permite a criação de agendamentos. Entre em contato com a administração.</p>
+        <p className="text-muted-foreground max-w-md">Seu perfil atual não permite a criação de agendamentos.</p>
         <Button onClick={() => router.push('/dashboard')} className="rounded-xl">Voltar ao Painel</Button>
       </div>
     );
@@ -280,7 +300,7 @@ export default function PublicBookingPage() {
                     <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId}>
                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
                       <SelectContent>
-                        {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma atribuída ao seu perfil.</div>}
+                        {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma disponível.</div>}
                       </SelectContent>
                     </Select>
                   </div>

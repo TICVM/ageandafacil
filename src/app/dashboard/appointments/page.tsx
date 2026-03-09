@@ -29,13 +29,16 @@ export default function AppointmentsPage() {
     async function fetchPermissions() {
       if (!db || !authUser) return;
       
+      const userEmail = authUser.email?.toLowerCase().trim();
+      const isMasterEmail = userEmail === 'herbertpacheco@cvmsp.com.br';
+
       const userDoc = await getDoc(doc(db, 'users', authUser.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data() as User;
         setProfile({ ...userData, id: authUser.uid });
 
         // Administrador Master por e-mail ou por Role fixa
-        if (userData.roleId === 'ADMIN' || authUser.email === 'herbertpacheco@cvmsp.com.br') {
+        if (userData.roleId === 'ADMIN' || isMasterEmail) {
           setUserPerms({
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
@@ -50,6 +53,16 @@ export default function AppointmentsPage() {
             setUserPerms(roleDoc.data() as RoleConfig);
           }
         }
+      } else if (isMasterEmail) {
+        // Fallback Master Admin
+        setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: userEmail || '', roleId: 'ADMIN' });
+        setUserPerms({
+          canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+          canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+          canViewSegmentAppointments: true, canViewClassAppointments: true,
+          canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+          canCreateBookings: true
+        });
       }
     }
     fetchPermissions();
@@ -77,10 +90,12 @@ export default function AppointmentsPage() {
 
   // FILTRAGEM DINÂMICA POR NÍVEL DE VISUALIZAÇÃO
   const filteredByPermissions = list?.filter(booking => {
-    if (!userPerms || !profile) return false;
+    if (!profile || !userPerms) return false;
     
-    // Nível 1: Ver tudo
-    if (userPerms.canViewAllAppointments) return true;
+    // Nível Master: Ver tudo (Garante acesso irrestrito por e-mail ou cargo ADMIN)
+    if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) {
+      return true;
+    }
 
     // Nível 2: Ver por Segmento
     if (userPerms.canViewSegmentAppointments) {
@@ -116,7 +131,7 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Global</h1>
-          <p className="text-muted-foreground">Filtros aplicados conforme seu cargo e nível de acesso.</p>
+          <p className="text-muted-foreground">Visualização total para Administradores Master.</p>
         </div>
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -174,7 +189,6 @@ export default function AppointmentsPage() {
                         <div className="flex justify-end items-center gap-2">
                           <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}><Info className="w-4 h-4" /></Button>
                           
-                          {/* SUB-PERMISSÕES DE AÇÃO: Só aparecem se o cargo permitir */}
                           {(userPerms.canEditAppointments || userPerms.canCancelAppointments || userPerms.canDeleteAppointments) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -202,14 +216,13 @@ export default function AppointmentsPage() {
                   );
                 })
               ) : (
-                <TableRow><TableCell colSpan={5} className="h-64 text-center text-muted-foreground">Nenhum registro encontrado para seu nível de acesso.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="h-64 text-center text-muted-foreground">Nenhum registro encontrado.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         )}
       </Card>
 
-      {/* Detalhes do Agendamento */}
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           {selectedBooking && (
