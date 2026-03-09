@@ -85,7 +85,7 @@ export default function RolesAdminPage() {
           <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Perfis</h1>
           <p className="text-muted-foreground">Configure os níveis de acesso e sub-permissões dinamicamente.</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg" aria-haspopup="dialog">
+        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg">
           <Plus className="w-4 h-4" />
           Novo Perfil
         </Button>
@@ -132,14 +132,14 @@ export default function RolesAdminPage() {
                       {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-200 text-blue-700">Agenda</Badge> : 
                        role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-200 text-purple-700">Segmento</Badge> :
                        <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Individual</Badge>}
-                      {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Pode Editar</Badge>}
+                      {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Edição</Badge>}
                       {role.canChangeStatus && <Badge variant="secondary" className="text-[9px] bg-green-50 text-green-700 border-green-200">Validador</Badge>}
                       {role.canManageUsers && <Badge variant="secondary" className="text-[9px]">Gestor</Badge>}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)} aria-haspopup="dialog"><Edit2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)}><Edit2 className="w-4 h-4" /></Button>
                       <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'}><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </TableCell>
