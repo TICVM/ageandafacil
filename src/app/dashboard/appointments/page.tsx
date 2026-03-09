@@ -495,7 +495,16 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent 
+          className="max-w-2xl rounded-3xl overflow-hidden p-0" 
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
             <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
@@ -518,7 +527,11 @@ export default function AppointmentsPage() {
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent 
+                      className="w-auto p-0" 
+                      align="start"
+                      onInteractOutside={(e) => e.preventDefault()}
+                    >
                       <Calendar 
                         mode="single" 
                         selected={editDate} 

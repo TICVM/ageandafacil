@@ -132,10 +132,9 @@ export default function RolesAdminPage() {
                     <div className="flex flex-wrap gap-1">
                       {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-200 text-blue-700">Total</Badge> : 
                        role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-200 text-purple-700">Segmento</Badge> :
-                       <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Individual</Badge>}
+                       <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Turma</Badge>}
                       {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Edição</Badge>}
                       {role.canChangeStatus && <Badge variant="secondary" className="text-[9px] bg-green-50 text-green-700 border-green-200">Validador</Badge>}
-                      {role.canManageUsers && <Badge variant="secondary" className="text-[9px]">Gestor</Badge>}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -196,7 +195,16 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent 
+        className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl" 
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement;
+          if (target?.closest('[data-radix-select-content]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
             <ShieldCheck className="w-6 h-6" />

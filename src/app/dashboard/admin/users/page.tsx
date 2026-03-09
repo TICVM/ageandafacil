@@ -180,7 +180,16 @@ export default function UsersAdminPage() {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-2xl max-w-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <DialogContent 
+            className="rounded-2xl max-w-2xl" 
+            onCloseAutoFocus={(e) => e.preventDefault()}
+            onInteractOutside={(e) => {
+              const target = e.target as HTMLElement;
+              if (target?.closest('[data-radix-select-content]')) {
+                e.preventDefault();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Adicionar Membro</DialogTitle>
               <DialogDescription>Defina o papel e as permissões de acesso.</DialogDescription>
@@ -277,7 +286,7 @@ export default function UsersAdminPage() {
           <div className="relative max-w-sm">
             <Label htmlFor="search-users-input" className="sr-only">Buscar usuários</Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input id="search-users-input" name="search" placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input id="search-users-input" name="search" placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl h-11 bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </div>
         {isLoading ? (
@@ -330,7 +339,16 @@ export default function UsersAdminPage() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="rounded-2xl max-w-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent 
+          className="rounded-2xl max-w-2xl" 
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target?.closest('[data-radix-select-content]')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader><DialogTitle>Editar Perfil</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
             <div className="space-y-4">
