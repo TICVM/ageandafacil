@@ -113,6 +113,7 @@ export default function AppointmentsPage() {
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classes.find(c => c.id === editingBooking.schoolClassId);
     
+    // Lista de horários já ocupados, excluindo a própria reserva que estamos editando
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
@@ -136,6 +137,7 @@ export default function AppointmentsPage() {
       
       if (isCurrentlyBookedTime) return true;
 
+      // Se o horário já estiver ocupado por outra pessoa nesta data
       if (takenStartTimes.includes(s.startTime)) return false;
 
       const slotStartMin = timeToMin(s.startTime);
@@ -159,6 +161,7 @@ export default function AppointmentsPage() {
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
+    // Busca o ID do slot correspondente para pré-selecionar
     if (slots) {
       const dayOfWeekStr = bookingDate.getDay().toString();
       const matchingSlot = slots.find(s => 
@@ -199,6 +202,7 @@ export default function AppointmentsPage() {
 
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
+    // Limpa o estado após salvar
     setEditingBooking(null);
     setIsSaving(false);
     toast({ title: "Sessão Atualizada!" });
@@ -208,16 +212,22 @@ export default function AppointmentsPage() {
     if (!list || !userPerms || !profile) return [];
     
     return list.filter(booking => {
+      // Regra de Ouro: Administrador Master vê TUDO
       if (isMaster || userPerms.canViewAllAppointments) return true;
 
       const cls = classes?.find(c => c.id === booking.schoolClassId);
+      
+      // Verificação por Segmento
       if (userPerms.canViewSegmentAppointments) {
         if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
       }
+
+      // Verificação por Turma
       if (userPerms.canViewClassAppointments) {
         if (profile.classIds?.includes(booking.schoolClassId)) return true;
         if (booking.teacherId === profile.id) return true;
       }
+
       return false;
     }).filter(b => {
       if (!searchTerm) return true;
