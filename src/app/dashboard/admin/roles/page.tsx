@@ -130,9 +130,9 @@ export default function RolesAdminPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-200 text-blue-700">Total</Badge> : 
-                       role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-200 text-purple-700">Segmento</Badge> :
-                       <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Turma</Badge>}
+                      {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-200 text-blue-700">Acesso Total</Badge> : 
+                       role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-200 text-purple-700">Por Segmento</Badge> :
+                       <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Por Turma</Badge>}
                       {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Edição</Badge>}
                       {role.canChangeStatus && <Badge variant="secondary" className="text-[9px] bg-green-50 text-green-700 border-green-200">Validador</Badge>}
                     </div>
@@ -196,14 +196,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl" 
-        onCloseAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          const target = e.target as HTMLElement;
-          if (target?.closest('[data-radix-select-content]')) {
-            e.preventDefault();
-          }
-        }}
+        className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl"
       >
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
@@ -260,9 +253,9 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                   {renderPermissionToggle("Fazer Novas Reservas", "canCreateBookings", Plus, "text-orange-700")}
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Visualização</p>
-                    {renderPermissionToggle("Ver Agenda", "canViewAllAppointments", Eye, "bg-blue-50/30")}
-                    {renderPermissionToggle("Agenda por Segmento", "canViewSegmentAppointments", Eye, "bg-purple-50/30")}
-                    {renderPermissionToggle("Agenda por Turma", "canViewClassAppointments", Eye, "bg-orange-50/30")}
+                    {renderPermissionToggle("Ver Toda a Agenda", "canViewAllAppointments", Eye, "bg-blue-50/30")}
+                    {renderPermissionToggle("Ver por Segmento", "canViewSegmentAppointments", Eye, "bg-purple-50/30")}
+                    {renderPermissionToggle("Ver por Turma", "canViewClassAppointments", Eye, "bg-orange-50/30")}
                   </div>
                 </div>
 

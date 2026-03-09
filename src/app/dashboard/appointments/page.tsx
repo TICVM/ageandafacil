@@ -431,7 +431,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
@@ -496,10 +496,10 @@ export default function AppointmentsPage() {
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent 
-          className="max-w-2xl rounded-3xl overflow-hidden p-0" 
-          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="max-w-2xl rounded-3xl overflow-hidden p-0"
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
+            // Previne fechar o diálogo quando o portal do seletor é clicado
             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
               e.preventDefault();
             }
