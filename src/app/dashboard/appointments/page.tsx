@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -23,12 +23,20 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
+// Funções utilitárias estáveis fora do componente
+const timeToMin = (t: string) => {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return (h * 60) + m;
+};
+
 export default function AppointmentsPage() {
   const db = useFirestore();
   const { user: authUser } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,6 +48,7 @@ export default function AppointmentsPage() {
   const [editIdentifier, setEditIdentifier] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
+  // Carregamento de Perfil e Permissões
   useEffect(() => {
     async function fetchPermissions() {
       if (!db || !authUser) return;
@@ -47,12 +56,28 @@ export default function AppointmentsPage() {
       const userEmail = authUser.email?.toLowerCase().trim();
       const isMasterEmail = userEmail === 'herbertpacheco@cvmsp.com.br';
 
-      const userDoc = await getDoc(doc(db, 'users', authUser.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as User;
-        setProfile({ ...userData, id: authUser.uid });
+      try {
+        const userDoc = await getDoc(doc(db, 'users', authUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          setProfile({ ...userData, id: authUser.uid });
 
-        if (userData.roleId === 'ADMIN' || isMasterEmail) {
+          if (userData.roleId === 'ADMIN' || isMasterEmail) {
+            setUserPerms({
+              canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+              canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+              canViewSegmentAppointments: true, canViewClassAppointments: true,
+              canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+              canCreateBookings: true
+            });
+          } else {
+            const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
+            if (roleDoc.exists()) {
+              setUserPerms(roleDoc.data() as RoleConfig);
+            }
+          }
+        } else if (isMasterEmail) {
+          setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: userEmail || '', roleId: 'ADMIN' });
           setUserPerms({
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
@@ -60,26 +85,15 @@ export default function AppointmentsPage() {
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
             canCreateBookings: true
           });
-        } else {
-          const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
-          if (roleDoc.exists()) {
-            setUserPerms(roleDoc.data() as RoleConfig);
-          }
         }
-      } else if (isMasterEmail) {
-        setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: userEmail || '', roleId: 'ADMIN' });
-        setUserPerms({
-          canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-          canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-          canViewSegmentAppointments: true, canViewClassAppointments: true,
-          canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-          canCreateBookings: true
-        });
+      } catch (err) {
+        console.error("Erro ao carregar permissões:", err);
       }
     }
     fetchPermissions();
   }, [db, authUser]);
 
+  // Queries Estabilizadas
   const appointmentsRef = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
@@ -92,20 +106,19 @@ export default function AppointmentsPage() {
   const { data: slots } = useCollection<TimeSlot>(slotsRef);
   const { data: blocks } = useCollection<ScheduleBlock>(blocksRef);
 
-  const handleCancel = (id: string) => {
+  const handleCancel = useCallback((id: string) => {
     if (!db || !userPerms?.canCancelAppointments) return;
     updateDocumentNonBlocking(doc(db, 'appointments', id), { status: 'CANCELLED' });
     toast({ title: "Agendamento Cancelado" });
-  };
+  }, [db, userPerms]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     if (!db || !userPerms?.canDeleteAppointments) return;
     deleteDocumentNonBlocking(doc(db, 'appointments', id));
     toast({ title: "Agendamento Excluído" });
-  };
+  }, [db, userPerms]);
 
   const handleOpenEdit = (booking: Booking) => {
-    setEditingBooking(booking);
     setEditDate(new Date(booking.appointmentDate + 'T00:00:00'));
     setEditLocationId(booking.photoLocationId);
     setEditIdentifier(booking.locationIdentifier || '');
@@ -113,11 +126,12 @@ export default function AppointmentsPage() {
     
     const matchingSlot = slots?.find(s => s.startTime === booking.startTime);
     setEditSlotId(matchingSlot?.id || '');
+    setEditingBooking(booking);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId) {
-      toast({ title: "Preencha todos os campos", variant: "destructive" });
+      toast({ title: "Dados Incompletos", description: "Verifique data, horário e local.", variant: "destructive" });
       return;
     }
 
@@ -125,13 +139,13 @@ export default function AppointmentsPage() {
     if (!slot) return;
 
     setIsSaving(true);
-
-    const [h, m] = slot.startTime.split(':').map(Number);
-    const endTotal = h * 60 + m + (slot.durationMinutes || 60);
-    const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
-    const endM = (endTotal % 60).toString().padStart(2, '0');
-
     try {
+      const [h, m] = slot.startTime.split(':').map(Number);
+      const duration = slot.durationMinutes || 60;
+      const endTotal = (h * 60) + m + duration;
+      const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
+      const endM = (endTotal % 60).toString().padStart(2, '0');
+
       updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
         appointmentDate: format(editDate, 'yyyy-MM-dd'),
         startTime: slot.startTime,
@@ -143,7 +157,7 @@ export default function AppointmentsPage() {
       });
 
       setEditingBooking(null);
-      toast({ title: "Agendamento Atualizado com Sucesso!" });
+      toast({ title: "Sessão Atualizada!", description: "O reagendamento foi processado." });
     } catch (e) {
       toast({ title: "Erro ao atualizar", variant: "destructive" });
     } finally {
@@ -151,15 +165,26 @@ export default function AppointmentsPage() {
     }
   };
 
-  // Lógica de filtragem de slots memoizada para evitar travamentos
+  // Cálculo de slots disponíveis otimizado para evitar travamentos
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
     
-    return slots.filter(s => {
-      const dayMatches = s.dayOfWeek === editDate.getDay().toString();
-      if (!dayMatches) return false;
+    const dateStr = format(editDate, 'yyyy-MM-dd');
+    const dayOfWeekStr = editDate.getDay().toString();
+    const cls = classes.find(c => c.id === editingBooking.schoolClassId);
+    
+    // Filtro de ocupação prévio para performance
+    const takenStartTimes = list?.filter(app => 
+      app.id !== editingBooking.id &&
+      app.appointmentDate === dateStr && 
+      app.status === 'CONFIRMED'
+    ).map(app => app.startTime) || [];
 
-      const cls = classes.find(c => c.id === editingBooking.schoolClassId);
+    return slots.filter(s => {
+      // 1. Dia da semana
+      if (s.dayOfWeek !== dayOfWeekStr) return false;
+
+      // 2. Alvo (Global, Segmento ou Turma)
       const targetMatches = s.schoolClassId 
         ? s.schoolClassId === editingBooking.schoolClassId
         : s.schoolSegmentId 
@@ -168,42 +193,35 @@ export default function AppointmentsPage() {
       
       if (!targetMatches) return false;
 
-      const dateStr = format(editDate, 'yyyy-MM-dd');
-      
-      const isTaken = list?.some(app => 
-        app.id !== editingBooking.id &&
-        app.appointmentDate === dateStr && 
-        app.startTime === s.startTime && 
-        app.status === 'CONFIRMED'
-      );
-      if (isTaken) return false;
+      // 3. Já ocupado?
+      if (takenStartTimes.includes(s.startTime)) return false;
 
+      // 4. Bloqueado administrativamente?
+      const slotStartMin = timeToMin(s.startTime);
+      const slotEndMin = slotStartMin + (s.durationMinutes || 60);
+      
       const isBlocked = blocks?.some(block => {
         if (block.date !== dateStr) return false;
-        const timeToMin = (t: string) => {
-          const [h, m] = t.split(':').map(Number);
-          return h * 60 + m;
-        };
-        const slotStart = timeToMin(s.startTime);
-        const slotEnd = slotStart + (s.durationMinutes || 60);
-        const blockStart = timeToMin(block.startTime);
-        const blockEnd = timeToMin(block.endTime);
-        return slotStart < blockEnd && slotEnd > blockStart;
+        const bStart = timeToMin(block.startTime);
+        const bEnd = timeToMin(block.endTime);
+        return slotStartMin < bEnd && slotEndMin > bStart;
       });
 
       return !isBlocked;
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
+  // Filtro de Permissões para a Listagem Principal
   const filteredByPermissions = useMemo(() => {
     if (!list || !profile || !userPerms) return [];
     
     return list.filter(booking => {
-      if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) {
-        return true;
-      }
+      const isMaster = profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br';
+      if (isMaster || userPerms.canViewAllAppointments) return true;
+
+      const cls = classes?.find(c => c.id === booking.schoolClassId);
+      
       if (userPerms.canViewSegmentAppointments) {
-        const cls = classes?.find(c => c.id === booking.schoolClassId);
         if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
       }
       if (userPerms.canViewClassAppointments) {
@@ -214,18 +232,17 @@ export default function AppointmentsPage() {
     });
   }, [list, profile, userPerms, classes, authUser]);
 
-  const sortedList = useMemo(() => 
-    [...filteredByPermissions].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate)),
-    [filteredByPermissions]
-  );
-
-  const filtered = useMemo(() => 
-    sortedList.filter(b => 
-      b.teacherName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      b.appointmentDate.includes(searchTerm)
-    ),
-    [sortedList, searchTerm]
-  );
+  const filtered = useMemo(() => {
+    let result = [...filteredByPermissions].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate));
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      result = result.filter(b => 
+        b.teacherName?.toLowerCase().includes(lowerSearch) || 
+        b.appointmentDate.includes(searchTerm)
+      );
+    }
+    return result;
+  }, [filteredByPermissions, searchTerm]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -338,7 +355,7 @@ export default function AppointmentsPage() {
         )}
       </Card>
 
-      {/* Detalhes */}
+      {/* Detalhes da Sessão */}
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           {selectedBooking && (
@@ -346,7 +363,7 @@ export default function AppointmentsPage() {
               <div className="bg-primary p-6 text-primary-foreground">
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
               </div>
-              <ScrollArea className="max-h-[70vh] p-8 space-y-6">
+              <ScrollArea className="max-h-[60vh] p-8 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <p className="text-xs font-bold uppercase text-muted-foreground">Docente / Turma</p>
@@ -360,7 +377,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="bg-muted/30 p-5 rounded-2xl border border-dashed">
                   <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Notas do Professor</p>
-                  <p className="text-sm italic">{selectedBooking.observations || "Sem observações."}</p>
+                  <p className="text-sm italic whitespace-pre-wrap">{selectedBooking.observations || "Sem observações."}</p>
                 </div>
               </ScrollArea>
               <DialogFooter className="p-6 bg-muted/20"><Button onClick={() => setSelectedBooking(null)} className="rounded-xl">Fechar</Button></DialogFooter>
@@ -369,17 +386,17 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Reagendamento */}
+      {/* Reagendamento / Edição */}
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           {editingBooking && (
             <div className="flex flex-col">
               <div className="bg-orange-500 p-6 text-white">
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
-                <DialogDescription className="text-orange-50/80">Altere a data, horário ou local desta sessão de fotos.</DialogDescription>
+                <DialogDescription className="text-orange-50/80">Altere a data, horário ou local desta sessão.</DialogDescription>
               </div>
               <div className="p-8 space-y-6 bg-white">
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
                     <Popover>
@@ -403,14 +420,14 @@ export default function AppointmentsPage() {
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>)
                         ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground">Indisponível nesta data.</div>
+                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível nesta data.</div>
                         )}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" /> Local</label>
                     <Select value={editLocationId} onValueChange={setEditLocationId} disabled={isSaving}>
@@ -427,7 +444,7 @@ export default function AppointmentsPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-bold flex items-center gap-2"><Hash className="w-4 h-4 text-orange-500" /> Identificador Local</label>
                     <Input 
-                      placeholder="Sala, laboratório..." 
+                      placeholder="Ex: Sala 05..." 
                       value={editIdentifier} 
                       onChange={(e) => setEditIdentifier(e.target.value)}
                       className="rounded-xl h-11"
@@ -437,9 +454,9 @@ export default function AppointmentsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-bold">Observações / Notas</label>
+                  <label className="text-sm font-bold">Observações Adicionais</label>
                   <Input 
-                    placeholder="Informações adicionais para o fotógrafo..." 
+                    placeholder="Notas para o fotógrafo..." 
                     value={editNotes} 
                     onChange={(e) => setEditNotes(e.target.value)}
                     className="rounded-xl h-11"
@@ -449,7 +466,7 @@ export default function AppointmentsPage() {
               </div>
               <DialogFooter className="p-6 bg-muted/20 gap-2">
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl" disabled={isSaving}>Cancelar</Button>
-                <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2" disabled={isSaving}>
+                <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2 min-w-[140px]" disabled={isSaving || !editSlotId}>
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Salvar Alterações
                 </Button>
@@ -461,3 +478,4 @@ export default function AppointmentsPage() {
     </div>
   );
 }
+
