@@ -117,3 +117,8 @@ export interface ScheduleBlock {
   reason: string;
   createdAt: any;
 }
+
+export interface AppSettings {
+  id: string;
+  schoolName: string;
+}

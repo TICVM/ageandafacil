@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
@@ -25,12 +26,13 @@ import {
   PieChart,
   UserCog,
   ShieldAlert,
+  Settings,
 } from 'lucide-react';
-import { User, RoleConfig, AppPermissions } from '@/lib/types';
+import { User, RoleConfig, AppPermissions, AppSettings as AppSettingsType } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useAuth, useFirestore } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, doc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
@@ -87,6 +89,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions>(DEFAULT_PERMS);
   const [roleName, setRoleName] = useState('');
+
+  // Fetch global settings
+  const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
+  const { data: appSettings } = useDoc<AppSettingsType>(settingsRef);
 
   useEffect(() => {
     async function fetchProfileAndPerms() {
@@ -177,6 +183,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     adminItems.push({ title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' });
   }
 
+  // Acesso às configurações apenas para Administrador Master ou Admin
+  if (authUser?.email === 'herbertpacheco@cvmsp.com.br' || profile?.roleId === 'ADMIN') {
+    adminItems.push({ title: 'Configurações', icon: Settings, href: '/dashboard/admin/settings' });
+  }
+
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/');
@@ -253,7 +264,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="text-primary" />
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end mr-2">
-              <span className="text-[10px] text-muted-foreground font-bold uppercase">Unidade Colégio VMS</span>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">{appSettings?.schoolName || 'Unidade Colégio VMS'}</span>
               <span className="text-sm font-bold text-primary">{profile?.name || authUser?.email}</span>
             </div>
             {roleName && (

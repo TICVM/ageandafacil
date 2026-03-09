@@ -64,6 +64,13 @@
         "observations": { "type": "string" },
         "history": { "type": "array", "items": { "$ref": "#/entities/HistoryEntry" } }
       }
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -77,6 +84,7 @@
     "/available_time_slots/{slotId}": { "schema": "TimeSlot", "description": "Slots" },
     "/schedule_blocks/{blockId}": { "schema": "ScheduleBlock", "description": "Blocks" },
     "/users/{userId}": { "schema": "User", "description": "Users" },
-    "/roles_config/{roleId}": { "schema": "RoleConfig", "description": "Role configurations" }
+    "/roles_config/{roleId}": { "schema": "RoleConfig", "description": "Role configurations" },
+    "/app_settings/{settingsId}": { "schema": "AppSettings", "description": "Global application settings" }
   }
 }
