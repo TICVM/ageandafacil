@@ -119,20 +119,21 @@ export default function AppointmentsPage() {
   }, [db, userPerms]);
 
   const handleOpenEdit = (booking: Booking) => {
-    setEditDate(new Date(booking.appointmentDate + 'T00:00:00'));
+    const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
+    setEditDate(bookingDate);
     setEditLocationId(booking.photoLocationId);
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
-    // Tenta encontrar o slot correspondente pelo horário se estiver carregado
+    // Tenta encontrar o slot correspondente pelo horário
     const matchingSlot = slots?.find(s => s.startTime === booking.startTime);
     setEditSlotId(matchingSlot?.id || '');
     setEditingBooking(booking);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId) {
-      toast({ title: "Dados Incompletos", description: "Por favor, verifique todos os campos.", variant: "destructive" });
+      toast({ title: "Dados Incompletos", description: "Verifique data e horário.", variant: "destructive" });
       return;
     }
 
@@ -163,13 +164,13 @@ export default function AppointmentsPage() {
 
       updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
-      // Limpeza imediata de estado para evitar travamentos
+      // Limpeza imediata de estado e fechar diálogo
       setEditingBooking(null);
-      setIsSaving(false);
-      toast({ title: "Sessão Atualizada!", description: "O agendamento foi reagendado com sucesso." });
+      toast({ title: "Sessão Atualizada!", description: "O reagendamento foi processado." });
     } catch (e) {
-      setIsSaving(false);
       toast({ title: "Erro ao atualizar", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -183,7 +184,7 @@ export default function AppointmentsPage() {
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
-      app.status === 'CONFIRMED'
+      app.status === 'CANCELLED' === false
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
@@ -355,11 +356,12 @@ export default function AppointmentsPage() {
       {/* Detalhes da Sessão */}
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
+          <DialogHeader className="bg-primary p-6 text-primary-foreground">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
+            <DialogDescription className="text-primary-foreground/80">Informações completas sobre o agendamento selecionado.</DialogDescription>
+          </DialogHeader>
           {selectedBooking && (
             <div className="flex flex-col">
-              <div className="bg-primary p-6 text-primary-foreground">
-                <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
-              </div>
               <ScrollArea className="max-h-[60vh] p-8 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
@@ -386,12 +388,12 @@ export default function AppointmentsPage() {
       {/* Reagendamento / Edição */}
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
+          <DialogHeader className="bg-orange-500 p-6 text-white">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
+            <DialogDescription className="text-orange-50/80">Selecione uma nova data e horário disponível para esta turma.</DialogDescription>
+          </DialogHeader>
           {editingBooking && (
             <div className="flex flex-col">
-              <div className="bg-orange-500 p-6 text-white">
-                <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
-                <DialogDescription className="text-orange-50/80">Selecione uma nova data e horário disponível.</DialogDescription>
-              </div>
               <div className="p-8 space-y-6 bg-white">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
