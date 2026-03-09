@@ -202,7 +202,7 @@ export default function AppointmentsPage() {
       timestamp: new Date().toISOString(),
       userId: profile.id,
       userName: profile.name,
-      action: 'RESCHEDULE',
+      action: 'REAGENDAMENTO',
       details: `Sessão reagendada de ${format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')} ${editingBooking.startTime} para ${format(editDate, 'dd/MM/yyyy')} ${slot.startTime}.`
     };
 
@@ -231,7 +231,7 @@ export default function AppointmentsPage() {
       timestamp: new Date().toISOString(),
       userId: profile.id,
       userName: profile.name,
-      action: 'STATUS_CHANGE',
+      action: 'ALTERACAO_DE_STATUS',
       details: `Status alterado de ${STATUS_CONFIG[booking.status].label} para ${STATUS_CONFIG[newStatus].label}.`
     };
 

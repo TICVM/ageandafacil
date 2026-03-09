@@ -77,7 +77,7 @@ export interface HistoryEntry {
   timestamp: string;
   userId: string;
   userName: string;
-  action: 'CREATE' | 'STATUS_CHANGE' | 'RESCHEDULE';
+  action: 'CRIACAO' | 'ALTERACAO_DE_STATUS' | 'REAGENDAMENTO';
   details: string;
 }
 

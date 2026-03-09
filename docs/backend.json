@@ -43,7 +43,7 @@
         "timestamp": { "type": "string", "format": "date-time" },
         "userId": { "type": "string" },
         "userName": { "type": "string" },
-        "action": { "type": "string", "enum": ["CREATE", "STATUS_CHANGE", "RESCHEDULE"] },
+        "action": { "type": "string", "enum": ["CRIACAO", "ALTERACAO_DE_STATUS", "REAGENDAMENTO"] },
         "details": { "type": "string" }
       }
     },

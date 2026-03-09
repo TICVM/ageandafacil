@@ -214,7 +214,7 @@ export default function PublicBookingPage() {
       timestamp: new Date().toISOString(),
       userId: authUser?.uid || 'anonymous',
       userName: profile?.name || teacherName,
-      action: 'CREATE',
+      action: 'CRIACAO',
       details: `Reserva inicial realizada para o dia ${format(date, 'dd/MM/yyyy')} às ${slot.startTime}.`
     };
 
