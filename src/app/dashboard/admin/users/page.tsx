@@ -208,7 +208,7 @@ export default function UsersAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Papel no Sistema</label>
-                  <Select value={newUser.roleId} onValueChange={(val) => setNewUser({...newUser, roleId: val})} modal={false}>
+                  <Select value={newUser.roleId} onValueChange={(val) => setNewUser({...newUser, roleId: val})}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue placeholder="Selecione o papel" />
                     </SelectTrigger>
@@ -343,7 +343,7 @@ export default function UsersAdminPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Papel no Sistema</label>
-                <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)} modal={false}>
+                <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)}>
                   <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ADMIN" className="font-bold text-primary">Administrador (Total)</SelectItem>
