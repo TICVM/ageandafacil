@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-// Funções utilitárias estáveis
+// Funções utilitárias estáveis fora do componente para evitar re-declarações
 const timeToMin = (t: string) => {
   if (!t) return 0;
   const [h, m] = t.split(':').map(Number);
@@ -125,13 +125,15 @@ export default function AppointmentsPage() {
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
-    // Tenta encontrar o slot correspondente pelo horário
-    const matchingSlot = slots?.find(s => s.startTime === booking.startTime);
+    // Tenta encontrar o slot correspondente pelo horário e dia da semana da data do agendamento
+    const dayOfWeekStr = bookingDate.getDay().toString();
+    const matchingSlot = slots?.find(s => s.startTime === booking.startTime && s.dayOfWeek === dayOfWeekStr);
+    
     setEditSlotId(matchingSlot?.id || '');
     setEditingBooking(booking);
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId) {
       toast({ title: "Dados Incompletos", description: "Verifique data e horário.", variant: "destructive" });
       return;
@@ -145,33 +147,28 @@ export default function AppointmentsPage() {
 
     setIsSaving(true);
     
-    try {
-      const [h, m] = slot.startTime.split(':').map(Number);
-      const duration = slot.durationMinutes || 60;
-      const endTotal = (h * 60) + m + duration;
-      const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
-      const endM = (endTotal % 60).toString().padStart(2, '0');
+    const [h, m] = slot.startTime.split(':').map(Number);
+    const duration = slot.durationMinutes || 60;
+    const endTotal = (h * 60) + m + duration;
+    const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
+    const endM = (endTotal % 60).toString().padStart(2, '0');
 
-      const updateData = {
-        appointmentDate: format(editDate, 'yyyy-MM-dd'),
-        startTime: slot.startTime,
-        endTime: `${endH}:${endM}`,
-        photoLocationId: editLocationId,
-        locationIdentifier: editIdentifier || null,
-        observations: editNotes,
-        status: 'CONFIRMED'
-      };
+    const updateData = {
+      appointmentDate: format(editDate, 'yyyy-MM-dd'),
+      startTime: slot.startTime,
+      endTime: `${endH}:${endM}`,
+      photoLocationId: editLocationId,
+      locationIdentifier: editIdentifier || null,
+      observations: editNotes,
+      status: 'CONFIRMED'
+    };
 
-      updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
+    updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
-      // Limpeza imediata de estado e fechar diálogo
-      setEditingBooking(null);
-      toast({ title: "Sessão Atualizada!", description: "O reagendamento foi processado." });
-    } catch (e) {
-      toast({ title: "Erro ao atualizar", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
+    // Limpeza imediata de estado e fechar diálogo para evitar travamentos
+    setEditingBooking(null);
+    setIsSaving(false);
+    toast({ title: "Sessão Atualizada!", description: "O reagendamento foi processado." });
   };
 
   const availableSlots = useMemo(() => {
@@ -184,7 +181,7 @@ export default function AppointmentsPage() {
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
-      app.status === 'CANCELLED' === false
+      app.status !== 'CANCELLED'
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
@@ -197,7 +194,11 @@ export default function AppointmentsPage() {
           : !s.schoolClassId && !s.schoolSegmentId;
       
       if (!targetMatches) return false;
-      if (takenStartTimes.includes(s.startTime)) return false;
+      
+      // Permitir o horário original se for na mesma data
+      const isOriginalSlot = editingBooking.startTime === s.startTime && format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'yyyy-MM-dd') === dateStr;
+      
+      if (!isOriginalSlot && takenStartTimes.includes(s.startTime)) return false;
 
       const slotStartMin = timeToMin(s.startTime);
       const slotEndMin = slotStartMin + (s.durationMinutes || 60);
@@ -269,6 +270,10 @@ export default function AppointmentsPage() {
       </div>
 
       <Card className="border-none shadow-md overflow-hidden bg-white">
+        <CardHeader className="sr-only">
+          <CardTitle>Lista de Agendamentos</CardTitle>
+          <CardDescription>Visualize todos os agendamentos confirmados e cancelados.</CardDescription>
+        </CardHeader>
         {isLoading || !userPerms ? (
           <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
