@@ -139,8 +139,12 @@ export default function RolesAdminPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)} aria-label="Editar perfil"><Edit2 className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'} aria-label="Remover perfil"><Trash2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)} aria-label="Editar perfil">
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'} aria-label="Remover perfil">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -217,9 +221,9 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
         <ScrollArea className="max-h-[75vh] bg-[#F8FAFC]">
           <div className="p-8 space-y-10">
             <div className="space-y-3">
-              <Label htmlFor={`role-name-${role.id || 'new'}`} className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</Label>
+              <Label htmlFor={`role-name-input-${role.id || 'new'}`} className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</Label>
               <Input 
-                id={`role-name-${role.id || 'new'}`}
+                id={`role-name-input-${role.id || 'new'}`}
                 name="name"
                 placeholder="Ex: Coordenador Pedagógico" 
                 value={role.name} 

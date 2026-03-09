@@ -385,7 +385,7 @@ export default function PublicBookingPage() {
                     <div className="space-y-2">
                       <Label htmlFor="class-select-trigger" className="text-sm font-semibold">Turma</Label>
                       <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
-                        <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-11" aria-haspopup="listbox">
+                        <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-11">
                           <SelectValue placeholder="Selecione a turma" />
                         </SelectTrigger>
                         <SelectContent>
@@ -396,7 +396,7 @@ export default function PublicBookingPage() {
                     <div className="space-y-2">
                       <Label htmlFor="location-select-trigger" className="text-sm font-semibold">Local da Foto</Label>
                       <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
-                        <SelectTrigger id="location-select-trigger" name="location" className="rounded-xl h-11" aria-haspopup="listbox">
+                        <SelectTrigger id="location-select-trigger" name="location" className="rounded-xl h-11">
                           <SelectValue placeholder="Selecione o local" />
                         </SelectTrigger>
                         <SelectContent>
@@ -418,7 +418,7 @@ export default function PublicBookingPage() {
                       <Label htmlFor="date-trigger" className="text-sm font-semibold">Data</Label>
                       <Popover modal={false}>
                         <PopoverTrigger asChild>
-                          <Button id="date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
+                          <Button id="date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {date ? format(date, "PPP", { locale: ptBR }) : <span>Escolha a data</span>}
                           </Button>
@@ -432,7 +432,7 @@ export default function PublicBookingPage() {
                     <div className="space-y-2">
                       <Label htmlFor="slot-select-trigger" className="text-sm font-semibold">Horário</Label>
                       <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                        <SelectTrigger id="slot-select-trigger" name="slot" className="rounded-xl h-11" aria-haspopup="listbox">
+                        <SelectTrigger id="slot-select-trigger" name="slot" className="rounded-xl h-11">
                           <SelectValue placeholder="Escolha o horário" />
                         </SelectTrigger>
                         <SelectContent>
@@ -461,7 +461,11 @@ export default function PublicBookingPage() {
 
             <div className="space-y-6">
               <Card className="border-none shadow-xl bg-accent/5 rounded-3xl animate-in fade-in duration-700">
-                <CardHeader className="p-6"><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent-foreground" /> Briefing IA</CardTitle></CardHeader>
+                <CardHeader className="p-6">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-accent-foreground" /> Briefing IA
+                  </CardTitle>
+                </CardHeader>
                 <CardContent className="p-6 pt-0">
                   <div className="text-center py-10 px-4 border-2 border-dashed rounded-2xl text-xs text-muted-foreground italic">
                     Utilize o painel para complementar sua reserva com orientações pedagógicas para a equipe de fotos.

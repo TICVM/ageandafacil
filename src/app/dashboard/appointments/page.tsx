@@ -356,7 +356,7 @@ export default function AppointmentsPage() {
                       {hasAnyStatusPermission ? (
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)} aria-haspopup="menu">
+                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
                               <status.icon className="w-3 h-3" />
                               {status.label}
                             </Badge>
@@ -392,10 +392,14 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)} aria-label="Ver detalhes"><Info className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}>
+                          <Info className="w-4 h-4" />
+                        </Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="menu"><MoreHorizontal className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="rounded-full">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
@@ -433,7 +437,9 @@ export default function AppointmentsPage() {
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
+              <FileText className="w-6 h-6" /> Detalhes da Sessão
+            </DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
@@ -499,38 +505,38 @@ export default function AppointmentsPage() {
           className="max-w-2xl rounded-3xl overflow-hidden p-0"
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
+            // Se o clique for em um portal (popover, select content), não bloqueie nem feche
             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
               e.preventDefault();
             }
           }}
         >
           <DialogHeader className="bg-orange-500 p-6 text-white">
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
+              <Edit3 className="w-6 h-6" /> Reagendar Sessão
+            </DialogTitle>
             <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
           </DialogHeader>
           {editingBooking && (
             <div className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500"><CalendarIcon className="w-4 h-4" /> Nova Data</Label>
+                  <Label htmlFor="reschedule-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <CalendarIcon className="w-4 h-4" /> Nova Data
+                  </Label>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
                     <PopoverTrigger asChild>
                       <Button 
-                        id="edit-date-trigger" 
-                        name="edit-date-trigger" 
+                        id="reschedule-date-trigger" 
+                        name="rescheduleDate"
                         variant="outline" 
-                        className="w-full h-11 justify-start rounded-xl" 
-                        aria-haspopup="dialog"
+                        className="w-full h-11 justify-start rounded-xl"
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent 
-                      className="w-auto p-0" 
-                      align="start"
-                      onInteractOutside={(e) => e.preventDefault()}
-                    >
+                    <PopoverContent className="w-auto p-0" align="start">
                       <Calendar 
                         mode="single" 
                         selected={editDate} 
@@ -548,14 +554,16 @@ export default function AppointmentsPage() {
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-slot-id-select" className="text-sm font-bold flex items-center gap-2 text-orange-500"><Clock className="w-4 h-4" /> Novo Horário</Label>
+                  <Label htmlFor="reschedule-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <Clock className="w-4 h-4" /> Novo Horário
+                  </Label>
                   <Select 
                     value={editSlotId} 
                     onValueChange={setEditSlotId} 
                     disabled={!editDate} 
                     modal={false}
                   >
-                    <SelectTrigger id="edit-slot-id-select" name="edit-slot-id" className="rounded-xl h-11" aria-haspopup="listbox">
+                    <SelectTrigger id="reschedule-slot-select" name="slot" className="rounded-xl h-11">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
                     <SelectContent>
@@ -574,13 +582,15 @@ export default function AppointmentsPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-location-id-select" className="text-sm font-bold flex items-center gap-2 text-orange-500"><MapPin className="w-4 h-4" /> Local</Label>
+                  <Label htmlFor="reschedule-location-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <MapPin className="w-4 h-4" /> Local
+                  </Label>
                   <Select 
                     value={editLocationId} 
                     onValueChange={setEditLocationId} 
                     modal={false}
                   >
-                    <SelectTrigger id="edit-location-id-select" name="edit-location-id" className="rounded-xl h-11" aria-haspopup="listbox">
+                    <SelectTrigger id="reschedule-location-select" name="location" className="rounded-xl h-11">
                       <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
                     <SelectContent>
@@ -589,10 +599,12 @@ export default function AppointmentsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-identifier-input" className="text-sm font-bold flex items-center gap-2 text-orange-500"><Hash className="w-4 h-4" /> Identificador</Label>
+                  <Label htmlFor="reschedule-id-input" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <Hash className="w-4 h-4" /> Identificador
+                  </Label>
                   <Input 
-                    id="edit-identifier-input" 
-                    name="edit-identifier" 
+                    id="reschedule-id-input" 
+                    name="locationIdentifier" 
                     value={editIdentifier} 
                     onChange={(e) => setEditIdentifier(e.target.value)} 
                     className="rounded-xl h-11" 
@@ -601,10 +613,10 @@ export default function AppointmentsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-notes-input" className="text-sm font-bold">Notas Adicionais</Label>
+                <Label htmlFor="reschedule-notes-input" className="text-sm font-bold">Notas Adicionais</Label>
                 <Input 
-                  id="edit-notes-input" 
-                  name="edit-notes" 
+                  id="reschedule-notes-input" 
+                  name="notes" 
                   value={editNotes} 
                   onChange={(e) => setEditNotes(e.target.value)} 
                   className="rounded-xl h-11" 
