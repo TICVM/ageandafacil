@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -7,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon } from 'lucide-react';
+import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon, CheckCircle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -34,6 +35,7 @@ const STATUS_CONFIG = {
   RESCHEDULED: { label: 'Reagendado', color: 'bg-blue-500 text-white', icon: Edit3 },
   CANCELLED: { label: 'Cancelado', color: 'bg-destructive text-white', icon: XCircle },
   RE_SCHEDULE_REQUEST: { label: 'Por favor reagendar', color: 'bg-yellow-500 text-black', icon: AlertTriangle },
+  COMPLETED: { label: 'Concluído', color: 'bg-slate-600 text-white', icon: CheckCircle },
 };
 
 export default function AppointmentsPage() {
@@ -69,7 +71,7 @@ export default function AppointmentsPage() {
             canViewSegmentAppointments: true, canViewClassAppointments: true,
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
             canCreateBookings: true, canChangeStatus: true,
-            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true
+            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
           };
           setUserPerms(masterPerms);
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: authUser.email || '', roleId: 'ADMIN' });
@@ -88,7 +90,7 @@ export default function AppointmentsPage() {
               canViewSegmentAppointments: true, canViewClassAppointments: true,
               canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
               canCreateBookings: true, canChangeStatus: true,
-              canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true
+              canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
             });
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
@@ -283,7 +285,8 @@ export default function AppointmentsPage() {
     userPerms.canStatusConfirmed || 
     userPerms.canStatusCancelled || 
     userPerms.canStatusRescheduled || 
-    userPerms.canStatusReScheduleRequest;
+    userPerms.canStatusReScheduleRequest ||
+    userPerms.canStatusCompleted;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -360,6 +363,9 @@ export default function AppointmentsPage() {
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusConfirmed) && (
                               <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
+                            )}
+                            {(userPerms.canChangeStatus || userPerms.canStatusCompleted) && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'COMPLETED')} className="gap-2 text-slate-700 font-bold"><CheckCircle className="w-3.5 h-3.5" /> Concluir Sessão</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusRescheduled) && (
                               <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>

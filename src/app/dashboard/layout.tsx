@@ -7,7 +7,16 @@ import { useUser, useFirestore } from '@/firebase';
 import { DashboardLayout as DashboardContainer } from '@/components/layout/dashboard-layout';
 import { Loader2 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { User } from '@/lib/types';
+import { User, AppPermissions } from '@/lib/types';
+
+const ADMIN_PERMS: AppPermissions = {
+  canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+  canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+  canViewSegmentAppointments: true, canViewClassAppointments: true,
+  canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+  canCreateBookings: true, canChangeStatus: true,
+  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
+};
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

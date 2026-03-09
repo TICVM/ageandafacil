@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -8,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -36,6 +37,7 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canStatusCancelled: false,
   canStatusRescheduled: false,
   canStatusReScheduleRequest: false,
+  canStatusCompleted: false,
 };
 
 export default function RolesAdminPage() {
@@ -275,6 +277,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                     <Separator className="my-2" />
                     {renderPermissionToggle("Aguard. Confirmação", "canStatusPending", Clock)}
                     {renderPermissionToggle("Confirmar Sessão", "canStatusConfirmed", CheckCircle2, "text-green-700")}
+                    {renderPermissionToggle("Concluir Sessão", "canStatusCompleted", CheckCircle, "text-slate-700")}
                     {renderPermissionToggle("Solicitar Reagendamento", "canStatusReScheduleRequest", AlertTriangle, "text-yellow-700")}
                     {renderPermissionToggle("Marcar como Reagendado", "canStatusRescheduled", Edit3, "text-blue-700")}
                     {renderPermissionToggle("Marcar como Cancelado", "canStatusCancelled", XCircle, "text-destructive")}
