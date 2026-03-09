@@ -192,7 +192,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
             <ShieldCheck className="w-6 h-6" />

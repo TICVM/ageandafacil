@@ -353,7 +353,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)} aria-haspopup="listbox">
                               <status.icon className="w-3 h-3" />
@@ -394,7 +394,7 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
                           setTimeout(() => setSelectedBooking(b), 100);
                         }} aria-haspopup="dialog"><Info className="w-4 h-4" /></Button>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="listbox"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
@@ -434,7 +434,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
@@ -498,7 +498,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
+        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
             <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
