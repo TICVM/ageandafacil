@@ -24,7 +24,7 @@ import { toast } from '@/hooks/use-toast';
 export default function PublicBookingPage() {
   const router = useRouter();
   const db = useFirestore();
-  const { user: authUser } = useUser();
+  const { user: authUser, isUserLoading } = useUser();
   
   const [date, setDate] = useState<Date>();
   const [teacherName, setTeacherName] = useState('');
@@ -62,10 +62,15 @@ export default function PublicBookingPage() {
 
   useEffect(() => {
     async function fetchProfile() {
+      // Se o Firebase ainda estiver carregando o estado de auth, esperamos.
+      if (isUserLoading) return;
+
       if (!db || !authUser) {
         setLoadingProfile(false);
         return;
       }
+      
+      setLoadingProfile(true);
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
         const isMasterEmail = userEmail === 'herbertpacheco@cvmsp.com.br';
@@ -75,7 +80,7 @@ export default function PublicBookingPage() {
         
         if (userDoc.exists()) {
           const profileData = userDoc.data() as User;
-          setProfile(profileData);
+          setProfile({ ...profileData, id: authUser.uid });
           setTeacherName(profileData.name || '');
           setIsIdentified(true);
           
@@ -114,7 +119,7 @@ export default function PublicBookingPage() {
       }
     }
     fetchProfile();
-  }, [db, authUser]);
+  }, [db, authUser, isUserLoading]);
 
   // Função para identificar usuário sem login via e-mail
   const handleVerifyGuestEmail = async () => {
@@ -294,7 +299,17 @@ export default function PublicBookingPage() {
     });
   };
 
-  if (loadingProfile) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><Loader2 className="animate-spin text-primary" /></div>;
+  // Trava de carregamento melhorada para evitar o flash da tela de convidado
+  if (isUserLoading || (authUser && loadingProfile)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Sincronizando acesso...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -341,7 +356,7 @@ export default function PublicBookingPage() {
           <Card className="max-w-md mx-auto shadow-xl border-none rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
             <CardHeader className="bg-primary text-primary-foreground p-6 text-center">
               <CardTitle className="text-xl">Identificação Rápida</CardTitle>
-              <CardDescription className="text-primary-foreground/80">Informe seu e-mail funcional para iniciar o agendamento.</CardDescription>
+              <CardDescription className="text-primary-foreground/80">Informe seu e-mail institucional para iniciar o agendamento.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-4">
               <div className="space-y-2">
