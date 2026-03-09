@@ -359,23 +359,23 @@ export default function AppointmentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="rounded-xl p-2">
                             {(userPerms.canChangeStatus || userPerms.canStatusPending) && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'PENDING'); }} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusConfirmed) && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'CONFIRMED'); }} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusCompleted) && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'COMPLETED'); }} className="gap-2 text-slate-700 font-bold"><CheckCircle className="w-3.5 h-3.5" /> Concluir Sessão</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'COMPLETED')} className="gap-2 text-slate-700 font-bold"><CheckCircle className="w-3.5 h-3.5" /> Concluir Sessão</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusRescheduled) && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'RESCHEDULED'); }} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusReScheduleRequest) && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST'); }} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
                             {(userPerms.canChangeStatus || userPerms.canStatusCancelled) && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'CANCELLED'); }} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -395,19 +395,19 @@ export default function AppointmentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleOpenEdit(b); }} className="gap-2 cursor-pointer">
+                              <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer">
                                 <Edit3 className="w-3.5 h-3.5" /> Reagendar / Editar
                               </DropdownMenuItem>
                             )}
                             {userPerms.canCancelAppointments && b.status !== 'CANCELLED' && (
-                              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleUpdateStatus(b, 'CANCELLED'); }} className="gap-2 text-orange-600 cursor-pointer">
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer">
                                 <XCircle className="w-3.5 h-3.5" /> Cancelar Sessão
                               </DropdownMenuItem>
                             )}
                             {userPerms.canDeleteAppointments && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); deleteDocumentNonBlocking(doc(db, 'appointments', b.id)); }} className="gap-2 text-destructive cursor-pointer">
+                                <DropdownMenuItem onSelect={() => deleteDocumentNonBlocking(doc(db, 'appointments', b.id))} className="gap-2 text-destructive cursor-pointer">
                                   <Trash2 className="w-3.5 h-3.5" /> Excluir Registro
                                 </DropdownMenuItem>
                               </>
