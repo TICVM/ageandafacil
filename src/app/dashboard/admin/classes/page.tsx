@@ -30,18 +30,25 @@ export default function ClassesAdminPage() {
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [loadingPerms, setLoadingPerms] = useState(true);
 
+  const isMaster = useMemo(() => {
+    return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
+  }, [authUser]);
+
   useEffect(() => {
     async function fetchPermissions() {
       if (!db || !authUser) return;
       
-      const email = authUser.email?.toLowerCase().trim();
-      const isMaster = email === 'herbertpacheco@cvmsp.com.br';
-
       try {
+        if (isMaster) {
+          setUserPerms(ADMIN_PERMS);
+          setLoadingPerms(false);
+          return;
+        }
+
         const userDoc = await getDoc(doc(db, 'users', authUser.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data() as User;
-          if (userData.roleId === 'ADMIN' || isMaster) {
+          if (userData.roleId === 'ADMIN') {
             setUserPerms(ADMIN_PERMS);
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
@@ -49,18 +56,15 @@ export default function ClassesAdminPage() {
               setUserPerms(roleDoc.data() as RoleConfig);
             }
           }
-        } else if (isMaster) {
-          setUserPerms(ADMIN_PERMS);
         }
       } catch (err) {
         console.error("Erro ao carregar permissões:", err);
-        if (isMaster) setUserPerms(ADMIN_PERMS);
       } finally {
         setLoadingPerms(false);
       }
     }
     fetchPermissions();
-  }, [db, authUser]);
+  }, [db, authUser, isMaster]);
 
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
@@ -81,29 +85,9 @@ export default function ClassesAdminPage() {
 
   const [editingItem, setEditingItem] = useState<{ id: string; name: string; unit?: string; order: number; type: 'class' | 'segment', schoolSegmentId?: string } | null>(null);
 
-  useEffect(() => {
-    if (classes.length > 0) {
-      const maxOrder = Math.max(...classes.map(c => c.order ?? 0));
-      setNewClassOrder((maxOrder + 1).toString());
-    }
-  }, [classes]);
-
-  useEffect(() => {
-    if (segments.length > 0) {
-      const maxOrder = Math.max(...segments.map(s => s.order ?? 0));
-      setNewSegmentOrder((maxOrder + 1).toString());
-    }
-  }, [segments]);
-
   const handleAddClass = () => {
-    if (!userPerms?.canManageClasses) {
-      toast({ title: "Acesso Negado", variant: "destructive" });
-      return;
-    }
-    if (!newClassName || !selectedSegment || !db) {
-      toast({ title: "Erro", description: "Preencha o nome e o segmento.", variant: "destructive" });
-      return;
-    }
+    if (!userPerms?.canManageClasses) return;
+    if (!newClassName || !selectedSegment || !db) return;
     addDocumentNonBlocking(collection(db, 'school_classes'), {
       name: newClassName,
       schoolSegmentId: selectedSegment,
@@ -145,25 +129,7 @@ export default function ClassesAdminPage() {
     toast({ title: "Alterações Salvas" });
   };
 
-  const handleRemoveClass = (id: string) => {
-    if (!userPerms?.canManageClasses || !db) return;
-    deleteDocumentNonBlocking(doc(db, 'school_classes', id));
-    toast({ title: "Turma Removida" });
-  };
-
-  const handleRemoveSegment = (id: string) => {
-    if (!userPerms?.canManageClasses || !db) return;
-    deleteDocumentNonBlocking(doc(db, 'school_segments', id));
-    toast({ title: "Segmento Removido" });
-  };
-
-  if (loadingPerms) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loadingPerms) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   if (userPerms && !userPerms.canManageClasses) {
     return (
@@ -175,8 +141,6 @@ export default function ClassesAdminPage() {
     );
   }
 
-  const isLoadingData = loadingClasses || loadingSegments;
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
@@ -186,211 +150,90 @@ export default function ClassesAdminPage() {
 
       <Tabs defaultValue="classes" className="w-full">
         <TabsList className="bg-white p-1 rounded-2xl shadow-sm border mb-6">
-          <TabsTrigger value="classes" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Users className="w-4 h-4 mr-2" />
-            Turmas
-          </TabsTrigger>
-          <TabsTrigger value="segments" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white">
-            <Layers className="w-4 h-4 mr-2" />
-            Segmentos
-          </TabsTrigger>
+          <TabsTrigger value="classes" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white"><Users className="w-4 h-4 mr-2" /> Turmas</TabsTrigger>
+          <TabsTrigger value="segments" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white"><Layers className="w-4 h-4 mr-2" /> Segmentos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="classes" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <Card className="lg:col-span-1 shadow-md border-none h-fit">
-              <CardHeader>
-                <CardTitle className="text-lg">Nova Turma</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-lg">Nova Turma</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Nome da Turma</label>
-                  <Input 
-                    placeholder="Ex: 3º Ano C" 
-                    value={newClassName}
-                    onChange={(e) => setNewClassName(e.target.value)}
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Ordem</label>
-                  <Input 
-                    type="number"
-                    value={newClassOrder}
-                    onChange={(e) => setNewClassOrder(e.target.value)}
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Segmento</label>
-                  <select 
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onChange={(e) => setSelectedSegment(e.target.value)} 
-                    value={selectedSegment}
-                  >
-                    <option value="">Selecione um segmento</option>
-                    {segments?.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-                <Button onClick={handleAddClass} className="w-full rounded-xl gap-2">
-                  <Plus className="w-4 h-4" />
-                  Salvar Turma
-                </Button>
+                <Input placeholder="Nome da Turma" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="rounded-xl" />
+                <Input type="number" placeholder="Ordem" value={newClassOrder} onChange={(e) => setNewClassOrder(e.target.value)} className="rounded-xl" />
+                <select 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  onChange={(e) => setSelectedSegment(e.target.value)} 
+                  value={selectedSegment}
+                >
+                  <option value="">Selecione um segmento</option>
+                  {segments.map(s => <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>)}
+                </select>
+                <Button onClick={handleAddClass} className="w-full rounded-xl gap-2"><Plus className="w-4 h-4" /> Salvar Turma</Button>
               </CardContent>
             </Card>
 
             <Card className="lg:col-span-3 shadow-md border-none overflow-hidden bg-white">
-              {isLoadingData ? (
-                <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
-              ) : (
-                <Table>
-                  <TableHeader className="bg-muted/20">
-                    <TableRow>
-                      <TableHead className="w-16 text-center"><ArrowUpDown className="w-3 h-3 mx-auto" /></TableHead>
-                      <TableHead className="font-bold">Turma</TableHead>
-                      <TableHead className="font-bold">Segmento</TableHead>
-                      <TableHead className="text-right font-bold">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {classes?.map((c) => {
-                      const seg = segments?.find(s => s.id === c.schoolSegmentId);
-                      return (
-                        <TableRow key={c.id}>
-                          <TableCell className="text-center font-mono text-xs text-muted-foreground">{c.order || 0}</TableCell>
-                          <TableCell className="font-bold">{c.name}</TableCell>
-                          <TableCell>{seg?.name || '---'} {seg?.unit ? `(${seg.unit})` : ''}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="rounded-full hover:bg-primary/10 text-primary"
-                                onClick={() => setEditingItem({ id: c.id, name: c.name, order: c.order || 0, type: 'class', schoolSegmentId: c.schoolSegmentId })}
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="text-destructive hover:bg-destructive/10 rounded-full"
-                                onClick={() => handleRemoveClass(c.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
+              <Table>
+                <TableHeader className="bg-muted/20">
+                  <TableRow>
+                    <TableHead className="w-16 text-center">Ordem</TableHead>
+                    <TableHead>Turma</TableHead>
+                    <TableHead>Segmento</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {classes.map((c) => {
+                    const seg = segments.find(s => s.id === c.schoolSegmentId);
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell className="text-center font-mono text-xs">{c.order || 0}</TableCell>
+                        <TableCell className="font-bold">{c.name}</TableCell>
+                        <TableCell>{seg?.name || '---'} {seg?.unit ? `(${seg.unit})` : ''}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: c.id, name: c.name, order: c.order || 0, type: 'class', schoolSegmentId: c.schoolSegmentId })}><Edit2 className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_classes', c.id))}><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </Card>
           </div>
         </TabsContent>
 
         <TabsContent value="segments" className="space-y-6">
-          <div className="max-w-4xl space-y-6">
-            <Card className="shadow-md border-none">
-              <CardHeader>
-                <CardTitle className="text-lg">Adicionar Segmento</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="md:col-span-1 space-y-2">
-                   <label className="text-xs font-bold">Nome do Segmento</label>
-                   <Input 
-                    placeholder="Ex: Educação Infantil" 
-                    value={newSegmentName}
-                    onChange={(e) => setNewSegmentName(e.target.value)}
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="md:col-span-1 space-y-2">
-                   <label className="text-xs font-bold">Unidade</label>
-                   <Input 
-                    placeholder="Ex: Unidade I" 
-                    value={newSegmentUnit}
-                    onChange={(e) => setNewSegmentUnit(e.target.value)}
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="w-24 space-y-2">
-                   <label className="text-xs font-bold">Ordem</label>
-                   <Input 
-                    type="number"
-                    value={newSegmentOrder}
-                    onChange={(e) => setNewSegmentOrder(e.target.value)}
-                    className="rounded-xl"
-                  />
-                </div>
-                <Button onClick={handleAddSegment} className="rounded-xl gap-2 shrink-0 h-10 mb-0.5">
-                  <Plus className="w-4 h-4" />
-                  Adicionar
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-md border-none overflow-hidden bg-white">
-              <Table>
-                <TableHeader className="bg-muted/20">
-                  <TableRow>
-                    <TableHead className="w-16 text-center"><ArrowUpDown className="w-3 h-3 mx-auto" /></TableHead>
-                    <TableHead className="font-bold">Nome do Segmento</TableHead>
-                    <TableHead className="font-bold">Unidade</TableHead>
-                    <TableHead className="text-center font-bold">Turmas</TableHead>
-                    <TableHead className="text-right font-bold">Ações</TableHead>
+          <Card className="shadow-md border-none overflow-hidden bg-white">
+            <Table>
+              <TableHeader className="bg-muted/20">
+                <TableRow>
+                  <TableHead className="w-16 text-center">Ordem</TableHead>
+                  <TableHead>Nome do Segmento</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {segments.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-center font-mono text-xs">{s.order || 0}</TableCell>
+                    <TableCell className="font-bold">{s.name}</TableCell>
+                    <TableCell>{s.unit || '---'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })}><Edit2 className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_segments', s.id))}><Trash2 className="w-4 h-4" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {segments?.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="text-center font-mono text-xs text-muted-foreground">{s.order || 0}</TableCell>
-                      <TableCell className="font-bold flex items-center gap-2 py-4">
-                        <GraduationCap className="w-4 h-4 text-primary" />
-                        {s.name}
-                      </TableCell>
-                      <TableCell>
-                        {s.unit ? (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Building2 className="w-3 h-3" />
-                            {s.unit}
-                          </div>
-                        ) : '---'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="rounded-lg">
-                          {classes?.filter(c => c.schoolSegmentId === s.id).length || 0}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="rounded-full hover:bg-primary/10 text-primary"
-                            onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="text-destructive hover:bg-destructive/10 rounded-full"
-                            onClick={() => handleRemoveSegment(s.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </div>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -398,55 +241,21 @@ export default function ClassesAdminPage() {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Editar {editingItem?.type === 'class' ? 'Turma' : 'Segmento'}</DialogTitle>
-            <DialogDescription>Altere as configurações de ordenação e vínculo.</DialogDescription>
+            <DialogDescription>Atualize as informações de cadastro e ordenação.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Nome</label>
-              <Input 
-                value={editingItem?.name || ''} 
-                onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)}
-                className="rounded-xl"
-              />
-            </div>
-            {editingItem?.type === 'segment' && (
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Unidade</label>
-                <Input 
-                  value={editingItem?.unit || ''} 
-                  onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)}
-                  className="rounded-xl"
-                />
-              </div>
-            )}
+            <Input value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
+            {editingItem?.type === 'segment' && <Input value={editingItem?.unit || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)} className="rounded-xl" />}
             {editingItem?.type === 'class' && (
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Segmento</label>
-                <select 
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={editingItem.schoolSegmentId || ''}
-                  onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}
-                >
-                  <option value="">Selecione um segmento</option>
-                  {segments?.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>
-                  ))}
-                </select>
-              </div>
+              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editingItem.schoolSegmentId} onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}>
+                {segments.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             )}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Ordem de Exibição</label>
-              <Input 
-                type="number"
-                value={editingItem?.order || 0} 
-                onChange={(e) => setEditingItem(prev => prev ? {...prev, order: parseInt(e.target.value) || 0} : null)}
-                className="rounded-xl"
-              />
-            </div>
+            <Input type="number" value={editingItem?.order || 0} onChange={(e) => setEditingItem(prev => prev ? {...prev, order: parseInt(e.target.value) || 0} : null)} className="rounded-xl" />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingItem(null)} className="rounded-xl">Cancelar</Button>
-            <Button onClick={handleSaveEdit} className="rounded-xl">Salvar Alterações</Button>
+            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
