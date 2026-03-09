@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,7 @@ export default function AppointmentsPage() {
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Estados para edição/reagendamento
   const [editDate, setEditDate] = useState<Date | undefined>(undefined);
@@ -110,7 +111,6 @@ export default function AppointmentsPage() {
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
-    // Tenta encontrar o slot correspondente pelo horário de início
     const matchingSlot = slots?.find(s => s.startTime === booking.startTime);
     setEditSlotId(matchingSlot?.id || '');
   };
@@ -124,90 +124,107 @@ export default function AppointmentsPage() {
     const slot = slots?.find(s => s.id === editSlotId);
     if (!slot) return;
 
+    setIsSaving(true);
+
     const [h, m] = slot.startTime.split(':').map(Number);
     const endTotal = h * 60 + m + (slot.durationMinutes || 60);
     const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
     const endM = (endTotal % 60).toString().padStart(2, '0');
 
-    updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
-      appointmentDate: format(editDate, 'yyyy-MM-dd'),
-      startTime: slot.startTime,
-      endTime: `${endH}:${endM}`,
-      photoLocationId: editLocationId,
-      locationIdentifier: editIdentifier || null,
-      observations: editNotes,
-      status: 'CONFIRMED' // Ao reagendar, volta a ser confirmado se estava cancelado
-    });
+    try {
+      updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
+        appointmentDate: format(editDate, 'yyyy-MM-dd'),
+        startTime: slot.startTime,
+        endTime: `${endH}:${endM}`,
+        photoLocationId: editLocationId,
+        locationIdentifier: editIdentifier || null,
+        observations: editNotes,
+        status: 'CONFIRMED'
+      });
 
-    setEditingBooking(null);
-    toast({ title: "Agendamento Atualizado com Sucesso!" });
+      setEditingBooking(null);
+      toast({ title: "Agendamento Atualizado com Sucesso!" });
+    } catch (e) {
+      toast({ title: "Erro ao atualizar", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // Lógica de filtragem de slots disponíveis para edição
-  const availableSlots = slots?.filter(s => {
-    if (!editDate || !editingBooking) return false;
+  // Lógica de filtragem de slots memoizada para evitar travamentos
+  const availableSlots = useMemo(() => {
+    if (!slots || !editDate || !editingBooking || !classes) return [];
     
-    // Mesmos filtros da tela de reserva pública
-    const dayMatches = s.dayOfWeek === editDate.getDay().toString();
-    if (!dayMatches) return false;
+    return slots.filter(s => {
+      const dayMatches = s.dayOfWeek === editDate.getDay().toString();
+      if (!dayMatches) return false;
 
-    const cls = classes?.find(c => c.id === editingBooking.schoolClassId);
-    const targetMatches = s.schoolClassId 
-      ? s.schoolClassId === editingBooking.schoolClassId
-      : s.schoolSegmentId 
-        ? s.schoolSegmentId === cls?.schoolSegmentId
-        : !s.schoolClassId && !s.schoolSegmentId;
+      const cls = classes.find(c => c.id === editingBooking.schoolClassId);
+      const targetMatches = s.schoolClassId 
+        ? s.schoolClassId === editingBooking.schoolClassId
+        : s.schoolSegmentId 
+          ? s.schoolSegmentId === cls?.schoolSegmentId
+          : !s.schoolClassId && !s.schoolSegmentId;
+      
+      if (!targetMatches) return false;
+
+      const dateStr = format(editDate, 'yyyy-MM-dd');
+      
+      const isTaken = list?.some(app => 
+        app.id !== editingBooking.id &&
+        app.appointmentDate === dateStr && 
+        app.startTime === s.startTime && 
+        app.status === 'CONFIRMED'
+      );
+      if (isTaken) return false;
+
+      const isBlocked = blocks?.some(block => {
+        if (block.date !== dateStr) return false;
+        const timeToMin = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
+        };
+        const slotStart = timeToMin(s.startTime);
+        const slotEnd = slotStart + (s.durationMinutes || 60);
+        const blockStart = timeToMin(block.startTime);
+        const blockEnd = timeToMin(block.endTime);
+        return slotStart < blockEnd && slotEnd > blockStart;
+      });
+
+      return !isBlocked;
+    }).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [slots, editDate, editingBooking, classes, list, blocks]);
+
+  const filteredByPermissions = useMemo(() => {
+    if (!list || !profile || !userPerms) return [];
     
-    if (!targetMatches) return false;
-
-    const dateStr = format(editDate, 'yyyy-MM-dd');
-    
-    // Verifica se está ocupado (ignora o próprio agendamento atual que está sendo editado)
-    const isTaken = list?.some(app => 
-      app.id !== editingBooking.id &&
-      app.appointmentDate === dateStr && 
-      app.startTime === s.startTime && 
-      app.status === 'CONFIRMED'
-    );
-    if (isTaken) return false;
-
-    // Verifica se está bloqueado administrativamente
-    const isBlocked = blocks?.some(block => {
-      if (block.date !== dateStr) return false;
-      const timeToMin = (t: string) => {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-      };
-      const slotStart = timeToMin(s.startTime);
-      const slotEnd = slotStart + (s.durationMinutes || 60);
-      const blockStart = timeToMin(block.startTime);
-      const blockEnd = timeToMin(block.endTime);
-      return slotStart < blockEnd && slotEnd > blockStart;
+    return list.filter(booking => {
+      if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) {
+        return true;
+      }
+      if (userPerms.canViewSegmentAppointments) {
+        const cls = classes?.find(c => c.id === booking.schoolClassId);
+        if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
+      }
+      if (userPerms.canViewClassAppointments) {
+        if (profile.classIds?.includes(booking.schoolClassId)) return true;
+        if (booking.teacherId === profile.id) return true;
+      }
+      return false;
     });
+  }, [list, profile, userPerms, classes, authUser]);
 
-    return !isBlocked;
-  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
+  const sortedList = useMemo(() => 
+    [...filteredByPermissions].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate)),
+    [filteredByPermissions]
+  );
 
-  const filteredByPermissions = list?.filter(booking => {
-    if (!profile || !userPerms) return false;
-    if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) {
-      return true;
-    }
-    if (userPerms.canViewSegmentAppointments) {
-      const cls = classes?.find(c => c.id === booking.schoolClassId);
-      if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
-    }
-    if (userPerms.canViewClassAppointments) {
-      if (profile.classIds?.includes(booking.schoolClassId)) return true;
-      if (booking.teacherId === profile.id) return true;
-    }
-    return false;
-  }) || [];
-
-  const sortedList = [...filteredByPermissions].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate));
-  const filtered = sortedList.filter(b => 
-    b.teacherName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    b.appointmentDate.includes(searchTerm)
+  const filtered = useMemo(() => 
+    sortedList.filter(b => 
+      b.teacherName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      b.appointmentDate.includes(searchTerm)
+    ),
+    [sortedList, searchTerm]
   );
 
   const getStatusBadge = (status: string) => {
@@ -321,7 +338,7 @@ export default function AppointmentsPage() {
         )}
       </Card>
 
-      {/* Diálogo de Detalhes (Leitura) */}
+      {/* Detalhes */}
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           {selectedBooking && (
@@ -345,12 +362,6 @@ export default function AppointmentsPage() {
                   <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Notas do Professor</p>
                   <p className="text-sm italic">{selectedBooking.observations || "Sem observações."}</p>
                 </div>
-                {selectedBooking.aiBrief && (
-                  <div className="space-y-4">
-                    <p className="text-xs font-bold uppercase text-primary">Briefing IA</p>
-                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-sm whitespace-pre-wrap">{selectedBooking.aiBrief.detailedBrief}</div>
-                  </div>
-                )}
               </ScrollArea>
               <DialogFooter className="p-6 bg-muted/20"><Button onClick={() => setSelectedBooking(null)} className="rounded-xl">Fechar</Button></DialogFooter>
             </div>
@@ -358,8 +369,8 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de Reagendamento / Edição */}
-      <Dialog open={!!editingBooking} onOpenChange={(open) => !open && setEditingBooking(null)}>
+      {/* Reagendamento */}
+      <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           {editingBooking && (
             <div className="flex flex-col">
@@ -367,24 +378,24 @@ export default function AppointmentsPage() {
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
                 <DialogDescription className="text-orange-50/80">Altere a data, horário ou local desta sessão de fotos.</DialogDescription>
               </div>
-              <ScrollArea className="max-h-[70vh] p-8 space-y-6 bg-white">
+              <div className="p-8 space-y-6 bg-white">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
+                        <Button variant="outline" className="w-full h-11 justify-start rounded-xl" disabled={isSaving}>
                           {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={editDate} onSelect={setEditDate} locale={ptBR} disabled={(d) => d < new Date()} />
+                        <Calendar mode="single" selected={editDate} onSelect={setEditDate} locale={ptBR} disabled={(d) => isSaving || d < new Date()} />
                       </PopoverContent>
                     </Popover>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Novo Horário</label>
-                    <Select value={editSlotId} onValueChange={setEditSlotId}>
+                    <Select value={editSlotId} onValueChange={setEditSlotId} disabled={isSaving || !editDate}>
                       <SelectTrigger className="rounded-xl h-11">
                         <SelectValue placeholder="Escolha o horário" />
                       </SelectTrigger>
@@ -402,7 +413,7 @@ export default function AppointmentsPage() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" /> Local</label>
-                    <Select value={editLocationId} onValueChange={setEditLocationId}>
+                    <Select value={editLocationId} onValueChange={setEditLocationId} disabled={isSaving}>
                       <SelectTrigger className="rounded-xl h-11">
                         <SelectValue />
                       </SelectTrigger>
@@ -420,6 +431,7 @@ export default function AppointmentsPage() {
                       value={editIdentifier} 
                       onChange={(e) => setEditIdentifier(e.target.value)}
                       className="rounded-xl h-11"
+                      disabled={isSaving}
                     />
                   </div>
                 </div>
@@ -431,13 +443,15 @@ export default function AppointmentsPage() {
                     value={editNotes} 
                     onChange={(e) => setEditNotes(e.target.value)}
                     className="rounded-xl h-11"
+                    disabled={isSaving}
                   />
                 </div>
-              </ScrollArea>
+              </div>
               <DialogFooter className="p-6 bg-muted/20 gap-2">
-                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl">Cancelar</Button>
-                <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2">
-                  <Save className="w-4 h-4" /> Salvar Alterações
+                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl" disabled={isSaving}>Cancelar</Button>
+                <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2" disabled={isSaving}>
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Salvar Alterações
                 </Button>
               </DialogFooter>
             </div>
