@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
@@ -152,7 +151,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   if (userPerms.canViewAllAppointments || userPerms.canViewSegmentAppointments || userPerms.canViewClassAppointments) {
-    menuItems.push({ title: 'Agenda Global', icon: ListTodo, href: '/dashboard/appointments' });
+    menuItems.push({ title: 'Agenda', icon: ListTodo, href: '/dashboard/appointments' });
   }
 
   const adminItems = [];

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -290,7 +289,7 @@ export default function AppointmentsPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agenda Global</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
           <p className="text-muted-foreground">Visualize e valide as sessões de fotos escolares.</p>
         </div>
         <div className="relative w-full md:w-80">
