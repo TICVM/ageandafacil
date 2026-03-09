@@ -85,7 +85,7 @@ export default function RolesAdminPage() {
           <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Perfis</h1>
           <p className="text-muted-foreground">Configure os níveis de acesso e sub-permissões dinamicamente.</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg">
+        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg" aria-haspopup="dialog">
           <Plus className="w-4 h-4" />
           Novo Perfil
         </Button>
@@ -139,7 +139,7 @@ export default function RolesAdminPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)}><Edit2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)} aria-haspopup="dialog"><Edit2 className="w-4 h-4" /></Button>
                       <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'}><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </TableCell>
@@ -192,7 +192,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
             <ShieldCheck className="w-6 h-6" />

@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, TimeSlot, ScheduleBlock, HistoryEntry } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -354,7 +354,7 @@ export default function AppointmentsPage() {
                       {hasAnyStatusPermission ? (
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
+                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)} aria-haspopup="listbox">
                               <status.icon className="w-3 h-3" />
                               {status.label}
                             </Badge>
@@ -392,10 +392,10 @@ export default function AppointmentsPage() {
                       <div className="flex justify-end items-center gap-2">
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
                           setTimeout(() => setSelectedBooking(b), 100);
-                        }}><Info className="w-4 h-4" /></Button>
+                        }} aria-haspopup="dialog"><Info className="w-4 h-4" /></Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="dialog"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
@@ -433,7 +433,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
@@ -497,7 +497,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
+        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
             <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
@@ -509,7 +509,7 @@ export default function AppointmentsPage() {
                   <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
                   <Popover modal={false}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
+                      <Button variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
                       </Button>
                     </PopoverTrigger>
@@ -518,12 +518,13 @@ export default function AppointmentsPage() {
                         mode="single" 
                         selected={editDate} 
                         onSelect={(d) => {
-                          setEditDate(d);
-                          // Resetamos o slot se a data mudar para garantir que um novo horário válido seja escolhido
-                          setEditSlotId('');
+                          if (d) {
+                            setEditDate(d);
+                            setEditSlotId('');
+                          }
                         }} 
                         locale={ptBR} 
-                        disabled={(d) => d < new Date()} 
+                        disabled={(d) => d < startOfDay(new Date())} 
                       />
                     </PopoverContent>
                   </Popover>
@@ -531,7 +532,7 @@ export default function AppointmentsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Novo Horário</label>
                   <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
-                    <SelectTrigger className="rounded-xl h-11">
+                    <SelectTrigger className="rounded-xl h-11" aria-haspopup="listbox">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
                     <SelectContent>
@@ -552,7 +553,7 @@ export default function AppointmentsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" /> Local</label>
                   <Select value={editLocationId} onValueChange={setEditLocationId} modal={false}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl h-11" aria-haspopup="listbox"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                     </SelectContent>
