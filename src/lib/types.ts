@@ -78,7 +78,7 @@ export interface Booking {
   appointmentDate: string;
   startTime: string;
   endTime: string;
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'RESCHEDULED';
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'RESCHEDULED' | 'RE_SCHEDULE_REQUEST';
   observations: string;
   sessionDurationMinutes: number;
   aiBrief?: AISessionBriefAssistantOutput | null;

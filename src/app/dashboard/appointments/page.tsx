@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -7,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2 } from 'lucide-react';
+import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -32,6 +33,7 @@ const STATUS_CONFIG = {
   CONFIRMED: { label: 'Confirmado', color: 'bg-green-600 text-white', icon: CheckCircle2 },
   RESCHEDULED: { label: 'Reagendado', color: 'bg-blue-500 text-white', icon: Edit3 },
   CANCELLED: { label: 'Cancelado', color: 'bg-destructive text-white', icon: XCircle },
+  RE_SCHEDULE_REQUEST: { label: 'Por favor reagendar', color: 'bg-yellow-500 text-black', icon: AlertTriangle },
 };
 
 export default function AppointmentsPage() {
@@ -324,6 +326,7 @@ export default function AppointmentsPage() {
                             <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
                           </DropdownMenuContent>
