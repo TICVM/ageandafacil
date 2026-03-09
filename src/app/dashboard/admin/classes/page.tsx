@@ -131,7 +131,7 @@ export default function ClassesAdminPage() {
 
   if (loadingPerms) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
-  if (userPerms && !userPerms.canManageClasses) {
+  if (!isMaster && userPerms && !userPerms.canManageClasses) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
         <ShieldAlert className="w-16 h-16 text-destructive opacity-50" />
@@ -241,7 +241,7 @@ export default function ClassesAdminPage() {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Editar {editingItem?.type === 'class' ? 'Turma' : 'Segmento'}</DialogTitle>
-            <DialogDescription>Atualize as informações de cadastro e ordenação.</DialogDescription>
+            <DialogDescription>Atualize as informações de cadastro e ordenação desta unidade.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Input value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />

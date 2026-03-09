@@ -55,13 +55,14 @@ export default function AppointmentsPage() {
       
       try {
         if (isMaster) {
-          setUserPerms({
+          const masterPerms: AppPermissions = {
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
             canViewSegmentAppointments: true, canViewClassAppointments: true,
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
             canCreateBookings: true
-          });
+          };
+          setUserPerms(masterPerms);
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: authUser.email || '', roleId: 'ADMIN' });
           return;
         }
@@ -105,7 +106,6 @@ export default function AppointmentsPage() {
   const { data: slots } = useCollection<TimeSlot>(slotsRef);
   const { data: blocks } = useCollection<ScheduleBlock>(blocksRef);
 
-  // Memoizar horários disponíveis para evitar loops e travamentos
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
     
@@ -113,7 +113,6 @@ export default function AppointmentsPage() {
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classes.find(c => c.id === editingBooking.schoolClassId);
     
-    // Agendamentos ocupados no dia (exceto o próprio que estamos editando)
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
@@ -121,10 +120,8 @@ export default function AppointmentsPage() {
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
-      // Filtrar por dia da semana
       if (s.dayOfWeek !== dayOfWeekStr) return false;
 
-      // Filtrar por pertinência (específico para a turma, segmento ou global)
       const targetMatches = s.schoolClassId 
         ? s.schoolClassId === editingBooking.schoolClassId
         : s.schoolSegmentId 
@@ -133,16 +130,14 @@ export default function AppointmentsPage() {
       
       if (!targetMatches) return false;
       
-      // Sempre permitir o horário que JÁ ESTÁ marcado para esta sessão específica
-      const isCurrentlyBookedSlot = editingBooking.startTime === s.startTime && 
+      // Sempre permitir o horário que JÁ ESTÁ marcado (essencial para não sumir o campo)
+      const isCurrentlyBookedTime = editingBooking.startTime === s.startTime && 
                                    editingBooking.appointmentDate === dateStr;
       
-      if (isCurrentlyBookedSlot) return true;
+      if (isCurrentlyBookedTime) return true;
 
-      // Se já estiver ocupado por outra pessoa, remover
       if (takenStartTimes.includes(s.startTime)) return false;
 
-      // Se estiver dentro de um bloco administrativo, remover
       const slotStartMin = timeToMin(s.startTime);
       const slotEndMin = slotStartMin + (s.durationMinutes || 60);
       
@@ -158,26 +153,21 @@ export default function AppointmentsPage() {
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
-    if (!slots) {
-      toast({ title: "Aguarde", description: "Os horários ainda estão carregando.", variant: "destructive" });
-      return;
-    }
-    
     const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
     setEditDate(bookingDate);
     setEditLocationId(booking.photoLocationId);
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
-    const dayOfWeekStr = bookingDate.getDay().toString();
+    if (slots) {
+      const dayOfWeekStr = bookingDate.getDay().toString();
+      const matchingSlot = slots.find(s => 
+        s.startTime === booking.startTime && 
+        s.dayOfWeek === dayOfWeekStr
+      );
+      setEditSlotId(matchingSlot?.id || '');
+    }
     
-    // Tenta encontrar o slot exato que corresponde ao horário atual
-    const matchingSlot = slots.find(s => 
-      s.startTime === booking.startTime && 
-      s.dayOfWeek === dayOfWeekStr
-    );
-    
-    setEditSlotId(matchingSlot?.id || '');
     setEditingBooking(booking);
   }, [slots]);
 
@@ -209,7 +199,6 @@ export default function AppointmentsPage() {
 
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
-    // Fechar e limpar estados
     setEditingBooking(null);
     setIsSaving(false);
     toast({ title: "Sessão Atualizada!" });
@@ -344,7 +333,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-primary-foreground/80">Informações completas sobre o agendamento selecionado.</DialogDescription>
+            <DialogDescription className="text-primary-foreground/80">Informações detalhadas sobre o agendamento.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="p-8 space-y-6">
@@ -375,7 +364,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
-            <DialogDescription className="text-orange-50/80">Altere a data e o horário para esta sessão de fotos.</DialogDescription>
+            <DialogDescription className="text-orange-50/80">Ajuste a data, o horário ou o local da sessão.</DialogDescription>
           </DialogHeader>
           {editingBooking && (
             <div className="p-8 space-y-6">
@@ -407,7 +396,7 @@ export default function AppointmentsPage() {
                           </SelectItem>
                         ))
                       ) : (
-                        <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível para esta data.</div>
+                        <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível.</div>
                       )}
                     </SelectContent>
                   </Select>
@@ -433,7 +422,7 @@ export default function AppointmentsPage() {
                 <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-xl h-11" />
               </div>
               <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl">Cancelar</Button>
+                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl" disabled={isSaving}>Cancelar</Button>
                 <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2 min-w-[140px]" disabled={isSaving || !editSlotId}>
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Salvar
