@@ -115,7 +115,7 @@ export default function RolesAdminPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total Irrestrito</Badge>
+                  <Badge className="bg-primary text-primary-foreground text-[10px]">Acesso Total</Badge>
                 </TableCell>
                 <TableCell className="text-right text-xs text-muted-foreground italic">Protegido</TableCell>
               </TableRow>
@@ -177,7 +177,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   const renderPermissionToggle = (label: string, field: keyof AppPermissions, icon?: any, colorClass?: string) => {
     const Icon = icon;
-    const switchId = `perm-${field}`;
+    const switchId = `perm-${field}-${role.id || 'new'}`;
     return (
       <div className={`flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all ${colorClass}`}>
         <div className="flex items-center gap-2">
@@ -186,6 +186,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
         </div>
         <Switch 
           id={switchId}
+          name={field}
           checked={role[field]} 
           onCheckedChange={(v) => setRole({ ...role, [field]: v })}
         />
@@ -195,7 +196,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
             <ShieldCheck className="w-6 h-6" />
@@ -209,9 +210,9 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
         <ScrollArea className="max-h-[75vh] bg-[#F8FAFC]">
           <div className="p-8 space-y-10">
             <div className="space-y-3">
-              <Label htmlFor="role-name" className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</Label>
+              <Label htmlFor={`role-name-${role.id || 'new'}`} className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</Label>
               <Input 
-                id="role-name"
+                id={`role-name-${role.id || 'new'}`}
                 name="name"
                 placeholder="Ex: Coordenador Pedagógico" 
                 value={role.name} 
@@ -278,7 +279,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                   </div>
                   <div className="bg-green-50/50 p-4 rounded-2xl border border-green-200 space-y-3">
                     <p className="text-[10px] font-bold text-green-700 uppercase mb-2">Pode aplicar os status:</p>
-                    {renderPermissionToggle("Mestre: Validar Status", "canChangeStatus", CheckCircle2, "text-green-800")}
+                    {renderPermissionToggle("Validar Status", "canChangeStatus", CheckCircle2, "text-green-800")}
                     <Separator className="my-2" />
                     {renderPermissionToggle("Aguard. Confirmação", "canStatusPending", Clock)}
                     {renderPermissionToggle("Confirmar Sessão", "canStatusConfirmed", CheckCircle2, "text-green-700")}

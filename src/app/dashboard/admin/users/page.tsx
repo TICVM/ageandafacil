@@ -40,7 +40,6 @@ export default function UsersAdminPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Estado para Novo Usuário
   const [newUser, setNewUser] = useState<{
     name: string;
     email: string;
@@ -50,7 +49,6 @@ export default function UsersAdminPage() {
     segmentIds: string[];
   }>({ name: '', email: '', password: '', roleId: '', classIds: [], segmentIds: [] });
 
-  // Estado para Edição
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const handleAdd = async () => {
@@ -182,7 +180,7 @@ export default function UsersAdminPage() {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-2xl max-w-2xl">
+          <DialogContent className="rounded-2xl max-w-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Adicionar Membro</DialogTitle>
               <DialogDescription>Defina o papel e as permissões de acesso.</DialogDescription>
@@ -207,9 +205,9 @@ export default function UsersAdminPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="new-user-role" className="text-sm font-semibold">Papel no Sistema</Label>
+                  <Label htmlFor="new-user-role-select" className="text-sm font-semibold">Papel no Sistema</Label>
                   <Select value={newUser.roleId} onValueChange={(val) => setNewUser({...newUser, roleId: val})} modal={false}>
-                    <SelectTrigger id="new-user-role" className="rounded-xl" aria-haspopup="listbox">
+                    <SelectTrigger id="new-user-role-select" name="role" className="rounded-xl" aria-haspopup="listbox">
                       <SelectValue placeholder="Selecione o papel" />
                     </SelectTrigger>
                     <SelectContent>
@@ -233,8 +231,8 @@ export default function UsersAdminPage() {
                       <div className="space-y-3">
                         {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                           <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
-                            <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
-                            <Label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</Label>
+                            <Checkbox id={`new-seg-${seg.id}`} name="segmentIds" checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
+                            <Label htmlFor={`new-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</Label>
                           </div>
                         ))}
                       </div>
@@ -250,8 +248,8 @@ export default function UsersAdminPage() {
                       <div className="space-y-3">
                         {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                           <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
-                            <Checkbox id={`cls-${cls.id}`} checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
-                            <Label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</Label>
+                            <Checkbox id={`new-cls-${cls.id}`} name="classIds" checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
+                            <Label htmlFor={`new-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</Label>
                           </div>
                         ))}
                       </div>
@@ -277,9 +275,9 @@ export default function UsersAdminPage() {
       <Card className="border-none shadow-md overflow-hidden bg-white">
         <div className="p-4 border-b bg-muted/10">
           <div className="relative max-w-sm">
-            <Label htmlFor="search-users" className="sr-only">Buscar usuários</Label>
+            <Label htmlFor="search-users-input" className="sr-only">Buscar usuários</Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input id="search-users" name="search" placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input id="search-users-input" name="search" placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </div>
         {isLoading ? (
@@ -332,7 +330,7 @@ export default function UsersAdminPage() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="rounded-2xl max-w-2xl">
+        <DialogContent className="rounded-2xl max-w-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader><DialogTitle>Editar Perfil</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
             <div className="space-y-4">
@@ -341,9 +339,9 @@ export default function UsersAdminPage() {
                 <Input id="edit-user-name" name="name" value={editingUser?.name || ''} onChange={(e) => setEditingUser(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-user-role" className="text-sm font-semibold">Papel no Sistema</Label>
+                <Label htmlFor="edit-user-role-select" className="text-sm font-semibold">Papel no Sistema</Label>
                 <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)} modal={false}>
-                  <SelectTrigger id="edit-user-role" className="rounded-xl" aria-haspopup="listbox"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="edit-user-role-select" name="role" className="rounded-xl" aria-haspopup="listbox"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ADMIN" className="font-bold text-primary">Administrador (Total)</SelectItem>
                     {availableRoles?.filter(r => r.id !== 'ADMIN').map(role => (
@@ -362,7 +360,7 @@ export default function UsersAdminPage() {
                     <div className="space-y-3">
                       {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                         <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
-                          <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser?.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
+                          <Checkbox id={`edit-seg-${seg.id}`} name="segmentIds" checked={editingUser?.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
                           <Label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</Label>
                         </div>
                       ))}
@@ -375,7 +373,7 @@ export default function UsersAdminPage() {
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                         <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
-                          <Checkbox id={`edit-cls-${cls.id}`} checked={editingUser?.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
+                          <Checkbox id={`edit-cls-${cls.id}`} name="classIds" checked={editingUser?.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
                           <Label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</Label>
                         </div>
                       ))}
