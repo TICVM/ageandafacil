@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -8,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
