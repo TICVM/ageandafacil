@@ -179,7 +179,10 @@ export default function AppointmentsPage() {
       setEditSlotId(matchingSlot?.id || '');
     }
     
-    setEditingBooking(booking);
+    // Pequeno atraso para garantir que o menu feche antes de abrir o diálogo (fix ARIA)
+    setTimeout(() => {
+      setEditingBooking(booking);
+    }, 100);
   }, [slots]);
 
   const handleSaveEdit = () => {
@@ -388,7 +391,10 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}><Info className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
+                          // Atraso para evitar race condition de foco (fix ARIA)
+                          setTimeout(() => setSelectedBooking(b), 100);
+                        }}><Info className="w-4 h-4" /></Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
