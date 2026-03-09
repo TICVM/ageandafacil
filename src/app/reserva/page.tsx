@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,8 +16,8 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, serverTimestamp, addDoc, doc, query, where, getDocs, limit, getDoc } from 'firebase/firestore';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions } from '@/lib/types';
+import { collection, serverTimestamp, addDoc, doc, getDoc } from 'firebase/firestore';
+import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, HistoryEntry } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
@@ -207,18 +208,29 @@ export default function PublicBookingPage() {
     const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
     const endM = (endTotal % 60).toString().padStart(2, '0');
 
+    const appointmentDate = format(date, 'yyyy-MM-dd');
+    
+    const initialHistory: HistoryEntry = {
+      timestamp: new Date().toISOString(),
+      userId: authUser?.uid || 'anonymous',
+      userName: profile?.name || teacherName,
+      action: 'CREATE',
+      details: `Reserva inicial realizada para o dia ${format(date, 'dd/MM/yyyy')} às ${slot.startTime}.`
+    };
+
     addDoc(collection(db, 'appointments'), {
       schoolClassId: selectedClassId,
       teacherId: authUser?.uid || null,
       teacherName: teacherName,
       photoLocationId: selectedLocationId,
       locationIdentifier: locationIdentifier || null,
-      appointmentDate: format(date, 'yyyy-MM-dd'),
+      appointmentDate: appointmentDate,
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
       status: 'PENDING',
       observations: notes,
       aiBrief: aiBrief || null,
+      history: [initialHistory],
       createdAt: serverTimestamp(),
     }).then(() => {
       setIsSuccess(true);

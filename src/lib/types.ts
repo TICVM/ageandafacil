@@ -32,7 +32,6 @@ export interface User {
   classIds?: string[];
   isActive?: boolean;
   createdAt?: string;
-  // Propriedade virtual para facilitar verificações legadas
   role?: string; 
 }
 
@@ -68,6 +67,14 @@ export interface AISessionBriefAssistantOutput {
   desiredMood: string;
 }
 
+export interface HistoryEntry {
+  timestamp: string;
+  userId: string;
+  userName: string;
+  action: 'CREATE' | 'STATUS_CHANGE' | 'RESCHEDULE';
+  details: string;
+}
+
 export interface Booking {
   id: string;
   schoolClassId: string;
@@ -82,6 +89,7 @@ export interface Booking {
   observations: string;
   sessionDurationMinutes: number;
   aiBrief?: AISessionBriefAssistantOutput | null;
+  history?: HistoryEntry[];
   createdAt?: any;
 }
 

@@ -32,7 +32,37 @@
         "canEditAppointments": { "type": "boolean" },
         "canCancelAppointments": { "type": "boolean" },
         "canDeleteAppointments": { "type": "boolean" },
-        "canCreateBookings": { "type": "boolean" }
+        "canCreateBookings": { "type": "boolean" },
+        "canChangeStatus": { "type": "boolean" }
+      }
+    },
+    "HistoryEntry": {
+      "title": "HistoryEntry",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string", "enum": ["CREATE", "STATUS_CHANGE", "RESCHEDULE"] },
+        "details": { "type": "string" }
+      }
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "schoolClassId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "photoLocationId": { "type": "string" },
+        "locationIdentifier": { "type": "string" },
+        "appointmentDate": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "CONFIRMED", "CANCELLED", "RESCHEDULED", "RE_SCHEDULE_REQUEST"] },
+        "observations": { "type": "string" },
+        "history": { "type": "array", "items": { "$ref": "#/entities/HistoryEntry" } }
       }
     }
   },

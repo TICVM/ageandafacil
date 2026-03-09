@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -17,10 +17,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
-import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, TimeSlot, ScheduleBlock } from '@/lib/types';
+import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, TimeSlot, ScheduleBlock, HistoryEntry } from '@/lib/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const timeToMin = (t: string) => {
   if (!t) return 0;
@@ -179,7 +180,7 @@ export default function AppointmentsPage() {
   }, [slots]);
 
   const handleSaveEdit = () => {
-    if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId) {
+    if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId || !profile) {
       toast({ title: "Dados Incompletos", description: "Verifique a data e o horário selecionado.", variant: "destructive" });
       return;
     }
@@ -194,14 +195,24 @@ export default function AppointmentsPage() {
     const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
     const endM = (endTotal % 60).toString().padStart(2, '0');
 
+    const newDate = format(editDate, 'yyyy-MM-dd');
+    const newHistoryEntry: HistoryEntry = {
+      timestamp: new Date().toISOString(),
+      userId: profile.id,
+      userName: profile.name,
+      action: 'RESCHEDULE',
+      details: `Sessão reagendada de ${format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')} ${editingBooking.startTime} para ${format(editDate, 'dd/MM/yyyy')} ${slot.startTime}.`
+    };
+
     const updateData = {
-      appointmentDate: format(editDate, 'yyyy-MM-dd'),
+      appointmentDate: newDate,
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
       photoLocationId: editLocationId,
       locationIdentifier: editIdentifier || null,
       observations: editNotes,
-      status: 'RESCHEDULED'
+      status: 'RESCHEDULED',
+      history: [...(editingBooking.history || []), newHistoryEntry]
     };
 
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
@@ -211,9 +222,22 @@ export default function AppointmentsPage() {
     toast({ title: "Sessão Reagendada!" });
   };
 
-  const handleUpdateStatus = (bookingId: string, newStatus: Booking['status']) => {
-    if (!db) return;
-    updateDocumentNonBlocking(doc(db, 'appointments', bookingId), { status: newStatus });
+  const handleUpdateStatus = (booking: Booking, newStatus: Booking['status']) => {
+    if (!db || !profile) return;
+
+    const newHistoryEntry: HistoryEntry = {
+      timestamp: new Date().toISOString(),
+      userId: profile.id,
+      userName: profile.name,
+      action: 'STATUS_CHANGE',
+      details: `Status alterado de ${STATUS_CONFIG[booking.status].label} para ${STATUS_CONFIG[newStatus].label}.`
+    };
+
+    updateDocumentNonBlocking(doc(db, 'appointments', booking.id), { 
+      status: newStatus,
+      history: [...(booking.history || []), newHistoryEntry]
+    });
+    
     toast({ title: "Status Atualizado", description: `Sessão marcada como ${STATUS_CONFIG[newStatus].label}.` });
   };
 
@@ -323,12 +347,12 @@ export default function AppointmentsPage() {
                             </Badge>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="rounded-xl p-2">
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
@@ -352,7 +376,7 @@ export default function AppointmentsPage() {
                               </DropdownMenuItem>
                             )}
                             {userPerms.canCancelAppointments && b.status !== 'CANCELLED' && (
-                              <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer">
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer">
                                 <XCircle className="w-3.5 h-3.5" /> Cancelar Sessão
                               </DropdownMenuItem>
                             )}
@@ -379,33 +403,66 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-primary-foreground/80">Confira abaixo todos os detalhes registrados para este agendamento.</DialogDescription>
+            <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-xs font-bold uppercase text-muted-foreground">Docente / Turma</p>
-                  <p className="text-lg font-bold">{selectedBooking.teacherName}</p>
-                  <p className="text-sm text-muted-foreground">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="p-8 space-y-6 border-r">
+                <div className="grid grid-cols-1 gap-6">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Docente / Turma</p>
+                    <p className="text-lg font-bold">{selectedBooking.teacherName}</p>
+                    <p className="text-sm text-muted-foreground">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Status Atual</p>
+                    <Badge className={cn("rounded-lg mt-1", STATUS_CONFIG[selectedBooking.status]?.color)}>
+                      {STATUS_CONFIG[selectedBooking.status]?.label}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold uppercase text-muted-foreground">Status Atual</p>
-                  <Badge className={cn("rounded-lg mt-1", STATUS_CONFIG[selectedBooking.status]?.color)}>
-                    {STATUS_CONFIG[selectedBooking.status]?.label}
-                  </Badge>
+                <div className="bg-muted/30 p-5 rounded-2xl border border-dashed">
+                  <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Notas do Professor</p>
+                  <p className="text-sm italic whitespace-pre-wrap">{selectedBooking.observations || "Sem observações."}</p>
                 </div>
               </div>
-              <div className="bg-muted/30 p-5 rounded-2xl border border-dashed">
-                <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Notas do Professor</p>
-                <p className="text-sm italic whitespace-pre-wrap">{selectedBooking.observations || "Sem observações."}</p>
+
+              <div className="p-8 space-y-4 bg-slate-50">
+                <div className="flex items-center gap-2 text-primary mb-4">
+                  <History className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">Linha do Tempo</h3>
+                </div>
+                <ScrollArea className="h-[300px] pr-4">
+                  <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
+                    {selectedBooking.history?.slice().reverse().map((entry, idx) => (
+                      <div key={idx} className="relative pl-8">
+                        <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white border-2 border-primary flex items-center justify-center z-10">
+                          <Clock className="w-3 h-3 text-primary" />
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">{entry.action}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(new Date(entry.timestamp), "dd/MM HH:mm")}</span>
+                          </div>
+                          <p className="text-sm font-medium leading-tight">{entry.details}</p>
+                          <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
+                            <UserIcon className="w-2.5 h-2.5" />
+                            <span>{entry.userName}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
-              <DialogFooter><Button onClick={() => setSelectedBooking(null)} className="rounded-xl">Fechar</Button></DialogFooter>
             </div>
           )}
+          <DialogFooter className="p-4 bg-white border-t">
+            <Button onClick={() => setSelectedBooking(null)} className="rounded-xl">Fechar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
