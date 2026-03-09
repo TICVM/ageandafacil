@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-// Funções utilitárias estáveis fora do componente
+// Funções utilitárias estáveis
 const timeToMin = (t: string) => {
   if (!t) return 0;
   const [h, m] = t.split(':').map(Number);
@@ -124,21 +124,26 @@ export default function AppointmentsPage() {
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
+    // Tenta encontrar o slot correspondente pelo horário se estiver carregado
     const matchingSlot = slots?.find(s => s.startTime === booking.startTime);
     setEditSlotId(matchingSlot?.id || '');
     setEditingBooking(booking);
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId) {
-      toast({ title: "Dados Incompletos", description: "Verifique data, horário e local.", variant: "destructive" });
+      toast({ title: "Dados Incompletos", description: "Por favor, verifique todos os campos.", variant: "destructive" });
       return;
     }
 
     const slot = slots?.find(s => s.id === editSlotId);
-    if (!slot) return;
+    if (!slot) {
+      toast({ title: "Erro de Horário", description: "O horário selecionado não é mais válido.", variant: "destructive" });
+      return;
+    }
 
     setIsSaving(true);
+    
     try {
       const [h, m] = slot.startTime.split(':').map(Number);
       const duration = slot.durationMinutes || 60;
@@ -146,7 +151,7 @@ export default function AppointmentsPage() {
       const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
       const endM = (endTotal % 60).toString().padStart(2, '0');
 
-      updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
+      const updateData = {
         appointmentDate: format(editDate, 'yyyy-MM-dd'),
         startTime: slot.startTime,
         endTime: `${endH}:${endM}`,
@@ -154,18 +159,20 @@ export default function AppointmentsPage() {
         locationIdentifier: editIdentifier || null,
         observations: editNotes,
         status: 'CONFIRMED'
-      });
+      };
 
+      updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
+
+      // Limpeza imediata de estado para evitar travamentos
       setEditingBooking(null);
-      toast({ title: "Sessão Atualizada!", description: "O reagendamento foi processado." });
-    } catch (e) {
-      toast({ title: "Erro ao atualizar", variant: "destructive" });
-    } finally {
       setIsSaving(false);
+      toast({ title: "Sessão Atualizada!", description: "O agendamento foi reagendado com sucesso." });
+    } catch (e) {
+      setIsSaving(false);
+      toast({ title: "Erro ao atualizar", variant: "destructive" });
     }
   };
 
-  // Cálculo de slots disponíveis otimizado para evitar travamentos
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
     
@@ -173,7 +180,6 @@ export default function AppointmentsPage() {
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classes.find(c => c.id === editingBooking.schoolClassId);
     
-    // Filtro de ocupação prévio para performance
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
@@ -181,10 +187,8 @@ export default function AppointmentsPage() {
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
-      // 1. Dia da semana
       if (s.dayOfWeek !== dayOfWeekStr) return false;
 
-      // 2. Alvo (Global, Segmento ou Turma)
       const targetMatches = s.schoolClassId 
         ? s.schoolClassId === editingBooking.schoolClassId
         : s.schoolSegmentId 
@@ -192,11 +196,8 @@ export default function AppointmentsPage() {
           : !s.schoolClassId && !s.schoolSegmentId;
       
       if (!targetMatches) return false;
-
-      // 3. Já ocupado?
       if (takenStartTimes.includes(s.startTime)) return false;
 
-      // 4. Bloqueado administrativamente?
       const slotStartMin = timeToMin(s.startTime);
       const slotEndMin = slotStartMin + (s.durationMinutes || 60);
       
@@ -211,16 +212,14 @@ export default function AppointmentsPage() {
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
-  // Filtro de Permissões para a Listagem Principal
-  const filteredByPermissions = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!list || !profile || !userPerms) return [];
     
-    return list.filter(booking => {
+    let result = list.filter(booking => {
       const isMaster = profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br';
       if (isMaster || userPerms.canViewAllAppointments) return true;
 
       const cls = classes?.find(c => c.id === booking.schoolClassId);
-      
       if (userPerms.canViewSegmentAppointments) {
         if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
       }
@@ -230,10 +229,7 @@ export default function AppointmentsPage() {
       }
       return false;
     });
-  }, [list, profile, userPerms, classes, authUser]);
 
-  const filtered = useMemo(() => {
-    let result = [...filteredByPermissions].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate));
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
       result = result.filter(b => 
@@ -241,8 +237,9 @@ export default function AppointmentsPage() {
         b.appointmentDate.includes(searchTerm)
       );
     }
-    return result;
-  }, [filteredByPermissions, searchTerm]);
+
+    return [...result].sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate));
+  }, [list, profile, userPerms, classes, authUser, searchTerm]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -257,7 +254,7 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Global</h1>
-          <p className="text-muted-foreground">Gerencie todos os agendamentos da escola.</p>
+          <p className="text-muted-foreground">Visualize e gerencie as sessões de fotos.</p>
         </div>
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -393,7 +390,7 @@ export default function AppointmentsPage() {
             <div className="flex flex-col">
               <div className="bg-orange-500 p-6 text-white">
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
-                <DialogDescription className="text-orange-50/80">Altere a data, horário ou local desta sessão.</DialogDescription>
+                <DialogDescription className="text-orange-50/80">Selecione uma nova data e horário disponível.</DialogDescription>
               </div>
               <div className="p-8 space-y-6 bg-white">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -420,7 +417,7 @@ export default function AppointmentsPage() {
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>)
                         ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível nesta data.</div>
+                          <div className="p-4 text-xs text-center text-muted-foreground italic">Sem horários disponíveis para esta data.</div>
                         )}
                       </SelectContent>
                     </Select>
@@ -468,7 +465,7 @@ export default function AppointmentsPage() {
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl" disabled={isSaving}>Cancelar</Button>
                 <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2 min-w-[140px]" disabled={isSaving || !editSlotId}>
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Salvar Alterações
+                  Confirmar Alterações
                 </Button>
               </DialogFooter>
             </div>
@@ -478,4 +475,3 @@ export default function AppointmentsPage() {
     </div>
   );
 }
-
