@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,33 +14,49 @@ import { collection, doc, getDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { Class, Segment, User, RoleConfig, AppPermissions } from '@/lib/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+
+const ADMIN_PERMS: AppPermissions = {
+  canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+  canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+  canViewSegmentAppointments: true, canViewClassAppointments: true,
+  canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+  canCreateBookings: true
+};
 
 export default function ClassesAdminPage() {
   const db = useFirestore();
   const { user: authUser } = useUser();
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
+  const [loadingPerms, setLoadingPerms] = useState(true);
 
   useEffect(() => {
     async function fetchPermissions() {
       if (!db || !authUser) return;
-      const userDoc = await getDoc(doc(db, 'users', authUser.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as User;
-        if (userData.roleId === 'ADMIN' || authUser.email === 'herbertpacheco@cvmsp.com.br') {
-          setUserPerms({
-            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-            canViewSegmentAppointments: true, canViewClassAppointments: true,
-            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true
-          });
-        } else {
-          const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
-          if (roleDoc.exists()) {
-            setUserPerms(roleDoc.data() as RoleConfig);
+      
+      const email = authUser.email?.toLowerCase().trim();
+      const isMaster = email === 'herbertpacheco@cvmsp.com.br';
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', authUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          if (userData.roleId === 'ADMIN' || isMaster) {
+            setUserPerms(ADMIN_PERMS);
+          } else {
+            const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
+            if (roleDoc.exists()) {
+              setUserPerms(roleDoc.data() as RoleConfig);
+            }
           }
+        } else if (isMaster) {
+          setUserPerms(ADMIN_PERMS);
         }
+      } catch (err) {
+        console.error("Erro ao carregar permissões:", err);
+        if (isMaster) setUserPerms(ADMIN_PERMS);
+      } finally {
+        setLoadingPerms(false);
       }
     }
     fetchPermissions();
@@ -52,8 +68,8 @@ export default function ClassesAdminPage() {
   const { data: rawClasses, isLoading: loadingClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments, isLoading: loadingSegments } = useCollection<Segment>(segmentsRef);
 
-  const classes = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
-  const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+  const classes = useMemo(() => rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [], [rawClasses]);
+  const segments = useMemo(() => rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [], [rawSegments]);
 
   const [newClassName, setNewClassName] = useState('');
   const [newClassOrder, setNewClassOrder] = useState('1');
@@ -69,57 +85,46 @@ export default function ClassesAdminPage() {
     if (classes.length > 0) {
       const maxOrder = Math.max(...classes.map(c => c.order ?? 0));
       setNewClassOrder((maxOrder + 1).toString());
-    } else {
-      setNewClassOrder('1');
     }
-  }, [rawClasses]);
+  }, [classes]);
 
   useEffect(() => {
     if (segments.length > 0) {
       const maxOrder = Math.max(...segments.map(s => s.order ?? 0));
       setNewSegmentOrder((maxOrder + 1).toString());
-    } else {
-      setNewSegmentOrder('1');
     }
-  }, [rawSegments]);
+  }, [segments]);
 
   const handleAddClass = () => {
-    if (!userPerms?.canManageClasses) {
-      toast({ title: "Acesso Negado", description: "Você não tem permissão para gerenciar turmas.", variant: "destructive" });
-      return;
-    }
-    if (!newClassName || !selectedSegment || !db) {
-      toast({ title: "Erro", description: "Preencha o nome e o segmento da turma.", variant: "destructive" });
-      return;
-    }
-    const orderVal = parseInt(newClassOrder) || 0;
-    addDocumentNonBlocking(collection(db, 'school_classes'), {
-      name: newClassName,
-      schoolSegmentId: selectedSegment,
-      order: orderVal,
-      isActive: true
-    });
-    setNewClassName('');
-    setNewClassOrder((orderVal + 1).toString());
-    toast({ title: "Turma Cadastrada" });
-  };
-
-  const handleAddSegment = () => {
     if (!userPerms?.canManageClasses) {
       toast({ title: "Acesso Negado", variant: "destructive" });
       return;
     }
+    if (!newClassName || !selectedSegment || !db) {
+      toast({ title: "Erro", description: "Preencha o nome e o segmento.", variant: "destructive" });
+      return;
+    }
+    addDocumentNonBlocking(collection(db, 'school_classes'), {
+      name: newClassName,
+      schoolSegmentId: selectedSegment,
+      order: parseInt(newClassOrder) || 0,
+      isActive: true
+    });
+    setNewClassName('');
+    toast({ title: "Turma Cadastrada" });
+  };
+
+  const handleAddSegment = () => {
+    if (!userPerms?.canManageClasses) return;
     if (!newSegmentName || !db) return;
-    const orderVal = parseInt(newSegmentOrder) || 0;
     addDocumentNonBlocking(collection(db, 'school_segments'), {
       name: newSegmentName,
       unit: newSegmentUnit,
-      order: orderVal,
+      order: parseInt(newSegmentOrder) || 0,
       isActive: true
     });
     setNewSegmentName('');
     setNewSegmentUnit('');
-    setNewSegmentOrder((orderVal + 1).toString());
     toast({ title: "Segmento Adicionado" });
   };
 
@@ -152,6 +157,14 @@ export default function ClassesAdminPage() {
     toast({ title: "Segmento Removido" });
   };
 
+  if (loadingPerms) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   if (userPerms && !userPerms.canManageClasses) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
@@ -162,7 +175,7 @@ export default function ClassesAdminPage() {
     );
   }
 
-  const isLoading = loadingClasses || loadingSegments || !userPerms;
+  const isLoadingData = loadingClasses || loadingSegments;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -200,7 +213,7 @@ export default function ClassesAdminPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Ordem de Exibição</label>
+                  <label className="text-sm font-semibold">Ordem</label>
                   <Input 
                     type="number"
                     value={newClassOrder}
@@ -211,7 +224,7 @@ export default function ClassesAdminPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Segmento</label>
                   <select 
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onChange={(e) => setSelectedSegment(e.target.value)} 
                     value={selectedSegment}
                   >
@@ -229,7 +242,7 @@ export default function ClassesAdminPage() {
             </Card>
 
             <Card className="lg:col-span-3 shadow-md border-none overflow-hidden bg-white">
-              {isLoading ? (
+              {isLoadingData ? (
                 <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
               ) : (
                 <Table>
@@ -385,6 +398,7 @@ export default function ClassesAdminPage() {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Editar {editingItem?.type === 'class' ? 'Turma' : 'Segmento'}</DialogTitle>
+            <DialogDescription>Altere as configurações de ordenação e vínculo.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -409,7 +423,7 @@ export default function ClassesAdminPage() {
               <div className="space-y-2">
                 <label className="text-sm font-semibold">Segmento</label>
                 <select 
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   value={editingItem.schoolSegmentId || ''}
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}
                 >
