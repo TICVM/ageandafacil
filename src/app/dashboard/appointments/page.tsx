@@ -49,11 +49,13 @@ export default function AppointmentsPage() {
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Estados de edição controlados
   const [editDate, setEditDate] = useState<Date | undefined>(undefined);
   const [editSlotId, setEditSlotId] = useState<string>('');
   const [editLocationId, setEditLocationId] = useState<string>('');
   const [editIdentifier, setEditIdentifier] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -163,25 +165,25 @@ export default function AppointmentsPage() {
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
-    const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
-    setEditDate(bookingDate);
-    setEditLocationId(booking.photoLocationId);
-    setEditIdentifier(booking.locationIdentifier || '');
-    setEditNotes(booking.observations || '');
-    
-    if (slots) {
-      const dayOfWeekStr = bookingDate.getDay().toString();
-      const matchingSlot = slots.find(s => 
-        s.startTime === booking.startTime && 
-        s.dayOfWeek === dayOfWeekStr &&
-        (s.schoolClassId === booking.schoolClassId || !s.schoolClassId)
-      );
-      setEditSlotId(matchingSlot?.id || '');
-    }
-    
+    // Adicionamos um pequeno delay para garantir que o menu suspenso fechou e o foco foi liberado
     setTimeout(() => {
+      const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
+      setEditDate(bookingDate);
+      setEditLocationId(booking.photoLocationId);
+      setEditIdentifier(booking.locationIdentifier || '');
+      setEditNotes(booking.observations || '');
+      
+      if (slots) {
+        const dayOfWeekStr = bookingDate.getDay().toString();
+        const matchingSlot = slots.find(s => 
+          s.startTime === booking.startTime && 
+          s.dayOfWeek === dayOfWeekStr &&
+          (s.schoolClassId === booking.schoolClassId || !s.schoolClassId)
+        );
+        setEditSlotId(matchingSlot?.id || '');
+      }
       setEditingBooking(booking);
-    }, 150);
+    }, 100);
   }, [slots]);
 
   const handleSaveEdit = () => {
@@ -352,7 +354,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)} aria-haspopup="listbox">
                               <status.icon className="w-3 h-3" />
@@ -393,15 +395,13 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
                           setTimeout(() => setSelectedBooking(b), 100);
                         }} aria-haspopup="dialog"><Info className="w-4 h-4" /></Button>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="listbox"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
-                              <DropdownMenuItem onSelect={() => {
-                                setTimeout(() => handleOpenEdit(b), 150);
-                              }} className="gap-2 cursor-pointer">
+                              <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer">
                                 <Edit3 className="w-3.5 h-3.5" /> Reagendar / Editar
                               </DropdownMenuItem>
                             )}
@@ -507,7 +507,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
-                  <Popover>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
@@ -520,7 +520,8 @@ export default function AppointmentsPage() {
                         onSelect={(d) => {
                           if (d) {
                             setEditDate(d);
-                            setEditSlotId('');
+                            setEditSlotId(''); // Limpa o slot para forçar nova escolha
+                            setIsCalendarOpen(false); // Fecha o popover ao selecionar
                           }
                         }} 
                         locale={ptBR} 
@@ -531,7 +532,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Novo Horário</label>
-                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
+                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
                     <SelectTrigger className="rounded-xl h-11" aria-haspopup="listbox">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -552,7 +553,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" /> Local</label>
-                  <Select value={editLocationId} onValueChange={setEditLocationId}>
+                  <Select value={editLocationId} onValueChange={setEditLocationId} modal={false}>
                     <SelectTrigger className="rounded-xl h-11" aria-haspopup="listbox"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
