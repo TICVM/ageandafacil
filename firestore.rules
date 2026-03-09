@@ -33,19 +33,23 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Agendamentos: Qualquer pessoa pode criar, mas apenas logados veem/editam no dashboard
+    // Agendamentos: Qualquer pessoa pode criar e ver (para checar disponibilidade), 
+    // mas apenas logados editam no dashboard
     match /appointments/{appointmentId} {
-      allow create: if true;
-      allow read, write: if isSignedIn();
+      allow read, create: if true;
+      allow update, delete: if isSignedIn();
     }
 
+    // Usuários: Leitura pública para permitir o Agendamento Rápido via e-mail
     match /users/{userId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     // Configurações de Perfis e Permissões
     match /roles_config/{roleId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
     
     // Configurações globais do App
