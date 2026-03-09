@@ -22,6 +22,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 const DAYS_OF_WEEK = [
   { id: '1', label: 'Segunda', short: 'Seg' },
@@ -49,14 +50,12 @@ export default function SlotAdminPage() {
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
-  // Estado do Criador Individual/Lote
   const [selectedDays, setSelectedDays] = useState<string[]>(['1', '2', '3', '4', '5']);
   const [startTime, setStartTime] = useState('08:00');
   const [duration, setDuration] = useState('60');
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [targetId, setTargetId] = useState('');
   
-  // Estado do Bloqueio
   const [blockDate, setBlockDate] = useState<Date>();
   const [blockMultipleDates, setBlockMultipleDates] = useState<Date[]>([]);
   const [blockStart, setBlockStart] = useState('07:00');
@@ -147,7 +146,6 @@ export default function SlotAdminPage() {
   const handleProcessBulkText = () => {
     if (!bulkDatesText.trim()) return;
 
-    // Tenta processar datas no formato DD/MM/YYYY ou YYYY-MM-DD
     const lines = bulkDatesText.split('\n');
     const parsedDates: Date[] = [];
 
@@ -173,7 +171,6 @@ export default function SlotAdminPage() {
 
     if (parsedDates.length > 0) {
       setBlockMultipleDates(prev => {
-        // Remove duplicatas
         const existing = prev.map(p => format(p, 'yyyy-MM-dd'));
         const uniqueNew = parsedDates.filter(p => !existing.includes(format(p, 'yyyy-MM-dd')));
         return [...prev, ...uniqueNew];
@@ -239,35 +236,36 @@ export default function SlotAdminPage() {
                       <div key={day.id} className="flex flex-col items-center p-2 rounded-lg border bg-muted/10">
                         <Checkbox 
                           id={`day-${day.id}`} 
+                          name={`day-${day.id}`}
                           checked={selectedDays.includes(day.id)}
                           onCheckedChange={() => handleToggleDay(day.id)}
                         />
-                        <label htmlFor={`day-${day.id}`} className="text-[9px] mt-1 font-bold">{day.label.slice(0,3)}</label>
+                        <Label htmlFor={`day-${day.id}`} className="text-[9px] mt-1 font-bold cursor-pointer">{day.label.slice(0,3)}</Label>
                       </div>
                     ))}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold">Início</label>
-                      <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="start-time-input" className="text-xs font-bold">Início</Label>
+                      <Input id="start-time-input" name="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl h-10" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold">Duração (min)</label>
-                      <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="duration-input" className="text-xs font-bold">Duração (min)</Label>
+                      <Input id="duration-input" name="duration" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="rounded-xl h-10" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold">Alvo</label>
+                    <Label className="text-xs font-bold">Alvo</Label>
                     <div className="flex gap-1 mb-2">
                       <Button variant={targetType === 'global' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('global'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Global</Button>
                       <Button variant={targetType === 'segment' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('segment'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Segmento</Button>
                       <Button variant={targetType === 'class' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('class'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Turma</Button>
                     </div>
                     {targetType !== 'global' && (
-                      <Select onValueChange={setTargetId} value={targetId}>
-                        <SelectTrigger className="rounded-xl h-10">
+                      <Select onValueChange={setTargetId} value={targetId} modal={false}>
+                        <SelectTrigger id="target-select" name="target" className="rounded-xl h-10">
                           <SelectValue placeholder={targetType === 'segment' ? "Escolha o Segmento" : "Escolha a Turma"} />
                         </SelectTrigger>
                         <SelectContent>
@@ -324,10 +322,12 @@ export default function SlotAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold">Data(s) do Evento</label>
-                    <Popover>
+                    <Label htmlFor="block-date-trigger" className="text-xs font-bold">Data(s) do Evento</Label>
+                    <Popover modal={false}>
                       <PopoverTrigger asChild>
                         <Button
+                          id="block-date-trigger"
+                          name="blockDate"
                           variant={"outline"}
                           className={cn(
                             "w-full h-10 justify-start text-left font-normal rounded-xl",
@@ -366,18 +366,20 @@ export default function SlotAdminPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold">Bloquear De:</label>
-                      <Input type="time" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="block-start-input" className="text-xs font-bold">Bloquear De:</Label>
+                      <Input id="block-start-input" name="blockStart" type="time" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} className="rounded-xl h-10" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold">Até:</label>
-                      <Input type="time" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="block-end-input" className="text-xs font-bold">Até:</Label>
+                      <Input id="block-end-input" name="blockEnd" type="time" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} className="rounded-xl h-10" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold">Motivo do Bloqueio</label>
+                    <Label htmlFor="block-reason-input" className="text-xs font-bold">Motivo do Bloqueio</Label>
                     <Input 
+                      id="block-reason-input"
+                      name="reason"
                       placeholder="Ex: Reunião Pedagógica, Feriado..." 
                       value={blockReason}
                       onChange={(e) => setBlockReason(e.target.value)}
@@ -507,7 +509,6 @@ export default function SlotAdminPage() {
         </Card>
       </div>
 
-      {/* Modal de Importação em Lote */}
       <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader>
@@ -518,7 +519,10 @@ export default function SlotAdminPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
+            <Label htmlFor="bulk-dates-textarea" className="sr-only">Lista de datas</Label>
             <Textarea 
+              id="bulk-dates-textarea"
+              name="bulkDates"
               placeholder="01/05/2025&#10;07/09/2025&#10;12/10/2025" 
               className="rounded-xl min-h-[200px] font-mono text-sm"
               value={bulkDatesText}

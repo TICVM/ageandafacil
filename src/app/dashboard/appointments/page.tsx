@@ -499,7 +499,6 @@ export default function AppointmentsPage() {
           className="max-w-2xl rounded-3xl overflow-hidden p-0"
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
-            // Previne fechar o diálogo quando o portal do seletor é clicado
             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
               e.preventDefault();
             }
@@ -530,7 +529,6 @@ export default function AppointmentsPage() {
                     <PopoverContent 
                       className="w-auto p-0" 
                       align="start"
-                      onInteractOutside={(e) => e.preventDefault()}
                     >
                       <Calendar 
                         mode="single" 

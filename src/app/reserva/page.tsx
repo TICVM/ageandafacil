@@ -337,7 +337,7 @@ export default function PublicBookingPage() {
                 </Label>
                 <Input 
                   id="guest-email-input"
-                  name="guest-email"
+                  name="guestEmail"
                   type="email"
                   placeholder="ex: professor@escola.com" 
                   value={guestEmail} 
@@ -378,14 +378,14 @@ export default function PublicBookingPage() {
                 <CardContent className="p-8 space-y-6 bg-white">
                   <div className="space-y-2">
                     <Label htmlFor="teacher-name-input" className="text-sm font-semibold">Docente Responsável</Label>
-                    <Input id="teacher-name-input" name="teacher-name" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
+                    <Input id="teacher-name-input" name="teacherName" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="class-select" className="text-sm font-semibold">Turma</Label>
+                      <Label htmlFor="class-select-trigger" className="text-sm font-semibold">Turma</Label>
                       <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
-                        <SelectTrigger id="class-select" name="class" className="rounded-xl h-11" aria-haspopup="listbox">
+                        <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-11" aria-haspopup="listbox">
                           <SelectValue placeholder="Selecione a turma" />
                         </SelectTrigger>
                         <SelectContent>
@@ -394,9 +394,9 @@ export default function PublicBookingPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="location-select" className="text-sm font-semibold">Local da Foto</Label>
+                      <Label htmlFor="location-select-trigger" className="text-sm font-semibold">Local da Foto</Label>
                       <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
-                        <SelectTrigger id="location-select" name="location" className="rounded-xl h-11" aria-haspopup="listbox">
+                        <SelectTrigger id="location-select-trigger" name="location" className="rounded-xl h-11" aria-haspopup="listbox">
                           <SelectValue placeholder="Selecione o local" />
                         </SelectTrigger>
                         <SelectContent>
@@ -409,7 +409,7 @@ export default function PublicBookingPage() {
                   {selectedLocation?.requiresIdentifier && (
                     <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border border-primary/10">
                       <Label htmlFor="identifier-input" className="text-sm font-bold flex items-center gap-2 text-primary"><Hash className="w-4 h-4" /> Qual sala ou número?</Label>
-                      <Input id="identifier-input" name="identifier" placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
+                      <Input id="identifier-input" name="locationIdentifier" placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
                     </div>
                   )}
 
@@ -418,7 +418,7 @@ export default function PublicBookingPage() {
                       <Label htmlFor="date-trigger" className="text-sm font-semibold">Data</Label>
                       <Popover modal={false}>
                         <PopoverTrigger asChild>
-                          <Button id="date-trigger" name="date-trigger" variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
+                          <Button id="date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {date ? format(date, "PPP", { locale: ptBR }) : <span>Escolha a data</span>}
                           </Button>
@@ -430,9 +430,9 @@ export default function PublicBookingPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="slot-select" className="text-sm font-semibold">Horário</Label>
+                      <Label htmlFor="slot-select-trigger" className="text-sm font-semibold">Horário</Label>
                       <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                        <SelectTrigger id="slot-select" name="slot" className="rounded-xl h-11" aria-haspopup="listbox">
+                        <SelectTrigger id="slot-select-trigger" name="slot" className="rounded-xl h-11" aria-haspopup="listbox">
                           <SelectValue placeholder="Escolha o horário" />
                         </SelectTrigger>
                         <SelectContent>

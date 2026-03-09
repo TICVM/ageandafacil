@@ -182,7 +182,6 @@ export default function UsersAdminPage() {
           </DialogTrigger>
           <DialogContent 
             className="rounded-2xl max-w-2xl" 
-            onCloseAutoFocus={(e) => e.preventDefault()}
             onInteractOutside={(e) => {
               const target = e.target as HTMLElement;
               if (target?.closest('[data-radix-select-content]')) {
@@ -232,11 +231,11 @@ export default function UsersAdminPage() {
               {newUser.roleId !== 'ADMIN' ? (
                 <div className="space-y-4 border-l pl-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Label htmlFor="new-segment-scroll" className="text-sm font-semibold flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" />
                       Vincular Segmentos
                     </Label>
-                    <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                    <ScrollArea id="new-segment-scroll" className="h-[120px] rounded-xl border p-4 bg-muted/20">
                       <div className="space-y-3">
                         {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                           <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
@@ -249,11 +248,11 @@ export default function UsersAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Label htmlFor="new-class-scroll" className="text-sm font-semibold flex items-center gap-2">
                       <Layers className="w-4 h-4 text-primary" />
                       Vincular Turmas
                     </Label>
-                    <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                    <ScrollArea id="new-class-scroll" className="h-[120px] rounded-xl border p-4 bg-muted/20">
                       <div className="space-y-3">
                         {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                           <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
@@ -341,7 +340,6 @@ export default function UsersAdminPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent 
           className="rounded-2xl max-w-2xl" 
-          onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
             if (target?.closest('[data-radix-select-content]')) {
@@ -373,8 +371,8 @@ export default function UsersAdminPage() {
             {editingUser?.roleId !== 'ADMIN' ? (
               <div className="space-y-4 border-l pl-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Vincular Segmentos</Label>
-                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                  <Label htmlFor="edit-segment-scroll" className="text-sm font-semibold">Vincular Segmentos</Label>
+                  <ScrollArea id="edit-segment-scroll" className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                         <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
@@ -386,8 +384,8 @@ export default function UsersAdminPage() {
                   </ScrollArea>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Turmas do Docente</Label>
-                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                  <Label htmlFor="edit-class-scroll" className="text-sm font-semibold">Turmas do Docente</Label>
+                  <ScrollArea id="edit-class-scroll" className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                         <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
