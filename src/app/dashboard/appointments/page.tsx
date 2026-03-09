@@ -263,7 +263,7 @@ export default function AppointmentsPage() {
     }).sort((a, b) => {
       const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
       if (dateCompare !== 0) return dateCompare;
-      return a.startTime.startTime?.localeCompare(b.startTime) || 0;
+      return a.startTime.localeCompare(b.startTime) || 0;
     });
   }, [list, userPerms, profile, classes, isMaster, searchTerm]);
 
@@ -297,11 +297,11 @@ export default function AppointmentsPage() {
           <p className="text-muted-foreground">Visualize e valide as sessões de fotos escolares.</p>
         </div>
         <div className="relative w-full md:w-80">
-          <Label htmlFor="search-appointments" className="sr-only">Buscar agendamentos</Label>
+          <Label htmlFor="search-appointments-input" className="sr-only">Buscar agendamentos</Label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            id="search-appointments"
-            name="search"
+            id="search-appointments-input"
+            name="search-appointments"
             placeholder="Buscar docente ou data..." 
             className="pl-9 rounded-xl h-11 bg-white"
             value={searchTerm}
@@ -507,7 +507,13 @@ export default function AppointmentsPage() {
                   <Label htmlFor="edit-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500"><CalendarIcon className="w-4 h-4" /> Nova Data</Label>
                   <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
                     <PopoverTrigger asChild>
-                      <Button id="edit-date-trigger" name="edit-date-btn" variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
+                      <Button 
+                        id="edit-date-trigger" 
+                        name="edit-date-trigger" 
+                        variant="outline" 
+                        className="w-full h-11 justify-start rounded-xl" 
+                        aria-haspopup="dialog"
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
                       </Button>
@@ -530,9 +536,14 @@ export default function AppointmentsPage() {
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-500"><Clock className="w-4 h-4" /> Novo Horário</Label>
-                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
-                    <SelectTrigger id="edit-slot-select" name="edit-slot" className="rounded-xl h-11" aria-haspopup="listbox">
+                  <Label htmlFor="edit-slot-id-select" className="text-sm font-bold flex items-center gap-2 text-orange-500"><Clock className="w-4 h-4" /> Novo Horário</Label>
+                  <Select 
+                    value={editSlotId} 
+                    onValueChange={setEditSlotId} 
+                    disabled={!editDate} 
+                    modal={false}
+                  >
+                    <SelectTrigger id="edit-slot-id-select" name="edit-slot-id" className="rounded-xl h-11" aria-haspopup="listbox">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
                     <SelectContent>
@@ -551,10 +562,14 @@ export default function AppointmentsPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-location-select" className="text-sm font-bold flex items-center gap-2 text-orange-500"><MapPin className="w-4 h-4" /> Local</Label>
-                  <Select value={editLocationId} onValueChange={setEditLocationId} modal={false}>
-                    <SelectTrigger id="edit-location-select" name="edit-location" className="rounded-xl h-11" aria-haspopup="listbox">
-                      <SelectValue />
+                  <Label htmlFor="edit-location-id-select" className="text-sm font-bold flex items-center gap-2 text-orange-500"><MapPin className="w-4 h-4" /> Local</Label>
+                  <Select 
+                    value={editLocationId} 
+                    onValueChange={setEditLocationId} 
+                    modal={false}
+                  >
+                    <SelectTrigger id="edit-location-id-select" name="edit-location-id" className="rounded-xl h-11" aria-haspopup="listbox">
+                      <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
                     <SelectContent>
                       {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
@@ -563,12 +578,26 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-identifier-input" className="text-sm font-bold flex items-center gap-2 text-orange-500"><Hash className="w-4 h-4" /> Identificador</Label>
-                  <Input id="edit-identifier-input" name="edit-identifier" value={editIdentifier} onChange={(e) => setEditIdentifier(e.target.value)} className="rounded-xl h-11" />
+                  <Input 
+                    id="edit-identifier-input" 
+                    name="edit-identifier" 
+                    value={editIdentifier} 
+                    onChange={(e) => setEditIdentifier(e.target.value)} 
+                    className="rounded-xl h-11" 
+                    placeholder="Ex: Sala 12"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-notes-input" className="text-sm font-bold">Notas Adicionais</Label>
-                <Input id="edit-notes-input" name="edit-notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-xl h-11" />
+                <Input 
+                  id="edit-notes-input" 
+                  name="edit-notes" 
+                  value={editNotes} 
+                  onChange={(e) => setEditNotes(e.target.value)} 
+                  className="rounded-xl h-11" 
+                  placeholder="Observações importantes..."
+                />
               </div>
               <DialogFooter className="gap-2">
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl" disabled={isSaving}>Cancelar</Button>

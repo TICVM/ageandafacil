@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +22,8 @@ const ADMIN_PERMS: AppPermissions = {
   canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
   canViewSegmentAppointments: true, canViewClassAppointments: true,
   canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-  canCreateBookings: true, canChangeStatus: true
+  canCreateBookings: true, canChangeStatus: true,
+  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
 };
 
 export default function ClassesAdminPage() {
@@ -159,16 +161,27 @@ export default function ClassesAdminPage() {
             <Card className="lg:col-span-1 shadow-md border-none h-fit">
               <CardHeader><CardTitle className="text-lg">Nova Turma</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <Input placeholder="Nome da Turma" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="rounded-xl" />
-                <Input type="number" placeholder="Ordem" value={newClassOrder} onChange={(e) => setNewClassOrder(e.target.value)} className="rounded-xl" />
-                <select 
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  onChange={(e) => setSelectedSegment(e.target.value)} 
-                  value={selectedSegment}
-                >
-                  <option value="">Selecione um segmento</option>
-                  {segments.map(s => <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>)}
-                </select>
+                <div className="space-y-2">
+                  <Label htmlFor="new-class-name">Nome da Turma</Label>
+                  <Input id="new-class-name" name="name" placeholder="Ex: Maternal A" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-class-order">Ordem</Label>
+                  <Input id="new-class-order" name="order" type="number" placeholder="Ordem" value={newClassOrder} onChange={(e) => setNewClassOrder(e.target.value)} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-class-segment">Segmento</Label>
+                  <select 
+                    id="new-class-segment"
+                    name="segment"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    onChange={(e) => setSelectedSegment(e.target.value)} 
+                    value={selectedSegment}
+                  >
+                    <option value="">Selecione um segmento</option>
+                    {segments.map(s => <option key={s.id} value={s.id}>{s.name} {s.unit ? `(${s.unit})` : ''}</option>)}
+                  </select>
+                </div>
                 <Button onClick={handleAddClass} className="w-full rounded-xl gap-2"><Plus className="w-4 h-4" /> Salvar Turma</Button>
               </CardContent>
             </Card>
@@ -207,51 +220,91 @@ export default function ClassesAdminPage() {
         </TabsContent>
 
         <TabsContent value="segments" className="space-y-6">
-          <Card className="shadow-md border-none overflow-hidden bg-white">
-            <Table>
-              <TableHeader className="bg-muted/20">
-                <TableRow>
-                  <TableHead className="w-16 text-center">Ordem</TableHead>
-                  <TableHead>Nome do Segmento</TableHead>
-                  <TableHead>Unidade</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {segments.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="text-center font-mono text-xs">{s.order || 0}</TableCell>
-                    <TableCell className="font-bold">{s.name}</TableCell>
-                    <TableCell>{s.unit || '---'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })}><Edit2 className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_segments', s.id))}><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                    </TableCell>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <Card className="lg:col-span-1 shadow-md border-none h-fit">
+              <CardHeader><CardTitle className="text-lg">Novo Segmento</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-seg-name">Nome do Segmento</Label>
+                  <Input id="new-seg-name" name="name" placeholder="Ex: Educação Infantil" value={newSegmentName} onChange={(e) => setNewSegmentName(e.target.value)} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-seg-unit">Unidade</Label>
+                  <Input id="new-seg-unit" name="unit" placeholder="Ex: Unidade I" value={newSegmentUnit} onChange={(e) => setNewSegmentUnit(e.target.value)} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-seg-order">Ordem</Label>
+                  <Input id="new-seg-order" name="order" type="number" placeholder="Ordem" value={newSegmentOrder} onChange={(e) => setNewSegmentOrder(e.target.value)} className="rounded-xl" />
+                </div>
+                <Button onClick={handleAddSegment} className="w-full rounded-xl gap-2"><Plus className="w-4 h-4" /> Salvar Segmento</Button>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-3 shadow-md border-none overflow-hidden bg-white">
+              <Table>
+                <TableHeader className="bg-muted/20">
+                  <TableRow>
+                    <TableHead className="w-16 text-center">Ordem</TableHead>
+                    <TableHead>Nome do Segmento</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                </TableHeader>
+                <TableBody>
+                  {segments.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-center font-mono text-xs">{s.order || 0}</TableCell>
+                      <TableCell className="font-bold">{s.name}</TableCell>
+                      <TableCell>{s.unit || '---'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })}><Edit2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_segments', s.id))}><Trash2 className="w-4 h-4" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Editar {editingItem?.type === 'class' ? 'Turma' : 'Segmento'}</DialogTitle>
             <DialogDescription>Atualize as informações de cadastro e ordenação desta unidade escolar.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Input value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
-            {editingItem?.type === 'segment' && <Input value={editingItem?.unit || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)} className="rounded-xl" />}
-            {editingItem?.type === 'class' && (
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editingItem.schoolSegmentId} onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}>
-                {segments.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+            <div className="space-y-2">
+              <Label htmlFor="edit-item-name">Nome</Label>
+              <Input id="edit-item-name" value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
+            </div>
+            {editingItem?.type === 'segment' && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-item-unit">Unidade</Label>
+                <Input id="edit-item-unit" value={editingItem?.unit || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)} className="rounded-xl" />
+              </div>
             )}
-            <Input type="number" value={editingItem?.order || 0} onChange={(e) => setEditingItem(prev => prev ? {...prev, order: parseInt(e.target.value) || 0} : null)} className="rounded-xl" />
+            {editingItem?.type === 'class' && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-item-segment">Segmento</Label>
+                <select 
+                  id="edit-item-segment"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                  value={editingItem.schoolSegmentId} 
+                  onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}
+                >
+                  {segments.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-item-order">Ordem</Label>
+              <Input id="edit-item-order" type="number" value={editingItem?.order || 0} onChange={(e) => setEditingItem(prev => prev ? {...prev, order: parseInt(e.target.value) || 0} : null)} className="rounded-xl" />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingItem(null)}>Cancelar</Button>

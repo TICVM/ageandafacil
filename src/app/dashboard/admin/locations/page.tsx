@@ -90,15 +90,17 @@ export default function LocationsAdminPage() {
               Novo Local
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-2xl">
+          <DialogContent className="rounded-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Adicionar Local</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Nome do Local</label>
+                  <Label htmlFor="new-loc-name" className="text-sm font-semibold">Nome do Local</Label>
                   <Input 
+                    id="new-loc-name"
+                    name="name"
                     placeholder="Ex: Sala de Aula" 
                     value={newLoc.name} 
                     onChange={(e) => setNewLoc({...newLoc, name: e.target.value})}
@@ -106,8 +108,10 @@ export default function LocationsAdminPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Unidade</label>
+                  <Label htmlFor="new-loc-unit" className="text-sm font-semibold">Unidade</Label>
                   <Input 
+                    id="new-loc-unit"
+                    name="unit"
                     placeholder="Ex: Unidade I" 
                     value={newLoc.unit} 
                     onChange={(e) => setNewLoc({...newLoc, unit: e.target.value})}
@@ -119,18 +123,21 @@ export default function LocationsAdminPage() {
               <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
                 <Switch 
                   id="requires-id-new" 
+                  name="requiresIdentifier"
                   checked={newLoc.requiresIdentifier}
                   onCheckedChange={(checked) => setNewLoc({...newLoc, requiresIdentifier: checked})}
                 />
                 <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="requires-id-new" className="font-bold">Exige identificação específica?</Label>
+                  <Label htmlFor="requires-id-new" className="font-bold cursor-pointer">Exige identificação específica?</Label>
                   <p className="text-xs text-muted-foreground">Habilite se for necessário pedir o número da sala ou nome do laboratório.</p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Descrição/Dicas</label>
+                <Label htmlFor="new-loc-desc" className="text-sm font-semibold">Descrição/Dicas</Label>
                 <Textarea 
+                  id="new-loc-desc"
+                  name="description"
                   placeholder="Dicas de iluminação ou acesso..." 
                   value={newLoc.description} 
                   onChange={(e) => setNewLoc({...newLoc, description: e.target.value})}
@@ -149,8 +156,11 @@ export default function LocationsAdminPage() {
       <Card className="border-none shadow-md overflow-hidden bg-white">
         <div className="p-4 border-b bg-muted/10">
           <div className="relative max-w-sm">
+            <Label htmlFor="search-locations-input" className="sr-only">Buscar locais</Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
+              id="search-locations-input"
+              name="search"
               placeholder="Buscar local ou unidade..." 
               className="pl-9 rounded-xl bg-white border-none shadow-inner"
               value={searchTerm}
@@ -238,23 +248,27 @@ export default function LocationsAdminPage() {
       </Card>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Editar Local</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Nome do Local</label>
+                <Label htmlFor="edit-loc-name" className="text-sm font-semibold">Nome do Local</Label>
                 <Input 
+                  id="edit-loc-name"
+                  name="name"
                   value={editingItem?.name || ''} 
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)}
                   className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Unidade</label>
+                <Label htmlFor="edit-loc-unit" className="text-sm font-semibold">Unidade</Label>
                 <Input 
+                  id="edit-loc-unit"
+                  name="unit"
                   value={editingItem?.unit || ''} 
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)}
                   className="rounded-xl"
@@ -265,17 +279,20 @@ export default function LocationsAdminPage() {
             <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
               <Switch 
                 id="requires-id-edit" 
+                name="requiresIdentifier"
                 checked={editingItem?.requiresIdentifier || false}
                 onCheckedChange={(checked) => setEditingItem(prev => prev ? {...prev, requiresIdentifier: checked} : null)}
               />
               <div className="grid gap-1.5 leading-none">
-                <Label htmlFor="requires-id-edit" className="font-bold">Exige identificação específica?</Label>
+                <Label htmlFor="requires-id-edit" className="font-bold cursor-pointer">Exige identificação específica?</Label>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold">Descrição/Dicas</label>
+              <Label htmlFor="edit-loc-desc" className="text-sm font-semibold">Descrição/Dicas</Label>
               <Textarea 
+                id="edit-loc-desc"
+                name="description"
                 placeholder="Dicas de iluminação ou acesso..." 
                 value={editingItem?.description || ''} 
                 onChange={(e) => setEditingItem(prev => prev ? {...prev, description: e.target.value} : null)}
