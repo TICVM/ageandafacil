@@ -44,6 +44,7 @@ export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
@@ -395,7 +396,7 @@ export default function AppointmentsPage() {
                         }} aria-haspopup="dialog"><Info className="w-4 h-4" /></Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="dialog"><MoreHorizontal className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="listbox"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
@@ -507,7 +508,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
-                  <Popover modal={false}>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
@@ -521,6 +522,7 @@ export default function AppointmentsPage() {
                           if (d) {
                             setEditDate(d);
                             setEditSlotId('');
+                            setIsCalendarOpen(false);
                           }
                         }} 
                         locale={ptBR} 
