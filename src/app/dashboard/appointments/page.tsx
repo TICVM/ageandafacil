@@ -352,7 +352,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
                               <status.icon className="w-3 h-3" />
@@ -393,7 +393,7 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
                           setTimeout(() => setSelectedBooking(b), 150);
                         }}><Info className="w-4 h-4" /></Button>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
