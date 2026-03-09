@@ -4,11 +4,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart, Loader2 } from 'lucide-react';
+import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart, Loader2, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, getDoc } from 'firebase/firestore';
-import { Booking, User } from '@/lib/types';
+import { Booking, User, Class, PhotoLocation } from '@/lib/types';
 
 export default function Dashboard() {
   const db = useFirestore();
@@ -52,19 +52,21 @@ export default function Dashboard() {
 
   const appointmentsQuery = useMemoFirebase(() => {
     if (!db || !user || loadingProfile) return null;
-    
-    // Admins vêem tudo, Professores vêem apenas o seu
     if (isAdmin) {
       return collection(db, 'appointments');
     }
-    
     return query(
       collection(db, 'appointments'),
       where('teacherId', '==', user.uid)
     );
   }, [db, user, isAdmin, loadingProfile]);
 
+  const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
+  const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
+
   const { data: rawBookings, isLoading: isLoadingBookings } = useCollection<Booking>(appointmentsQuery);
+  const { data: classes } = useCollection<Class>(classesRef);
+  const { data: locations } = useCollection<PhotoLocation>(locationsRef);
 
   const userBookings = useMemo(() => {
     if (!rawBookings) return [];
@@ -76,6 +78,17 @@ export default function Dashboard() {
     const todayStr = now.toISOString().split('T')[0];
     return userBookings.find(b => b.status === 'CONFIRMED' && b.appointmentDate >= todayStr);
   }, [userBookings, now]);
+
+  const nextBookingDetails = useMemo(() => {
+    if (!nextBooking || !classes || !locations) return null;
+    const cls = classes.find(c => c.id === nextBooking.schoolClassId);
+    const loc = locations.find(l => l.id === nextBooking.photoLocationId);
+    return {
+      className: cls?.name || '---',
+      locationName: loc?.name || '---',
+      unit: loc?.unit || ''
+    };
+  }, [nextBooking, classes, locations]);
 
   const stats = useMemo(() => {
     if (!now) return [];
@@ -122,7 +135,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight text-primary">
           {isAdmin ? 'Painel Administrativo' : `Olá, ${profile?.name || 'Docente'}`}
         </h1>
         <p className="text-muted-foreground">
@@ -160,17 +173,24 @@ export default function Dashboard() {
             <CardDescription>O agendamento confirmado cronologicamente mais próximo.</CardDescription>
           </CardHeader>
           <CardContent>
-            {nextBooking ? (
+            {nextBooking && nextBookingDetails ? (
               <div className="bg-primary/5 p-6 rounded-3xl border border-dashed border-primary/20 space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-2xl font-bold text-primary">
+                    <h3 className="text-2xl font-bold text-primary truncate max-w-[200px]">
                       {nextBooking.teacherName}
                     </h3>
-                    <p className="font-medium text-muted-foreground flex items-center gap-1 mt-1">
-                      <MapPin className="w-4 h-4" />
-                      Sessão confirmada
-                    </p>
+                    <div className="flex flex-col mt-1 gap-1">
+                      <p className="font-bold text-sm text-slate-700 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-primary" />
+                        {nextBookingDetails.locationName} 
+                        {nextBookingDetails.unit && <span className="font-normal text-muted-foreground text-xs">({nextBookingDetails.unit})</span>}
+                      </p>
+                      <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 ml-6">
+                        <Building2 className="w-3.5 h-3.5" />
+                        Turma: {nextBookingDetails.className}
+                      </p>
+                    </div>
                   </div>
                   <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl text-center shadow-lg">
                     <span className="block text-xl font-bold">{nextBooking.appointmentDate.split('-')[2]}</span>
