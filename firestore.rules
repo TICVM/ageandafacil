@@ -48,6 +48,12 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     
+    // Configurações globais do App
+    match /app_settings/{settingsId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+    
     // Legado (se houver)
     match /roles_admin/{adminId} {
       allow read, write: if isSignedIn();
