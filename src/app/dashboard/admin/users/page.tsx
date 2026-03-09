@@ -184,7 +184,7 @@ export default function UsersAdminPage() {
             className="rounded-2xl max-w-2xl" 
             onInteractOutside={(e) => {
               const target = e.target as HTMLElement;
-              if (target?.closest('[data-radix-select-content]')) {
+              if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
                 e.preventDefault();
               }
             }}
@@ -342,7 +342,7 @@ export default function UsersAdminPage() {
           className="rounded-2xl max-w-2xl" 
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
-            if (target?.closest('[data-radix-select-content]')) {
+            if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
               e.preventDefault();
             }
           }}

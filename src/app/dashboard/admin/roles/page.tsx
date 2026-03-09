@@ -197,6 +197,12 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
         className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl"
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement;
+          if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">

@@ -529,6 +529,7 @@ export default function AppointmentsPage() {
                     <PopoverContent 
                       className="w-auto p-0" 
                       align="start"
+                      onInteractOutside={(e) => e.preventDefault()}
                     >
                       <Calendar 
                         mode="single" 
