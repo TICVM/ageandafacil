@@ -181,7 +181,7 @@ export default function AppointmentsPage() {
     
     setTimeout(() => {
       setEditingBooking(booking);
-    }, 150);
+    }, 200);
   }, [slots]);
 
   const handleSaveEdit = () => {
