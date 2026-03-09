@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -29,7 +28,7 @@ const timeToMin = (t: string) => {
 };
 
 const STATUS_CONFIG = {
-  PENDING: { label: 'Agendado', color: 'bg-orange-500 text-white', icon: Clock },
+  PENDING: { label: 'Aguardando confirmação', color: 'bg-orange-500 text-white', icon: Clock },
   CONFIRMED: { label: 'Confirmado', color: 'bg-green-600 text-white', icon: CheckCircle2 },
   RESCHEDULED: { label: 'Reagendado', color: 'bg-blue-500 text-white', icon: Edit3 },
   CANCELLED: { label: 'Cancelado', color: 'bg-destructive text-white', icon: XCircle },
@@ -322,7 +321,7 @@ export default function AppointmentsPage() {
                             </Badge>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="rounded-xl p-2">
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Agendado (Pendente)</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleUpdateStatus(b.id, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
                             <DropdownMenuSeparator />

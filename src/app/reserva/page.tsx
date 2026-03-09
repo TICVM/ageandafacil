@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -251,7 +250,7 @@ export default function PublicBookingPage() {
           <CardContent className="p-8 space-y-4">
             <div className="flex justify-between border-b pb-2"><span>Turma:</span><span className="font-bold">{selectedClass?.name}</span></div>
             <div className="flex justify-between border-b pb-2"><span>Data:</span><span className="font-bold">{date && format(date, 'dd/MM/yyyy')}</span></div>
-            <div className="flex justify-between border-b pb-2"><span>Status:</span><Badge variant="secondary" className="bg-orange-100 text-orange-700">Aguardando Validação</Badge></div>
+            <div className="flex justify-between border-b pb-2"><span>Status:</span><Badge variant="secondary" className="bg-orange-100 text-orange-700">Aguardando confirmação</Badge></div>
             <Button onClick={() => window.location.reload()} className="w-full rounded-xl h-12 mt-4">Fazer outra reserva</Button>
             <Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full">Ir para o Painel</Button>
           </CardContent>
