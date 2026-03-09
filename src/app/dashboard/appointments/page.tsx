@@ -69,7 +69,8 @@ export default function AppointmentsPage() {
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
             canViewSegmentAppointments: true, canViewClassAppointments: true,
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true, canChangeStatus: true
+            canCreateBookings: true, canChangeStatus: true,
+            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true
           };
           setUserPerms(masterPerms);
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: authUser.email || '', roleId: 'ADMIN' });
@@ -87,7 +88,8 @@ export default function AppointmentsPage() {
               canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
               canViewSegmentAppointments: true, canViewClassAppointments: true,
               canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-              canCreateBookings: true, canChangeStatus: true
+              canCreateBookings: true, canChangeStatus: true,
+              canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true
             });
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
@@ -124,8 +126,8 @@ export default function AppointmentsPage() {
     
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
-      app.appointmentDate === dateStr && 
-      app.status !== 'CANCELLED'
+      app.status !== 'CANCELLED' &&
+      app.appointmentDate === dateStr
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
@@ -277,6 +279,13 @@ export default function AppointmentsPage() {
     return <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
+  const hasAnyStatusPermission = userPerms.canChangeStatus || 
+    userPerms.canStatusPending || 
+    userPerms.canStatusConfirmed || 
+    userPerms.canStatusCancelled || 
+    userPerms.canStatusRescheduled || 
+    userPerms.canStatusReScheduleRequest;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -338,7 +347,7 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
-                      {userPerms.canChangeStatus ? (
+                      {hasAnyStatusPermission ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
@@ -347,12 +356,22 @@ export default function AppointmentsPage() {
                             </Badge>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="rounded-xl p-2">
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
+                            {(userPerms.canChangeStatus || userPerms.canStatusPending) && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
+                            )}
+                            {(userPerms.canChangeStatus || userPerms.canStatusConfirmed) && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
+                            )}
+                            {(userPerms.canChangeStatus || userPerms.canStatusRescheduled) && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
+                            )}
+                            {(userPerms.canChangeStatus || userPerms.canStatusReScheduleRequest) && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
+                            {(userPerms.canChangeStatus || userPerms.canStatusCancelled) && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (

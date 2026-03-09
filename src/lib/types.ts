@@ -15,6 +15,12 @@ export interface AppPermissions {
   canDeleteAppointments: boolean;
   canCreateBookings: boolean;
   canChangeStatus: boolean;
+  // Permissões granulares de status
+  canStatusPending: boolean;
+  canStatusConfirmed: boolean;
+  canStatusCancelled: boolean;
+  canStatusRescheduled: boolean;
+  canStatusReScheduleRequest: boolean;
 }
 
 export interface RoleConfig extends AppPermissions {

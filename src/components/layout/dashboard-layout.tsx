@@ -50,6 +50,11 @@ const DEFAULT_PERMS: AppPermissions = {
   canDeleteAppointments: false,
   canCreateBookings: true,
   canChangeStatus: false,
+  canStatusPending: false,
+  canStatusConfirmed: false,
+  canStatusCancelled: false,
+  canStatusRescheduled: false,
+  canStatusReScheduleRequest: false,
 };
 
 const ADMIN_PERMS: AppPermissions = {
@@ -66,6 +71,11 @@ const ADMIN_PERMS: AppPermissions = {
   canDeleteAppointments: true,
   canCreateBookings: true,
   canChangeStatus: true,
+  canStatusPending: true,
+  canStatusConfirmed: true,
+  canStatusCancelled: true,
+  canStatusRescheduled: true,
+  canStatusReScheduleRequest: true,
 };
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -118,19 +128,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               if (roleDoc.exists()) {
                 const roleData = roleDoc.data() as RoleConfig;
                 setUserPerms({
-                  canManageUsers: !!roleData.canManageUsers,
-                  canConfigureSlots: !!roleData.canConfigureSlots,
-                  canManageLocations: !!roleData.canManageLocations,
-                  canManageClasses: !!roleData.canManageClasses,
-                  canViewReports: !!roleData.canViewReports,
-                  canViewAllAppointments: !!roleData.canViewAllAppointments,
-                  canViewSegmentAppointments: !!roleData.canViewSegmentAppointments,
-                  canViewClassAppointments: !!roleData.canViewClassAppointments,
-                  canEditAppointments: !!roleData.canEditAppointments,
-                  canCancelAppointments: !!roleData.canCancelAppointments,
-                  canDeleteAppointments: !!roleData.canDeleteAppointments,
-                  canCreateBookings: !!roleData.canCreateBookings,
-                  canChangeStatus: !!roleData.canChangeStatus,
+                  ...DEFAULT_PERMS,
+                  ...roleData
                 });
                 setRoleName(roleData.name);
               } else {

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -31,6 +31,11 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canDeleteAppointments: false,
   canCreateBookings: true,
   canChangeStatus: false,
+  canStatusPending: false,
+  canStatusConfirmed: false,
+  canStatusCancelled: false,
+  canStatusRescheduled: false,
+  canStatusReScheduleRequest: false,
 };
 
 export default function RolesAdminPage() {
@@ -185,7 +190,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-3xl max-w-4xl p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl">
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
             <ShieldCheck className="w-6 h-6" />
@@ -196,7 +201,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[70vh] bg-[#F8FAFC]">
+        <ScrollArea className="max-h-[75vh] bg-[#F8FAFC]">
           <div className="p-8 space-y-10">
             <div className="space-y-3">
               <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</label>
@@ -208,34 +213,25 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
                     <Users className="w-5 h-5" />
-                    <h3 className="font-bold text-sm uppercase">Módulo Equipe</h3>
+                    <h3 className="font-bold text-sm uppercase">Equipe e Estrutura</h3>
                   </div>
-                  {renderPermissionToggle("Pode Gerenciar Usuários", "canManageUsers", UserCog, "text-blue-700")}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
-                    <MapPin className="w-5 h-5" />
-                    <h3 className="font-bold text-sm uppercase">Módulo Estrutura</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {renderPermissionToggle("Gerenciar Locais", "canManageLocations", MapPin)}
-                    {renderPermissionToggle("Gerenciar Turmas/Segmentos", "canManageClasses", Users)}
-                    {renderPermissionToggle("Configurar Horários (Slots)", "canConfigureSlots", Clock)}
-                  </div>
+                  {renderPermissionToggle("Gerenciar Usuários", "canManageUsers", UserCog, "text-blue-700")}
+                  {renderPermissionToggle("Gerenciar Locais", "canManageLocations", MapPin)}
+                  {renderPermissionToggle("Gerenciar Turmas", "canManageClasses", Users)}
+                  {renderPermissionToggle("Configurar Horários", "canConfigureSlots", Clock)}
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
                     <FileBarChart className="w-5 h-5" />
-                    <h3 className="font-bold text-sm uppercase">Módulo Estatísticas</h3>
+                    <h3 className="font-bold text-sm uppercase">Estatísticas</h3>
                   </div>
-                  {renderPermissionToggle("Ver Relatórios e Dashboards", "canViewReports", FileBarChart, "text-green-700")}
+                  {renderPermissionToggle("Ver Relatórios", "canViewReports", FileBarChart, "text-green-700")}
                 </div>
               </div>
 
@@ -243,33 +239,45 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-orange-600 border-b border-orange-600/10 pb-2">
                     <Camera className="w-5 h-5" />
-                    <h3 className="font-bold text-sm uppercase">Módulo de Reservas</h3>
+                    <h3 className="font-bold text-sm uppercase">Reservas e Agenda</h3>
                   </div>
-                  {renderPermissionToggle("Permitir Fazer Novas Reservas", "canCreateBookings", Plus, "text-orange-700 bg-orange-50/50")}
-                  {renderPermissionToggle("Validar/Alterar Status (Marketing)", "canChangeStatus", CheckCircle2, "text-green-700 bg-green-50/50")}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
-                    <ListTodo className="w-5 h-5" />
-                    <h3 className="font-bold text-sm uppercase tracking-tighter">Agenda Global: Visualização</h3>
-                  </div>
+                  {renderPermissionToggle("Fazer Novas Reservas", "canCreateBookings", Plus, "text-orange-700")}
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
-                    {renderPermissionToggle("Ver Agenda de TODA a Escola", "canViewAllAppointments", Eye, "bg-blue-50/30")}
-                    {renderPermissionToggle("Ver Agendamentos do SEGMENTO", "canViewSegmentAppointments", Eye, "bg-purple-50/30")}
-                    {renderPermissionToggle("Ver Apenas da sua TURMA", "canViewClassAppointments", Eye, "bg-orange-50/30")}
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Visualização</p>
+                    {renderPermissionToggle("Agenda Global", "canViewAllAppointments", Eye, "bg-blue-50/30")}
+                    {renderPermissionToggle("Agenda por Segmento", "canViewSegmentAppointments", Eye, "bg-purple-50/30")}
+                    {renderPermissionToggle("Agenda por Turma", "canViewClassAppointments", Eye, "bg-orange-50/30")}
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-destructive border-b border-destructive/10 pb-2">
                     <ShieldCheck className="w-5 h-5" />
-                    <h3 className="font-bold text-sm uppercase">Agenda Global: Ações</h3>
+                    <h3 className="font-bold text-sm uppercase">Ações em Reservas</h3>
                   </div>
                   <div className="bg-destructive/5 p-4 rounded-2xl border border-destructive/10 space-y-3">
-                    {renderPermissionToggle("Permitir Reagendar/Editar", "canEditAppointments", Edit3, "text-destructive")}
-                    {renderPermissionToggle("Permitir Cancelar Sessões", "canCancelAppointments", XCircle, "text-destructive")}
-                    {renderPermissionToggle("Permitir Excluir Registro", "canDeleteAppointments", Trash2, "text-destructive")}
+                    {renderPermissionToggle("Editar/Reagendar", "canEditAppointments", Edit3, "text-destructive")}
+                    {renderPermissionToggle("Cancelar Sessões", "canCancelAppointments", XCircle, "text-destructive")}
+                    {renderPermissionToggle("Excluir Registro", "canDeleteAppointments", Trash2, "text-destructive")}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-green-600 border-b border-green-600/10 pb-2">
+                    <CheckCircle2 className="w-5 h-5" />
+                    <h3 className="font-bold text-sm uppercase">Controle de Status</h3>
+                  </div>
+                  <div className="bg-green-50/50 p-4 rounded-2xl border border-green-200 space-y-3">
+                    <p className="text-[10px] font-bold text-green-700 uppercase mb-2">Pode aplicar os status:</p>
+                    {renderPermissionToggle("Mestre: Validar Status", "canChangeStatus", CheckCircle2, "text-green-800")}
+                    <Separator className="my-2" />
+                    {renderPermissionToggle("Aguard. Confirmação", "canStatusPending", Clock)}
+                    {renderPermissionToggle("Confirmar Sessão", "canStatusConfirmed", CheckCircle2, "text-green-700")}
+                    {renderPermissionToggle("Solicitar Reagendamento", "canStatusReScheduleRequest", AlertTriangle, "text-yellow-700")}
+                    {renderPermissionToggle("Marcar como Reagendado", "canStatusRescheduled", Edit3, "text-blue-700")}
+                    {renderPermissionToggle("Marcar como Cancelado", "canStatusCancelled", XCircle, "text-destructive")}
                   </div>
                 </div>
               </div>
@@ -281,7 +289,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
           <Button variant="outline" onClick={onClose} className="rounded-2xl h-12 px-8">Cancelar</Button>
           <Button onClick={onSave} className="rounded-2xl h-12 px-10 gap-2 shadow-xl hover:scale-105 transition-transform">
             <Save className="w-5 h-5" /> 
-            Salvar Configurações de Perfil
+            Salvar Configurações
           </Button>
         </DialogFooter>
       </DialogContent>
