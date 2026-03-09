@@ -241,7 +241,7 @@ export default function ClassesAdminPage() {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Editar {editingItem?.type === 'class' ? 'Turma' : 'Segmento'}</DialogTitle>
-            <DialogDescription>Atualize as informações de cadastro e ordenação desta unidade.</DialogDescription>
+            <DialogDescription>Atualize as informações de cadastro e ordenação desta unidade escolar.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Input value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />

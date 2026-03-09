@@ -113,7 +113,6 @@ export default function AppointmentsPage() {
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classes.find(c => c.id === editingBooking.schoolClassId);
     
-    // Lista de horários já ocupados, excluindo a própria reserva que estamos editando
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
@@ -131,13 +130,10 @@ export default function AppointmentsPage() {
       
       if (!targetMatches) return false;
       
-      // Sempre permitir o horário que JÁ ESTÁ marcado (essencial para não sumir o campo)
       const isCurrentlyBookedTime = editingBooking.startTime === s.startTime && 
                                    editingBooking.appointmentDate === dateStr;
       
       if (isCurrentlyBookedTime) return true;
-
-      // Se o horário já estiver ocupado por outra pessoa nesta data
       if (takenStartTimes.includes(s.startTime)) return false;
 
       const slotStartMin = timeToMin(s.startTime);
@@ -161,12 +157,12 @@ export default function AppointmentsPage() {
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
     
-    // Busca o ID do slot correspondente para pré-selecionar
     if (slots) {
       const dayOfWeekStr = bookingDate.getDay().toString();
       const matchingSlot = slots.find(s => 
         s.startTime === booking.startTime && 
-        s.dayOfWeek === dayOfWeekStr
+        s.dayOfWeek === dayOfWeekStr &&
+        (s.schoolClassId === booking.schoolClassId || !s.schoolClassId)
       );
       setEditSlotId(matchingSlot?.id || '');
     }
@@ -202,7 +198,6 @@ export default function AppointmentsPage() {
 
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
-    // Limpa o estado após salvar
     setEditingBooking(null);
     setIsSaving(false);
     toast({ title: "Sessão Atualizada!" });
@@ -212,17 +207,14 @@ export default function AppointmentsPage() {
     if (!list || !userPerms || !profile) return [];
     
     return list.filter(booking => {
-      // Regra de Ouro: Administrador Master vê TUDO
       if (isMaster || userPerms.canViewAllAppointments) return true;
 
       const cls = classes?.find(c => c.id === booking.schoolClassId);
       
-      // Verificação por Segmento
       if (userPerms.canViewSegmentAppointments) {
         if (profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
       }
 
-      // Verificação por Turma
       if (userPerms.canViewClassAppointments) {
         if (profile.classIds?.includes(booking.schoolClassId)) return true;
         if (booking.teacherId === profile.id) return true;
@@ -343,7 +335,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground"><FileText className="w-6 h-6" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-primary-foreground/80">Informações detalhadas sobre o agendamento.</DialogDescription>
+            <DialogDescription className="text-primary-foreground/80">Confira abaixo todos os detalhes registrados para este agendamento.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="p-8 space-y-6">
@@ -374,7 +366,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0">
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white"><Edit3 className="w-6 h-6" /> Reagendar Sessão</DialogTitle>
-            <DialogDescription className="text-orange-50/80">Ajuste a data, o horário ou o local da sessão.</DialogDescription>
+            <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
           </DialogHeader>
           {editingBooking && (
             <div className="p-8 space-y-6">
