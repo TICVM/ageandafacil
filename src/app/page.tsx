@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Camera, LogIn, Loader2 } from 'lucide-react';
+import { Camera, LogIn, Loader2, Zap } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
@@ -43,7 +43,6 @@ export default function LoginPage() {
         description: "Bem-vindo ao SchoolLens."
       });
       
-      // Força o redirecionamento imediato
       router.push('/dashboard');
     } catch (error: any) {
       setIsSubmitting(false);
@@ -117,11 +116,29 @@ export default function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" disabled={isSubmitting} className="w-full h-11 text-lg font-semibold group">
+          <CardFooter className="flex flex-col gap-3">
+            <Button type="submit" disabled={isSubmitting} className="w-full h-11 text-lg font-semibold group rounded-xl">
               {isSubmitting ? <Loader2 className="mr-2 w-5 h-5 animate-spin" /> : 'Entrar'}
               {!isSubmitting && <LogIn className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </Button>
+            
+            <div className="relative w-full py-2">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-200"></span></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-muted-foreground">Ou se preferir</span></div>
+            </div>
+
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full h-11 rounded-xl border-primary text-primary font-bold gap-2 hover:bg-primary/5"
+              onClick={() => router.push('/reserva')}
+            >
+              <Zap className="w-4 h-4 fill-primary" />
+              Agendamento Rápido
+            </Button>
+            <p className="text-[10px] text-center text-muted-foreground mt-2">
+              * O agendamento rápido requer apenas seu e-mail funcional cadastrado.
+            </p>
           </CardFooter>
         </form>
       </Card>

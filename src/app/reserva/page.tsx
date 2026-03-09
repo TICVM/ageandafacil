@@ -13,10 +13,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert, ArrowLeft, Mail, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, serverTimestamp, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, addDoc, doc, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
 import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, HistoryEntry } from '@/lib/types';
 import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
@@ -40,6 +40,11 @@ export default function PublicBookingPage() {
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+
+  // Estados para identificação rápida por e-mail
+  const [guestEmail, setGuestEmail] = useState('');
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [isIdentified, setIsIdentified] = useState(false);
 
   const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
@@ -72,6 +77,7 @@ export default function PublicBookingPage() {
           const profileData = userDoc.data() as User;
           setProfile(profileData);
           setTeacherName(profileData.name || '');
+          setIsIdentified(true);
           
           if (profileData.roleId === 'ADMIN' || isMasterEmail) {
             setUserPerms({
@@ -79,7 +85,8 @@ export default function PublicBookingPage() {
               canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
               canViewSegmentAppointments: true, canViewClassAppointments: true,
               canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-              canCreateBookings: true, canChangeStatus: true
+              canCreateBookings: true, canChangeStatus: true,
+              canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
             });
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', profileData.roleId));
@@ -90,12 +97,14 @@ export default function PublicBookingPage() {
         } else if (isMasterEmail) {
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: userEmail || '', roleId: 'ADMIN' });
           setTeacherName('Herbert Pacheco');
+          setIsIdentified(true);
           setUserPerms({
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
             canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
             canViewSegmentAppointments: true, canViewClassAppointments: true,
             canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true, canChangeStatus: true
+            canCreateBookings: true, canChangeStatus: true,
+            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
           });
         }
       } catch (err) {
@@ -107,12 +116,59 @@ export default function PublicBookingPage() {
     fetchProfile();
   }, [db, authUser]);
 
+  // Função para identificar usuário sem login via e-mail
+  const handleVerifyGuestEmail = async () => {
+    if (!guestEmail || !db) return;
+    setIsVerifyingEmail(true);
+    try {
+      const q = query(collection(db, 'users'), where('email', '==', guestEmail.toLowerCase().trim()), limit(1));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const userData = snap.docs[0].data() as User;
+        const userId = snap.docs[0].id;
+        setProfile({ ...userData, id: userId });
+        setTeacherName(userData.name || '');
+        setIsIdentified(true);
+
+        // Busca permissões baseadas no papel
+        if (userData.roleId === 'ADMIN') {
+          setUserPerms({
+            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+            canViewSegmentAppointments: true, canViewClassAppointments: true,
+            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+            canCreateBookings: true, canChangeStatus: true,
+            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
+          });
+        } else {
+          const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
+          if (roleDoc.exists()) {
+            setUserPerms(roleDoc.data() as RoleConfig);
+          }
+        }
+        toast({ title: "Olá, " + userData.name, description: "Identificação realizada com sucesso." });
+      } else {
+        toast({ 
+          variant: "destructive",
+          title: "Acesso Negado", 
+          description: "E-mail não cadastrado. Por favor, peça para o seu coordenador ou administrador efetuar seu cadastro antes de realizar o agendamento." 
+        });
+      }
+    } catch (e) {
+      toast({ title: "Erro na verificação", variant: "destructive" });
+    } finally {
+      setIsVerifyingEmail(false);
+    }
+  };
+
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const locations = rawLocations || [];
 
   const filteredClasses = rawClasses?.filter(c => {
     if (!profile || !userPerms) return false;
-    if (profile.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) return true;
+    const userEmail = profile.email?.toLowerCase().trim();
+    if (profile.roleId === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) return true;
     if (userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(c.schoolSegmentId)) return true;
     if (userPerms.canViewClassAppointments && profile.classIds?.includes(c.id)) return true;
     return false;
@@ -124,7 +180,8 @@ export default function PublicBookingPage() {
 
   const filteredLocations = locations?.filter(l => {
     if (!l.isActive) return false;
-    if (profile?.roleId === 'ADMIN' || authUser?.email === 'herbertpacheco@cvmsp.com.br') return true;
+    const userEmail = profile?.email?.toLowerCase().trim();
+    if (profile?.roleId === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br') return true;
     if (!selectedSegment || !selectedSegment.unit) return true;
     return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
   }) || [];
@@ -191,11 +248,11 @@ export default function PublicBookingPage() {
   };
 
   const handleSchedule = () => {
-    if (!userPerms?.canCreateBookings) {
+    if (userPerms && !userPerms.canCreateBookings) {
       toast({ title: "Acesso Negado", description: "Seu perfil não tem permissão para criar reservas.", variant: "destructive" });
       return;
     }
-    if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db) {
+    if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
       toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
       return;
     }
@@ -212,15 +269,15 @@ export default function PublicBookingPage() {
     
     const initialHistory: HistoryEntry = {
       timestamp: new Date().toISOString(),
-      userId: authUser?.uid || 'anonymous',
-      userName: profile?.name || teacherName,
+      userId: profile.id,
+      userName: profile.name || teacherName,
       action: 'CRIACAO',
       details: `Reserva inicial realizada para o dia ${format(date, 'dd/MM/yyyy')} às ${slot.startTime}.`
     };
 
     addDoc(collection(db, 'appointments'), {
       schoolClassId: selectedClassId,
-      teacherId: authUser?.uid || null,
+      teacherId: profile.id,
       teacherName: teacherName,
       photoLocationId: selectedLocationId,
       locationIdentifier: locationIdentifier || null,
@@ -239,21 +296,10 @@ export default function PublicBookingPage() {
 
   if (loadingProfile) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><Loader2 className="animate-spin text-primary" /></div>;
 
-  if (userPerms && !userPerms.canCreateBookings) {
-    return (
-      <div className="min-h-screen bg-[#ECF1FA] flex flex-col items-center justify-center text-center p-4 space-y-4">
-        <ShieldAlert className="w-16 h-16 text-destructive opacity-50" />
-        <h2 className="text-3xl font-bold">Acesso Restrito</h2>
-        <p className="text-muted-foreground max-w-md">Seu perfil atual não permite a criação de agendamentos.</p>
-        <Button onClick={() => router.push('/dashboard')} className="rounded-xl">Voltar ao Painel</Button>
-      </div>
-    );
-  }
-
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden">
+        <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in duration-300">
           <div className="bg-primary p-8 text-center text-primary-foreground">
             <CheckCircle2 className="w-16 h-16 mx-auto mb-4" />
             <h2 className="text-3xl font-bold">Sessão Agendada!</h2>
@@ -277,11 +323,11 @@ export default function PublicBookingPage() {
         <div className="flex justify-between items-center">
           <Button 
             variant="ghost" 
-            onClick={() => router.push('/dashboard')} 
+            onClick={() => router.push(authUser ? '/dashboard' : '/')} 
             className="rounded-xl gap-2 text-muted-foreground hover:text-primary transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Voltar ao Painel
+            {authUser ? 'Voltar ao Painel' : 'Voltar para Login'}
           </Button>
         </div>
 
@@ -291,106 +337,181 @@ export default function PublicBookingPage() {
           <p className="text-muted-foreground">Sistema de Agendamento Inteligente</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-2 space-y-8">
-            {dayBlock && (
-              <div className="bg-destructive/10 border-2 border-destructive/20 p-6 rounded-3xl flex items-center gap-4">
-                <ShieldAlert className="w-6 h-6 text-destructive" />
-                <p className="text-sm text-destructive font-medium">Bloqueio Administrativo: {dayBlock.reason}</p>
+        {!isIdentified ? (
+          <Card className="max-w-md mx-auto shadow-xl border-none rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <CardHeader className="bg-primary text-primary-foreground p-6 text-center">
+              <CardTitle className="text-xl">Identificação Rápida</CardTitle>
+              <CardDescription className="text-primary-foreground/80">Informe seu e-mail funcional para iniciar o agendamento.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold flex items-center gap-2 text-slate-600">
+                  <Mail className="w-4 h-4" /> E-mail Institucional
+                </label>
+                <Input 
+                  placeholder="ex: professor@escola.com" 
+                  value={guestEmail} 
+                  onChange={(e) => setGuestEmail(e.target.value)} 
+                  className="rounded-xl h-12 border-slate-200"
+                />
               </div>
-            )}
-
-            <Card className="shadow-xl border-none rounded-3xl overflow-hidden">
-              <CardHeader className="bg-primary text-primary-foreground p-6">
-                <CardTitle className="flex items-center gap-2"><CalendarIcon className="w-5 h-5" /> Reserva de Sessão</CardTitle>
-                <CardDescription className="text-primary-foreground/80">Selecione os detalhes abaixo para agendar suas fotos.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-8 space-y-6 bg-white">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">Nome do Responsável</label>
-                  <Input value={teacherName} onChange={(e) => setTeacherName(e.target.value)} className="rounded-xl h-11" readOnly={!!profile} />
+              <Button 
+                onClick={handleVerifyGuestEmail} 
+                disabled={isVerifyingEmail || !guestEmail} 
+                className="w-full rounded-xl h-12 gap-2 text-lg"
+              >
+                {isVerifyingEmail ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                Verificar E-mail
+              </Button>
+            </CardContent>
+            <CardFooter className="bg-muted/30 p-4 text-center">
+              <p className="text-[10px] text-muted-foreground">
+                Seu e-mail deve estar previamente cadastrado no sistema por um administrador.
+              </p>
+            </CardFooter>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="md:col-span-2 space-y-8 animate-in fade-in duration-500">
+              {dayBlock && (
+                <div className="bg-destructive/10 border-2 border-destructive/20 p-6 rounded-3xl flex items-center gap-4">
+                  <ShieldAlert className="w-6 h-6 text-destructive" />
+                  <p className="text-sm text-destructive font-medium">Bloqueio Administrativo: {dayBlock.reason}</p>
                 </div>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Turma</label>
-                    <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
-                      <SelectContent>
-                        {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma disponível.</div>}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Local da Foto</label>
-                    <Select onValueChange={setSelectedLocationId} value={selectedLocationId} disabled={!selectedClassId}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
-                      <SelectContent>
-                        {filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {selectedLocation?.requiresIdentifier && (
-                  <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border border-primary/10">
-                    <label className="text-sm font-bold flex items-center gap-2 text-primary"><Hash className="w-4 h-4" /> Qual sala ou número?</label>
-                    <Input placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Data</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {date ? format(date, "PPP", { locale: ptBR }) : <span>Escolha a data</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < new Date()} />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Horário</label>
-                    <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
-                      <SelectContent>
-                        {availableSlots.length > 0 ? availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground">Indisponível para esta data.</div>}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
+              <Card className="shadow-xl border-none rounded-3xl overflow-hidden">
+                <CardHeader className="bg-primary text-primary-foreground p-6">
                   <div className="flex justify-between items-center">
-                    <label className="text-sm font-semibold">Observações (Para o Briefing)</label>
-                    <Button type="button" variant="ghost" size="sm" className="text-primary gap-1" onClick={handleGenerateAiBrief} disabled={isAiLoading || !notes}>
-                      {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} Assistente IA
-                    </Button>
+                    <div>
+                      <CardTitle className="flex items-center gap-2"><CalendarIcon className="w-5 h-5" /> Reserva de Sessão</CardTitle>
+                      <CardDescription className="text-primary-foreground/80">Selecione os detalhes abaixo para agendar suas fotos.</CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-primary-foreground border-primary-foreground/20 gap-1">
+                      <UserIcon className="w-3 h-3" /> {profile?.name}
+                    </Badge>
                   </div>
-                  <Textarea placeholder="Alunos estarão fazendo atividade X..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/30 p-8 flex justify-center">
-                <Button onClick={handleSchedule} className="w-full max-w-sm rounded-2xl h-14 bg-primary text-xl font-bold shadow-lg">CONCLUIR RESERVA</Button>
-              </CardFooter>
-            </Card>
-          </div>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6 bg-white">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold">Docente Responsável</label>
+                    <Input value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
+                  </div>
 
-          <div className="space-y-6">
-            <Card className="border-none shadow-xl bg-accent/5 rounded-3xl">
-              <CardHeader className="p-6"><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent-foreground" /> Briefing IA</CardTitle></CardHeader>
-              <CardContent className="p-6 pt-0">
-                {aiBrief ? <div className="p-4 bg-white rounded-2xl border text-xs text-muted-foreground">{aiBrief.detailedBrief}</div> : <div className="text-center py-10 px-4 border-2 border-dashed rounded-2xl text-xs text-muted-foreground italic">Escreva suas notas para gerar um briefing detalhado automaticamente.</div>}
-              </CardContent>
-            </Card>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold">Turma</label>
+                      <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId}>
+                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
+                        <SelectContent>
+                          {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma disponível para seu perfil.</div>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold">Local da Foto</label>
+                      <Select onValueChange={setSelectedLocationId} value={selectedLocationId} disabled={!selectedClassId}>
+                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
+                        <SelectContent>
+                          {filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {selectedLocation?.requiresIdentifier && (
+                    <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border border-primary/10">
+                      <label className="text-sm font-bold flex items-center gap-2 text-primary"><Hash className="w-4 h-4" /> Qual sala ou número?</label>
+                      <Input placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold">Data</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date ? format(date, "PPP", { locale: ptBR }) : <span>Escolha a data</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < new Date()} />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold">Horário</label>
+                      <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId}>
+                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
+                        <SelectContent>
+                          {availableSlots.length > 0 ? availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground">Indisponível para esta data ou turma.</div>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-semibold">Observações (Para o Briefing)</label>
+                      <Button type="button" variant="ghost" size="sm" className="text-primary gap-1" onClick={handleGenerateAiBrief} disabled={isAiLoading || !notes}>
+                        {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} Assistente IA
+                      </Button>
+                    </div>
+                    <Textarea placeholder="Descreva brevemente como será a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-muted/30 p-8 flex justify-center">
+                  <Button 
+                    onClick={handleSchedule} 
+                    className="w-full max-w-sm rounded-2xl h-14 bg-primary text-xl font-bold shadow-lg hover:scale-105 transition-transform"
+                    disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}
+                  >
+                    CONCLUIR RESERVA
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card className="border-none shadow-xl bg-accent/5 rounded-3xl animate-in fade-in duration-700">
+                <CardHeader className="p-6"><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent-foreground" /> Briefing IA</CardTitle></CardHeader>
+                <CardContent className="p-6 pt-0">
+                  {aiBrief ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-white rounded-2xl border text-xs text-muted-foreground italic leading-relaxed">
+                        {aiBrief.detailedBrief}
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Sugestões de Fotos:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {aiBrief.preferredShots.slice(0, 3).map((shot, i) => (
+                            <Badge key={i} variant="outline" className="bg-white text-[9px]">{shot}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 px-4 border-2 border-dashed rounded-2xl text-xs text-muted-foreground italic">
+                      Escreva suas notas e use o botão "Assistente IA" para gerar um briefing profissional automaticamente.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="bg-primary/5 p-6 rounded-3xl border border-dashed border-primary/20">
+                <h4 className="text-sm font-bold text-primary flex items-center gap-2 mb-2">
+                  <Building2 className="w-4 h-4" /> Unidade Escolar
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  As opções de locais e horários são filtradas automaticamente com base no seu cadastro docente.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
