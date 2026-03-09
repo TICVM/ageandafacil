@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -101,7 +102,7 @@ export default function RolesAdminPage() {
             <TableHeader className="bg-muted/5">
               <TableRow>
                 <TableHead className="font-bold">Nome do Perfil</TableHead>
-                <TableHead className="font-bold">Nível de Agenda</TableHead>
+                <TableHead className="font-bold">Acesso de Agenda</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -129,7 +130,7 @@ export default function RolesAdminPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-200 text-blue-700">Agenda</Badge> : 
+                      {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-200 text-blue-700">Total</Badge> : 
                        role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-200 text-purple-700">Segmento</Badge> :
                        <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-200 text-orange-700">Individual</Badge>}
                       {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px]">Edição</Badge>}
@@ -139,8 +140,8 @@ export default function RolesAdminPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)}><Edit2 className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'}><Trash2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setEditingRole(role)} aria-label="Editar perfil"><Edit2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(role.id)} disabled={role.name.toUpperCase() === 'ADMIN'} aria-label="Remover perfil"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -176,13 +177,15 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   const renderPermissionToggle = (label: string, field: keyof AppPermissions, icon?: any, colorClass?: string) => {
     const Icon = icon;
+    const switchId = `perm-${field}`;
     return (
       <div className={`flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all ${colorClass}`}>
         <div className="flex items-center gap-2">
           {Icon && <Icon className="w-4 h-4" />}
-          <span className="text-sm font-medium">{label}</span>
+          <Label htmlFor={switchId} className="text-sm font-medium cursor-pointer">{label}</Label>
         </div>
         <Switch 
+          id={switchId}
           checked={role[field]} 
           onCheckedChange={(v) => setRole({ ...role, [field]: v })}
         />
@@ -206,8 +209,10 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
         <ScrollArea className="max-h-[75vh] bg-[#F8FAFC]">
           <div className="p-8 space-y-10">
             <div className="space-y-3">
-              <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</label>
+              <Label htmlFor="role-name" className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</Label>
               <Input 
+                id="role-name"
+                name="name"
                 placeholder="Ex: Coordenador Pedagógico" 
                 value={role.name} 
                 onChange={(e) => setRole({ ...role, name: e.target.value })} 
@@ -246,7 +251,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                   {renderPermissionToggle("Fazer Novas Reservas", "canCreateBookings", Plus, "text-orange-700")}
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Visualização</p>
-                    {renderPermissionToggle("Agenda", "canViewAllAppointments", Eye, "bg-blue-50/30")}
+                    {renderPermissionToggle("Ver Agenda Total", "canViewAllAppointments", Eye, "bg-blue-50/30")}
                     {renderPermissionToggle("Agenda por Segmento", "canViewSegmentAppointments", Eye, "bg-purple-50/30")}
                     {renderPermissionToggle("Agenda por Turma", "canViewClassAppointments", Eye, "bg-orange-50/30")}
                   </div>

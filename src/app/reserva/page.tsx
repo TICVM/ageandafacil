@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
@@ -355,10 +356,12 @@ export default function PublicBookingPage() {
             </CardHeader>
             <CardContent className="p-8 space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-semibold flex items-center gap-2 text-slate-600">
+                <Label htmlFor="guest-email" className="text-sm font-semibold flex items-center gap-2 text-slate-600">
                   <Mail className="w-4 h-4" /> E-mail Institucional
-                </label>
+                </Label>
                 <Input 
+                  id="guest-email"
+                  name="email"
                   placeholder="ex: professor@escola.com" 
                   value={guestEmail} 
                   onChange={(e) => setGuestEmail(e.target.value)} 
@@ -404,24 +407,24 @@ export default function PublicBookingPage() {
                 </CardHeader>
                 <CardContent className="p-8 space-y-6 bg-white">
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Docente Responsável</label>
-                    <Input value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
+                    <Label htmlFor="teacher-name-display" className="text-sm font-semibold">Docente Responsável</Label>
+                    <Input id="teacher-name-display" name="teacher_name" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Turma</label>
+                      <Label htmlFor="class-select" className="text-sm font-semibold">Turma</Label>
                       <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId} modal={false}>
-                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
+                        <SelectTrigger id="class-select" className="rounded-xl h-11" aria-haspopup="listbox"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
                         <SelectContent>
                           {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma disponível para seu perfil.</div>}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Local da Foto</label>
+                      <Label htmlFor="location-select" className="text-sm font-semibold">Local da Foto</Label>
                       <Select onValueChange={setSelectedLocationId} value={selectedLocationId} disabled={!selectedClassId} modal={false}>
-                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
+                        <SelectTrigger id="location-select" className="rounded-xl h-11" aria-haspopup="listbox"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
                         <SelectContent>
                           {filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                         </SelectContent>
@@ -431,17 +434,17 @@ export default function PublicBookingPage() {
 
                   {selectedLocation?.requiresIdentifier && (
                     <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border border-primary/10">
-                      <label className="text-sm font-bold flex items-center gap-2 text-primary"><Hash className="w-4 h-4" /> Qual sala ou número?</label>
-                      <Input placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
+                      <Label htmlFor="location-identifier" className="text-sm font-bold flex items-center gap-2 text-primary"><Hash className="w-4 h-4" /> Qual sala ou número?</Label>
+                      <Input id="location-identifier" name="location_id" placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Data</label>
+                      <Label htmlFor="date-popover-trigger" className="text-sm font-semibold">Data</Label>
                       <Popover modal={false}>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
+                          <Button id="date-popover-trigger" variant="outline" className="w-full h-11 justify-start rounded-xl" aria-haspopup="dialog">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {date ? format(date, "PPP", { locale: ptBR }) : <span>Escolha a data</span>}
                           </Button>
@@ -453,9 +456,9 @@ export default function PublicBookingPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Horário</label>
+                      <Label htmlFor="slot-select" className="text-sm font-semibold">Horário</Label>
                       <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
+                        <SelectTrigger id="slot-select" className="rounded-xl h-11" aria-haspopup="listbox"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
                         <SelectContent>
                           {availableSlots.length > 0 ? availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground">Indisponível para esta data ou turma.</div>}
                         </SelectContent>
@@ -465,12 +468,12 @@ export default function PublicBookingPage() {
 
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <label className="text-sm font-semibold">Observações (Para o Briefing)</label>
+                      <Label htmlFor="booking-notes" className="text-sm font-semibold">Observações (Para o Briefing)</Label>
                       <Button type="button" variant="ghost" size="sm" className="text-primary gap-1" onClick={handleGenerateAiBrief} disabled={isAiLoading || !notes}>
                         {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} Assistente IA
                       </Button>
                     </div>
-                    <Textarea placeholder="Descreva brevemente como será a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                    <Textarea id="booking-notes" name="notes" placeholder="Descreva brevemente como será a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
                   </div>
                 </CardContent>
                 <CardFooter className="bg-muted/30 p-8 flex justify-center">

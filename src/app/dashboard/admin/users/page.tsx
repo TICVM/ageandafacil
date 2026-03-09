@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -70,7 +71,6 @@ export default function UsersAdminPage() {
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, newUser.password);
       const uid = userCredential.user.uid;
       
-      // Se for ADMIN, garantimos que os arrays de vinculação fiquem vazios por padrão (pois tem acesso total)
       const isAdmin = newUser.roleId === 'ADMIN';
 
       await setDoc(doc(db, 'users', uid), {
@@ -190,26 +190,26 @@ export default function UsersAdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Nome Completo</label>
-                  <Input placeholder="Ex: Maria Silva" value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} className="rounded-xl" />
+                  <Label htmlFor="new-user-name" className="text-sm font-semibold">Nome Completo</Label>
+                  <Input id="new-user-name" name="name" placeholder="Ex: Maria Silva" value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">E-mail</label>
-                  <Input type="email" placeholder="maria@escola.com" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="rounded-xl" />
+                  <Label htmlFor="new-user-email" className="text-sm font-semibold">E-mail</Label>
+                  <Input id="new-user-email" name="email" type="email" placeholder="maria@escola.com" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Senha Inicial</label>
+                  <Label htmlFor="new-user-password" className="text-sm font-semibold">Senha Inicial</Label>
                   <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="rounded-xl pr-10" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    <Input id="new-user-password" name="password" type={showPassword ? "text" : "password"} value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="rounded-xl pr-10" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Papel no Sistema</label>
-                  <Select value={newUser.roleId} onValueChange={(val) => setNewUser({...newUser, roleId: val})}>
-                    <SelectTrigger className="rounded-xl">
+                  <Label htmlFor="new-user-role" className="text-sm font-semibold">Papel no Sistema</Label>
+                  <Select value={newUser.roleId} onValueChange={(val) => setNewUser({...newUser, roleId: val})} modal={false}>
+                    <SelectTrigger id="new-user-role" className="rounded-xl" aria-haspopup="listbox">
                       <SelectValue placeholder="Selecione o papel" />
                     </SelectTrigger>
                     <SelectContent>
@@ -222,20 +222,19 @@ export default function UsersAdminPage() {
                 </div>
               </div>
 
-              {/* Oculta vinculação se for administrador (já tem acesso total por padrão) */}
               {newUser.roleId !== 'ADMIN' ? (
                 <div className="space-y-4 border-l pl-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold flex items-center gap-2">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" />
                       Vincular Segmentos
-                    </label>
+                    </Label>
                     <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                       <div className="space-y-3">
                         {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                           <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
                             <Checkbox id={`seg-${seg.id}`} checked={newUser.segmentIds.includes(seg.id)} onCheckedChange={() => handleToggleSegment(seg.id)} />
-                            <label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                            <Label htmlFor={`seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</Label>
                           </div>
                         ))}
                       </div>
@@ -243,16 +242,16 @@ export default function UsersAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold flex items-center gap-2">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
                       <Layers className="w-4 h-4 text-primary" />
                       Vincular Turmas
-                    </label>
+                    </Label>
                     <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                       <div className="space-y-3">
                         {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                           <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg shadow-sm border border-transparent hover:border-primary/20">
                             <Checkbox id={`cls-${cls.id}`} checked={newUser.classIds.includes(cls.id)} onCheckedChange={() => handleToggleClass(cls.id)} />
-                            <label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
+                            <Label htmlFor={`cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</Label>
                           </div>
                         ))}
                       </div>
@@ -278,8 +277,9 @@ export default function UsersAdminPage() {
       <Card className="border-none shadow-md overflow-hidden bg-white">
         <div className="p-4 border-b bg-muted/10">
           <div className="relative max-w-sm">
+            <Label htmlFor="search-users" className="sr-only">Buscar usuários</Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input id="search-users" name="search" placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </div>
         {isLoading ? (
@@ -316,10 +316,10 @@ export default function UsersAdminPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => { setEditingUser(u); setIsEditDialogOpen(true); }}>
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => { setEditingUser(u); setIsEditDialogOpen(true); }} aria-label="Editar usuário">
                         <Edit2 className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(u.id)}>
+                      <Button variant="ghost" size="icon" className="rounded-full text-destructive" onClick={() => handleRemove(u.id)} aria-label="Remover usuário">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -331,20 +331,19 @@ export default function UsersAdminPage() {
         )}
       </Card>
 
-      {/* Modal de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="rounded-2xl max-w-2xl">
           <DialogHeader><DialogTitle>Editar Perfil</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Nome Completo</label>
-                <Input value={editingUser?.name || ''} onChange={(e) => setEditingUser(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
+                <Label htmlFor="edit-user-name" className="text-sm font-semibold">Nome Completo</Label>
+                <Input id="edit-user-name" name="name" value={editingUser?.name || ''} onChange={(e) => setEditingUser(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Papel no Sistema</label>
-                <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)}>
-                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <Label htmlFor="edit-user-role" className="text-sm font-semibold">Papel no Sistema</Label>
+                <Select value={editingUser?.roleId} onValueChange={(val) => setEditingUser(prev => prev ? {...prev, roleId: val} : null)} modal={false}>
+                  <SelectTrigger id="edit-user-role" className="rounded-xl" aria-haspopup="listbox"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ADMIN" className="font-bold text-primary">Administrador (Total)</SelectItem>
                     {availableRoles?.filter(r => r.id !== 'ADMIN').map(role => (
@@ -358,26 +357,26 @@ export default function UsersAdminPage() {
             {editingUser?.roleId !== 'ADMIN' ? (
               <div className="space-y-4 border-l pl-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Vincular Segmentos</label>
+                  <Label className="text-sm font-semibold">Vincular Segmentos</Label>
                   <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                         <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
                           <Checkbox id={`edit-seg-${seg.id}`} checked={editingUser?.segmentIds?.includes(seg.id) || false} onCheckedChange={() => handleToggleSegment(seg.id, true)} />
-                          <label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</label>
+                          <Label htmlFor={`edit-seg-${seg.id}`} className="text-xs font-medium cursor-pointer flex-1">{seg.name} {seg.unit ? `(${seg.unit})` : ''}</Label>
                         </div>
                       ))}
                     </div>
                   </ScrollArea>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold">Turmas do Docente</label>
+                  <Label className="text-sm font-semibold">Turmas do Docente</Label>
                   <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                         <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
                           <Checkbox id={`edit-cls-${cls.id}`} checked={editingUser?.classIds?.includes(cls.id) || false} onCheckedChange={() => handleToggleClass(cls.id, true)} />
-                          <label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</label>
+                          <Label htmlFor={`edit-cls-${cls.id}`} className="text-xs font-medium cursor-pointer flex-1">{cls.name}</Label>
                         </div>
                       ))}
                     </div>
