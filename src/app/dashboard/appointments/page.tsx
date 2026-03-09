@@ -18,7 +18,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, TimeSlot, ScheduleBlock } from '@/lib/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -106,25 +105,7 @@ export default function AppointmentsPage() {
   const { data: slots } = useCollection<TimeSlot>(slotsRef);
   const { data: blocks } = useCollection<ScheduleBlock>(blocksRef);
 
-  const handleOpenEdit = useCallback((booking: Booking) => {
-    if (!slots) return;
-    
-    const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
-    setEditDate(bookingDate);
-    setEditLocationId(booking.photoLocationId);
-    setEditIdentifier(booking.locationIdentifier || '');
-    setEditNotes(booking.observations || '');
-    
-    const dayOfWeekStr = bookingDate.getDay().toString();
-    const matchingSlot = slots.find(s => 
-      s.startTime === booking.startTime && 
-      s.dayOfWeek === dayOfWeekStr
-    );
-    
-    setEditSlotId(matchingSlot?.id || '');
-    setEditingBooking(booking);
-  }, [slots]);
-
+  // Memoizar horários disponíveis para evitar loops e travamentos
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
     
@@ -132,6 +113,7 @@ export default function AppointmentsPage() {
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classes.find(c => c.id === editingBooking.schoolClassId);
     
+    // Agendamentos ocupados no dia (exceto o próprio que estamos editando)
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
       app.appointmentDate === dateStr && 
@@ -139,8 +121,10 @@ export default function AppointmentsPage() {
     ).map(app => app.startTime) || [];
 
     return slots.filter(s => {
+      // Filtrar por dia da semana
       if (s.dayOfWeek !== dayOfWeekStr) return false;
 
+      // Filtrar por pertinência (específico para a turma, segmento ou global)
       const targetMatches = s.schoolClassId 
         ? s.schoolClassId === editingBooking.schoolClassId
         : s.schoolSegmentId 
@@ -149,11 +133,16 @@ export default function AppointmentsPage() {
       
       if (!targetMatches) return false;
       
-      const isOriginalSlot = editingBooking.startTime === s.startTime && 
-                            editingBooking.appointmentDate === dateStr;
+      // Sempre permitir o horário que JÁ ESTÁ marcado para esta sessão específica
+      const isCurrentlyBookedSlot = editingBooking.startTime === s.startTime && 
+                                   editingBooking.appointmentDate === dateStr;
       
-      if (!isOriginalSlot && takenStartTimes.includes(s.startTime)) return false;
+      if (isCurrentlyBookedSlot) return true;
 
+      // Se já estiver ocupado por outra pessoa, remover
+      if (takenStartTimes.includes(s.startTime)) return false;
+
+      // Se estiver dentro de um bloco administrativo, remover
       const slotStartMin = timeToMin(s.startTime);
       const slotEndMin = slotStartMin + (s.durationMinutes || 60);
       
@@ -168,9 +157,33 @@ export default function AppointmentsPage() {
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
+  const handleOpenEdit = useCallback((booking: Booking) => {
+    if (!slots) {
+      toast({ title: "Aguarde", description: "Os horários ainda estão carregando.", variant: "destructive" });
+      return;
+    }
+    
+    const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
+    setEditDate(bookingDate);
+    setEditLocationId(booking.photoLocationId);
+    setEditIdentifier(booking.locationIdentifier || '');
+    setEditNotes(booking.observations || '');
+    
+    const dayOfWeekStr = bookingDate.getDay().toString();
+    
+    // Tenta encontrar o slot exato que corresponde ao horário atual
+    const matchingSlot = slots.find(s => 
+      s.startTime === booking.startTime && 
+      s.dayOfWeek === dayOfWeekStr
+    );
+    
+    setEditSlotId(matchingSlot?.id || '');
+    setEditingBooking(booking);
+  }, [slots]);
+
   const handleSaveEdit = () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId) {
-      toast({ title: "Dados Incompletos", variant: "destructive" });
+      toast({ title: "Dados Incompletos", description: "Verifique a data e o horário selecionado.", variant: "destructive" });
       return;
     }
 
@@ -196,6 +209,7 @@ export default function AppointmentsPage() {
 
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
 
+    // Fechar e limpar estados
     setEditingBooking(null);
     setIsSaving(false);
     toast({ title: "Sessão Atualizada!" });
@@ -382,9 +396,19 @@ export default function AppointmentsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Novo Horário</label>
                   <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl h-11">
+                      <SelectValue placeholder="Escolha o horário" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>)}
+                      {availableSlots.length > 0 ? (
+                        availableSlots.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.startTime} ({s.durationMinutes} min)
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível para esta data.</div>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
