@@ -353,7 +353,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)} aria-haspopup="listbox">
                               <status.icon className="w-3 h-3" />
@@ -394,14 +394,14 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
                           setTimeout(() => setSelectedBooking(b), 100);
                         }} aria-haspopup="dialog"><Info className="w-4 h-4" /></Button>
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full" aria-haspopup="listbox"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl p-2">
                             {userPerms.canEditAppointments && (
                               <DropdownMenuItem onSelect={() => {
-                                setTimeout(() => handleOpenEdit(b), 100);
+                                setTimeout(() => handleOpenEdit(b), 150);
                               }} className="gap-2 cursor-pointer">
                                 <Edit3 className="w-3.5 h-3.5" /> Reagendar / Editar
                               </DropdownMenuItem>
@@ -522,7 +522,7 @@ export default function AppointmentsPage() {
                           if (d) {
                             setEditDate(d);
                             setEditSlotId('');
-                            setIsCalendarOpen(false);
+                            setTimeout(() => setIsCalendarOpen(false), 100);
                           }
                         }} 
                         locale={ptBR} 
