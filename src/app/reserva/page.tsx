@@ -41,7 +41,6 @@ export default function PublicBookingPage() {
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // Estados para identificação rápida por e-mail
   const [guestEmail, setGuestEmail] = useState('');
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [isIdentified, setIsIdentified] = useState(false);
@@ -62,7 +61,6 @@ export default function PublicBookingPage() {
 
   useEffect(() => {
     async function fetchProfile() {
-      // Se o Firebase ainda estiver carregando o estado de auth, esperamos.
       if (isUserLoading) return;
 
       if (!db || !authUser) {
@@ -121,7 +119,6 @@ export default function PublicBookingPage() {
     fetchProfile();
   }, [db, authUser, isUserLoading]);
 
-  // Função para identificar usuário sem login via e-mail
   const handleVerifyGuestEmail = async () => {
     if (!guestEmail || !db) return;
     setIsVerifyingEmail(true);
@@ -136,7 +133,6 @@ export default function PublicBookingPage() {
         setTeacherName(userData.name || '');
         setIsIdentified(true);
 
-        // Busca permissões baseadas no papel
         if (userData.roleId === 'ADMIN') {
           setUserPerms({
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
@@ -299,7 +295,6 @@ export default function PublicBookingPage() {
     });
   };
 
-  // Trava de carregamento melhorada para evitar o flash da tela de convidado
   if (isUserLoading || (authUser && loadingProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
@@ -416,7 +411,7 @@ export default function PublicBookingPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-sm font-semibold">Turma</label>
-                      <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId}>
+                      <Select onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} value={selectedClassId} modal={false}>
                         <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a turma" /></SelectTrigger>
                         <SelectContent>
                           {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma disponível para seu perfil.</div>}
@@ -425,7 +420,7 @@ export default function PublicBookingPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-semibold">Local da Foto</label>
-                      <Select onValueChange={setSelectedLocationId} value={selectedLocationId} disabled={!selectedClassId}>
+                      <Select onValueChange={setSelectedLocationId} value={selectedLocationId} disabled={!selectedClassId} modal={false}>
                         <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
                         <SelectContent>
                           {filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
@@ -444,7 +439,7 @@ export default function PublicBookingPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-sm font-semibold">Data</label>
-                      <Popover>
+                      <Popover modal={false}>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -459,7 +454,7 @@ export default function PublicBookingPage() {
 
                     <div className="space-y-2">
                       <label className="text-sm font-semibold">Horário</label>
-                      <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId}>
+                      <Select onValueChange={setSelectedSlotId} value={selectedSlotId} disabled={!date || !selectedClassId} modal={false}>
                         <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha o horário" /></SelectTrigger>
                         <SelectContent>
                           {availableSlots.length > 0 ? availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground">Indisponível para esta data ou turma.</div>}

@@ -179,10 +179,9 @@ export default function AppointmentsPage() {
       setEditSlotId(matchingSlot?.id || '');
     }
     
-    // Pequeno atraso para garantir que o menu feche antes de abrir o diálogo (fix ARIA)
     setTimeout(() => {
       setEditingBooking(booking);
-    }, 100);
+    }, 150);
   }, [slots]);
 
   const handleSaveEdit = () => {
@@ -392,8 +391,7 @@ export default function AppointmentsPage() {
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => {
-                          // Atraso para evitar race condition de foco (fix ARIA)
-                          setTimeout(() => setSelectedBooking(b), 100);
+                          setTimeout(() => setSelectedBooking(b), 150);
                         }}><Info className="w-4 h-4" /></Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -507,7 +505,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-orange-500" /> Nova Data</label>
-                  <Popover>
+                  <Popover modal={false}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full h-11 justify-start rounded-xl">
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
@@ -520,7 +518,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Novo Horário</label>
-                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
+                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
                     <SelectTrigger className="rounded-xl h-11">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -541,7 +539,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500" /> Local</label>
-                  <Select value={editLocationId} onValueChange={setEditLocationId}>
+                  <Select value={editLocationId} onValueChange={setEditLocationId} modal={false}>
                     <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
