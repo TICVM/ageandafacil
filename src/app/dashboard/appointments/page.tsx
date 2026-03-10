@@ -25,19 +25,45 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+const STATUS_CONFIG = {
+  PENDING: {
+    label: 'Aguardando confirmação',
+    color: 'bg-orange-500 text-white',
+    icon: Clock
+  },
+  CONFIRMED: {
+    label: 'Confirmado',
+    color: 'bg-green-600 text-white',
+    icon: CheckCircle2
+  },
+  RESCHEDULED: {
+    label: 'Reagendado',
+    color: 'bg-blue-500 text-white',
+    icon: Edit3
+  },
+  CANCELLED: {
+    label: 'Cancelado',
+    color: 'bg-destructive text-white',
+    icon: XCircle
+  },
+  RE_SCHEDULE_REQUEST: {
+    label: 'Por favor reagendar',
+    color: 'bg-yellow-500 text-black',
+    icon: AlertTriangle
+  },
+  COMPLETED: {
+    label: 'Concluído',
+    color: 'bg-slate-600 text-white',
+    icon: CheckCircle
+  }
+} as const;
+
+type StatusKey = keyof typeof STATUS_CONFIG;
+
 const timeToMin = (t: string) => {
   if (!t) return 0;
   const [h, m] = t.split(':').map(Number);
   return (h * 60) + m;
-};
-
-const STATUS_CONFIG = {
-  PENDING: { label: 'Aguardando confirmação', color: 'bg-orange-500 text-white', icon: Clock },
-  CONFIRMED: { label: 'Confirmado', color: 'bg-green-600 text-white', icon: CheckCircle2 },
-  RESCHEDULED: { label: 'Reagendado', color: 'bg-blue-500 text-white', icon: Edit3 },
-  CANCELLED: { label: 'Cancelado', color: 'bg-destructive text-white', icon: XCircle },
-  RE_SCHEDULE_REQUEST: { label: 'Por favor reagendar', color: 'bg-yellow-500 text-black', icon: AlertTriangle },
-  COMPLETED: { label: 'Concluído', color: 'bg-slate-600 text-white', icon: CheckCircle },
 };
 
 export default function AppointmentsPage() {
@@ -118,11 +144,24 @@ export default function AppointmentsPage() {
   const { data: blocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
+  // Mapas para performance
+  const classMap = useMemo(() => {
+    const map: Record<string, Class> = {};
+    classes?.forEach(c => { map[c.id] = c; });
+    return map;
+  }, [classes]);
+
+  const locationMap = useMemo(() => {
+    const map: Record<string, PhotoLocation> = {};
+    locations?.forEach(l => { map[l.id] = l; });
+    return map;
+  }, [locations]);
+
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
     const dateStr = format(editDate, 'yyyy-MM-dd');
     const dayOfWeekStr = editDate.getDay().toString();
-    const cls = classes.find(c => c.id === editingBooking.schoolClassId);
+    const cls = classMap[editingBooking.schoolClassId];
     const now = new Date();
     const minAdvanceDays = appSettings?.minAdvanceRescheduleDays ?? 1;
     const minAdvanceHours = appSettings?.minAdvanceRescheduleHours ?? 0;
@@ -144,7 +183,7 @@ export default function AppointmentsPage() {
         return sM < timeToMin(block.endTime) && eM > timeToMin(block.startTime);
       });
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [slots, editDate, editingBooking, classes, list, blocks, appSettings]);
+  }, [slots, editDate, editingBooking, classes, list, blocks, appSettings, classMap]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
     setEditDate(undefined);
@@ -169,7 +208,7 @@ export default function AppointmentsPage() {
       userId: profile.id,
       userName: profile.name,
       action: 'REAGENDAMENTO',
-      details: `Reagendado de ${format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')} ${editingBooking.startTime} para ${format(editDate, 'dd/MM/yyyy')} ${slot.startTime}.`
+      details: `Reagendado de ${format(new Date(`${editingBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} ${editingBooking.startTime} para ${format(editDate, 'dd/MM/yyyy')} ${slot.startTime}.`
     };
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
       appointmentDate: format(editDate, 'yyyy-MM-dd'),
@@ -186,29 +225,51 @@ export default function AppointmentsPage() {
     toast({ title: "Sessão Reagendada!" });
   };
 
-  const handleUpdateStatus = (booking: Booking, newStatus: Booking['status']) => {
-    if (!db || !profile) return;
-    const newHistoryEntry: HistoryEntry = {
-      timestamp: new Date().toISOString(),
-      userId: profile.id,
-      userName: profile.name,
-      action: 'ALTERACAO_DE_STATUS',
-      details: `Status alterado para ${STATUS_CONFIG[newStatus].label}.`
-    };
-    updateDocumentNonBlocking(doc(db, 'appointments', booking.id), { status: newStatus, history: [...(booking.history || []), newHistoryEntry] });
-    toast({ title: "Status Atualizado" });
+  const handleUpdateStatus = useCallback(
+    (booking: Booking, newStatus: StatusKey) => {
+      if (!db || !profile) return;
+
+      const statusCfg = STATUS_CONFIG[newStatus];
+
+      const newHistoryEntry: HistoryEntry = {
+        timestamp: new Date().toISOString(),
+        userId: profile.id,
+        userName: profile.name,
+        action: 'ALTERACAO_DE_STATUS',
+        details: `Status alterado para ${statusCfg.label}.`
+      };
+
+      updateDocumentNonBlocking(
+        doc(db, 'appointments', booking.id),
+        {
+          status: newStatus,
+          history: [...(booking.history || []), newHistoryEntry]
+        }
+      );
+
+      toast({ title: "Status Atualizado" });
+    },
+    [db, profile]
+  );
+
+  const handleDelete = (id: string) => {
+    if (!db) return;
+    if (confirm("Deseja realmente excluir este agendamento?")) {
+      deleteDocumentNonBlocking(doc(db, 'appointments', id));
+      toast({ title: "Agendamento excluído" });
+    }
   };
 
   const filtered = useMemo(() => {
     if (!list || !userPerms || !profile) return [];
     return list.filter(booking => {
       if (isMaster || userPerms.canViewAllAppointments) return true;
-      const cls = classes?.find(c => c.id === booking.schoolClassId);
+      const cls = classMap[booking.schoolClassId];
       if (userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
       if (userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId)) return true;
       return booking.teacherId === profile.id;
     }).filter(b => !searchTerm || b.teacherName?.toLowerCase().includes(searchTerm.toLowerCase()) || b.appointmentDate.includes(searchTerm)).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
-  }, [list, userPerms, profile, classes, isMaster, searchTerm]);
+  }, [list, userPerms, profile, classMap, isMaster, searchTerm]);
 
   const minResDate = useMemo(() => addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays ?? 1), [appSettings]);
 
@@ -231,42 +292,55 @@ export default function AppointmentsPage() {
             <TableRow><TableHead className="font-bold">Data / Hora</TableHead><TableHead className="font-bold">Docente / Turma</TableHead><TableHead className="font-bold">Local</TableHead><TableHead className="font-bold">Status</TableHead><TableHead className="text-right font-bold">Ações</TableHead></TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((b) => (
-              <TableRow key={b.id} className="hover:bg-accent/5">
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 p-2 rounded-lg text-primary"><CalendarDays className="w-4 h-4" /></div>
-                    <div className="flex flex-col">
-                      <span className="font-bold">{format(new Date(b.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</span>
-                      <span className="text-xs text-muted-foreground">{b.startTime} - {b.endTime}</span>
+            {filtered.map((b) => {
+              const statusCfg = STATUS_CONFIG[b.status as StatusKey] ?? STATUS_CONFIG.PENDING;
+              const StatusIcon = statusCfg.icon;
+              return (
+                <TableRow key={b.id} className="hover:bg-accent/5">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 p-2 rounded-lg text-primary"><CalendarDays className="w-4 h-4" /></div>
+                      <div className="flex flex-col">
+                        <span className="font-bold">{format(new Date(`${b.appointmentDate}T00:00:00`), 'dd/MM/yyyy')}</span>
+                        <span className="text-xs text-muted-foreground">{b.startTime} - {b.endTime}</span>
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell><div className="flex flex-col"><span className="font-bold">{b.teacherName}</span><span className="text-xs text-muted-foreground">{classes?.find(c => c.id === b.schoolClassId)?.name}</span></div></TableCell>
-                <TableCell><div className="flex items-center gap-1.5 text-sm"><MapPin className="w-3 h-3 text-primary" />{locations?.find(l => l.id === b.photoLocationId)?.name}</div></TableCell>
-                <TableCell>
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild><Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none", STATUS_CONFIG[b.status].color)}><Clock className="w-3.5 h-3.5" />{STATUS_CONFIG[b.status].label}</Badge></DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="rounded-2xl p-2 shadow-2xl">
-                      {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <DropdownMenuItem key={key} onSelect={() => handleUpdateStatus(b, key as any)} className="gap-2 rounded-lg cursor-pointer"><cfg.icon className="w-4 h-4" />{cfg.label}</DropdownMenuItem>)}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)} aria-label="Detalhes"><Info className="w-4 h-4" /></Button>
+                  </TableCell>
+                  <TableCell><div className="flex flex-col"><span className="font-bold">{b.teacherName}</span><span className="text-xs text-muted-foreground">{classMap[b.schoolClassId]?.name}</span></div></TableCell>
+                  <TableCell><div className="flex items-center gap-1.5 text-sm"><MapPin className="w-3 h-3 text-primary" />{locationMap[b.photoLocationId]?.name}</div></TableCell>
+                  <TableCell>
                     <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl">
-                        {userPerms?.canEditAppointments && <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer"><Edit3 className="w-4 h-4 text-blue-600" /> Reagendar / Editar</DropdownMenuItem>}
-                        {userPerms?.canCancelAppointments && b.status !== 'CANCELLED' && <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer"><XCircle className="w-4 h-4" /> Cancelar</DropdownMenuItem>}
-                        {userPerms?.canDeleteAppointments && <DropdownMenuItem onSelect={() => deleteDocumentNonBlocking(doc(db, 'appointments', b.id))} className="gap-2 text-destructive cursor-pointer"><Trash2 className="w-4 h-4" /> Excluir</DropdownMenuItem>}
+                      <DropdownMenuTrigger asChild>
+                        <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none", statusCfg.color)}>
+                          <StatusIcon className="w-3.5 h-3.5" />
+                          {statusCfg.label}
+                        </Badge>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="rounded-2xl p-2 shadow-2xl">
+                        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                          <DropdownMenuItem key={key} onClick={() => handleUpdateStatus(b, key as StatusKey)} className="gap-2 rounded-lg cursor-pointer">
+                            <cfg.icon className="w-4 h-4" />{cfg.label}
+                          </DropdownMenuItem>
+                        ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)} aria-label="Detalhes"><Info className="w-4 h-4" /></Button>
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl">
+                          {userPerms?.canEditAppointments && <DropdownMenuItem onClick={() => handleOpenEdit(b)} className="gap-2 cursor-pointer"><Edit3 className="w-4 h-4 text-blue-600" /> Reagendar / Editar</DropdownMenuItem>}
+                          {userPerms?.canCancelAppointments && b.status !== 'CANCELLED' && <DropdownMenuItem onClick={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer"><XCircle className="w-4 h-4" /> Cancelar</DropdownMenuItem>}
+                          {userPerms?.canDeleteAppointments && <DropdownMenuItem onClick={() => handleDelete(b.id)} className="gap-2 text-destructive cursor-pointer"><Trash2 className="w-4 h-4" /> Excluir</DropdownMenuItem>}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </Card>
@@ -277,7 +351,7 @@ export default function AppointmentsPage() {
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="p-8 space-y-6 border-r">
-                <div><p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Professor / Turma</p><p className="text-xl font-bold">{selectedBooking.teacherName}</p><p className="text-sm font-medium text-primary">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p></div>
+                <div><p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Professor / Turma</p><p className="text-xl font-bold">{selectedBooking.teacherName}</p><p className="text-sm font-medium text-primary">{classMap[selectedBooking.schoolClassId]?.name}</p></div>
                 <div className="bg-muted/30 p-6 rounded-2xl border border-dashed"><p className="text-[10px] font-bold uppercase text-muted-foreground mb-3">Observações</p><p className="text-sm italic">{selectedBooking.observations || "Nenhuma nota registrada."}</p></div>
               </div>
               <div className="p-8 bg-slate-50">
@@ -301,14 +375,20 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={() => !isSaving && setEditingBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl">
+        <DialogContent 
+          className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl"
+          onInteractOutside={(e) => {
+            const isPortal = (e.target as HTMLElement).closest('[data-radix-portal]');
+            if (isPortal) e.preventDefault();
+          }}
+        >
           <DialogHeader className="bg-orange-500 p-8 text-white"><DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle></DialogHeader>
           {editingBooking && (
             <div className="p-10 space-y-8 bg-white">
               <div className="bg-muted/30 p-6 rounded-2xl border border-dashed relative">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-4 flex items-center gap-2"><Clock className="w-4 h-4" /> AGENDAMENTO ATUAL (REFERÊNCIA)</p>
                 <div className="grid grid-cols-2 gap-8">
-                  <div><Label className="text-[10px] uppercase font-bold text-slate-500">Data Atual</Label><p className="text-lg font-bold">{format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</p></div>
+                  <div><Label className="text-[10px] uppercase font-bold text-slate-500">Data Atual</Label><p className="text-lg font-bold">{format(new Date(`${editingBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')}</p></div>
                   <div><Label className="text-[10px] uppercase font-bold text-slate-500">Horário Atual</Label><p className="text-lg font-bold">{editingBooking.startTime}</p></div>
                 </div>
               </div>
@@ -317,10 +397,10 @@ export default function AppointmentsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <Label htmlFor="res-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600"><CalendarIcon className="w-4 h-4" /> Nova Data</Label>
+                  <Label htmlFor="reschedule-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600"><CalendarIcon className="w-4 h-4" /> Nova Data</Label>
                   <Popover modal={false}>
                     <PopoverTrigger asChild>
-                      <Button id="res-new-date-trigger" name="newDate" variant="outline" className="w-full h-12 justify-start rounded-xl bg-[#FFFBF9] border-orange-200">
+                      <Button id="reschedule-new-date-trigger" name="newDate" variant="outline" className="w-full h-12 justify-start rounded-xl bg-[#FFFBF9] border-orange-200">
                         <CalendarIcon className="mr-3 h-5 w-5 text-orange-500" />
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Escolha o novo dia...</span>}
                       </Button>
@@ -331,9 +411,9 @@ export default function AppointmentsPage() {
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="res-new-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-600"><Clock className="w-4 h-4" /> Novo Horário</Label>
+                  <Label htmlFor="reschedule-new-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-600"><Clock className="w-4 h-4" /> Novo Horário</Label>
                   <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
-                    <SelectTrigger id="res-new-slot-select" name="newSlot" className="rounded-xl h-12 bg-[#FFFBF9] border-orange-200">
+                    <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-12 bg-[#FFFBF9] border-orange-200">
                       <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                     </SelectTrigger>
                     <SelectContent className="z-[100]">
@@ -345,26 +425,26 @@ export default function AppointmentsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <Label htmlFor="res-loc-select" className="text-sm font-bold text-slate-600">Local da Foto</Label>
+                  <Label htmlFor="reschedule-loc-select" className="text-sm font-bold text-slate-600">Local da Foto</Label>
                   <Select value={editLocationId} onValueChange={setEditLocationId}>
-                    <SelectTrigger id="res-loc-select" name="location" className="rounded-xl h-12"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
+                    <SelectTrigger id="reschedule-loc-select" name="location" className="rounded-xl h-12"><SelectValue placeholder="Selecione o local" /></SelectTrigger>
                     <SelectContent className="z-[100]">{locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="res-id-input" className="text-sm font-bold text-slate-600">Identificador (Sala/Lab)</Label>
-                  <Input id="res-id-input" name="locationIdentifier" value={editIdentifier} onChange={(e) => setEditIdentifier(e.target.value)} className="rounded-xl h-12" placeholder="Ex: Sala 12..." />
+                  <Label htmlFor="reschedule-id-input" className="text-sm font-bold text-slate-600">Identificador (Sala/Lab)</Label>
+                  <Input id="reschedule-id-input" name="locationIdentifier" value={editIdentifier} onChange={(e) => setEditIdentifier(e.target.value)} className="rounded-xl h-12" placeholder="Ex: Sala 12..." />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="res-notes-textarea" className="text-sm font-bold text-slate-600">Notas Adicionais</Label>
-                <Textarea id="res-notes-textarea" name="notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-2xl min-h-[100px]" placeholder="Instruções para a equipe..." />
+                <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
+                <Textarea id="reschedule-notes-textarea" name="notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-2xl min-h-[100px]" placeholder="Instruções para a equipe..." />
               </div>
 
               <DialogFooter className="gap-3 border-t pt-8">
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-8" disabled={isSaving}>Cancelar</Button>
-                <Button id="res-confirm-btn" name="confirmReschedule" onClick={handleSaveEdit} className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl font-bold" disabled={isSaving || !editSlotId || !editDate}>
+                <Button id="reschedule-confirm-btn" name="confirmReschedule" onClick={handleSaveEdit} className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl font-bold" disabled={isSaving || !editSlotId || !editDate}>
                   {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   Confirmar Reagendamento
                 </Button>
