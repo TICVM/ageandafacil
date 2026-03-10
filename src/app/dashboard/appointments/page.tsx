@@ -38,7 +38,7 @@ const STATUS_CONFIG = {
     label: 'Cancelado',
     color: 'bg-destructive text-white',
     icon: XCircle,
-    permKey: 'canStatusCancelled'
+    permKey: 'canCancelAppointments'
   },
   COMPLETED: {
     label: 'Concluído',
@@ -56,7 +56,7 @@ const ADMIN_PERMS: AppPermissions = {
   canViewSegmentAppointments: true, canViewClassAppointments: true,
   canCancelAppointments: true, canDeleteAppointments: true,
   canCreateBookings: true, canChangeStatus: true,
-  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusCompleted: true
+  canStatusPending: true, canStatusConfirmed: true, canStatusCompleted: true
 };
 
 export default function AppointmentsPage() {
@@ -144,6 +144,7 @@ export default function AppointmentsPage() {
   const filtered = useMemo(() => {
     if (!list || !userPerms || !profile) return [];
     const isGlobalAdmin = isMaster || profile.roleId === 'ADMIN' || userPerms.canViewAllAppointments;
+    
     return list.filter(booking => {
       if (isGlobalAdmin) return true;
       const cls = classMap[booking.schoolClassId];

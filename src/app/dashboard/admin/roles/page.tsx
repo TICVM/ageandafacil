@@ -34,7 +34,6 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canChangeStatus: false,
   canStatusPending: false,
   canStatusConfirmed: false,
-  canStatusCancelled: false,
   canStatusCompleted: false,
 };
 
@@ -308,7 +307,6 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                        {renderPermissionToggle("Aguard. Confirmação", "canStatusPending", Clock)}
                        {renderPermissionToggle("Confirmar Sessão", "canStatusConfirmed", CheckCircle2)}
                        {renderPermissionToggle("Concluir Sessão", "canStatusCompleted", CheckCircle)}
-                       {renderPermissionToggle("Marcar como Cancelado", "canStatusCancelled", XCircle)}
                     </div>
                   </div>
                 </div>

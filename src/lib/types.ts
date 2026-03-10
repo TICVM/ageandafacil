@@ -17,7 +17,6 @@ export interface AppPermissions {
   // Permissões granulares de status
   canStatusPending: boolean;
   canStatusConfirmed: boolean;
-  canStatusCancelled: boolean;
   canStatusCompleted: boolean;
 }
 
@@ -64,13 +63,6 @@ export interface PhotoLocation {
   requiresIdentifier?: boolean;
 }
 
-export interface AISessionBriefAssistantOutput {
-  detailedBrief: string;
-  keyActivities: string[];
-  preferredShots: string[];
-  desiredMood: string;
-}
-
 export interface HistoryEntry {
   timestamp: string;
   userId: string;
@@ -91,8 +83,6 @@ export interface Booking {
   endTime: string;
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
   observations: string;
-  sessionDurationMinutes: number;
-  aiBrief?: AISessionBriefAssistantOutput | null;
   history?: HistoryEntry[];
   createdAt?: any;
 }
