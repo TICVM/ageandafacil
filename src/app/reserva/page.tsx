@@ -14,11 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { format, startOfDay, addDays, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert, ArrowLeft, Mail, Search } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert, ArrowLeft, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, HistoryEntry, AppSettings } from '@/lib/types';
+import { TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, AppSettings } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 
 export default function PublicBookingPage() {
@@ -38,90 +38,51 @@ export default function PublicBookingPage() {
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
-
   const [guestEmail, setGuestEmail] = useState('');
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [isIdentified, setIsIdentified] = useState(false);
 
-  const isMaster = useMemo(() => {
-    return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
-  }, [authUser]);
+  const isMaster = useMemo(() => authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br', [authUser]);
 
-  const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
-  const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
-  const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
-  const segmentsQuery = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
-  const appointmentsQuery = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
-  const blocksQuery = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
+  const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
+  const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
+  const slotsRef = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
+  const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
+  const apptsRef = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
+  const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
   const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
 
-  const { data: rawClasses } = useCollection<Class>(classesQuery);
-  const { data: rawLocations } = useCollection<PhotoLocation>(locationsQuery);
-  const { data: slots } = useCollection<TimeSlot>(slotsQuery);
-  const { data: rawSegments } = useCollection<Segment>(segmentsQuery);
-  const { data: allAppointments } = useCollection<Booking>(appointmentsQuery);
-  const { data: allBlocks } = useCollection<ScheduleBlock>(blocksQuery);
+  const { data: rawClasses } = useCollection<Class>(classesRef);
+  const { data: rawLocations } = useCollection<PhotoLocation>(locationsRef);
+  const { data: slots } = useCollection<TimeSlot>(slotsRef);
+  const { data: rawSegments } = useCollection<Segment>(segmentsRef);
+  const { data: allAppointments } = useCollection<Booking>(apptsRef);
+  const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
   useEffect(() => {
     async function fetchProfile() {
       if (isUserLoading) return;
-      
-      if (!db || !authUser) {
-        setLoadingProfile(false);
-        return;
-      }
-
+      if (!db || !authUser) { setLoadingProfile(false); return; }
       setLoadingProfile(true);
       try {
-        const userEmail = authUser.email?.toLowerCase().trim();
-        
+        const email = authUser.email?.toLowerCase().trim();
         if (isMaster) {
-          const masterProfile: User = { id: authUser.uid, name: 'Herbert Pacheco', email: userEmail!, roleId: 'ADMIN' };
-          setProfile(masterProfile);
-          setTeacherName(masterProfile.name);
-          setIsIdentified(true);
-          setLoadingProfile(false);
-          return;
+          const mProf: User = { id: authUser.uid, name: 'Herbert Pacheco', email: email!, roleId: 'ADMIN' };
+          setProfile(mProf); setTeacherName(mProf.name); setIsIdentified(true); setLoadingProfile(false); return;
         }
-
-        const userDocRef = doc(db, 'users', authUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists()) {
-          const profileData = userDoc.data() as User;
-          setProfile({ ...profileData, id: authUser.uid });
-          setTeacherName(profileData.name || '');
-          setIsIdentified(true);
-          
-          if (profileData.roleId === 'ADMIN') {
-            setUserPerms({
-              canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-              canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-              canViewSegmentAppointments: true, canViewClassAppointments: true,
-              canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-              canCreateBookings: true, canChangeStatus: true,
-              canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
-            });
-          } else {
-            const roleDoc = await getDoc(doc(db, 'roles_config', profileData.roleId));
-            if (roleDoc.exists()) setUserPerms(roleDoc.data() as RoleConfig);
-          }
-        } else if (userEmail) {
-          const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            const userData = snap.docs[0].data() as User;
-            setProfile({ ...userData, id: snap.docs[0].id });
-            setTeacherName(userData.name || '');
-            setIsIdentified(true);
-          }
+        const snap = await getDoc(doc(db, 'users', authUser.uid));
+        if (snap.exists()) {
+          const data = snap.data() as User;
+          setProfile({ ...data, id: authUser.uid }); setTeacherName(data.name); setIsIdentified(true);
+          if (data.roleId === 'ADMIN') setUserPerms({ canManageUsers: true, canConfigureSlots: true, canManageLocations: true, canManageClasses: true, canViewReports: true, canViewAllAppointments: true, canViewSegmentAppointments: true, canViewClassAppointments: true, canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true, canCreateBookings: true, canChangeStatus: true, canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true });
+          else { const rSnap = await getDoc(doc(db, 'roles_config', data.roleId)); if (rSnap.exists()) setUserPerms(rSnap.data() as RoleConfig); }
+        } else {
+          const q = query(collection(db, 'users'), where('email', '==', email), limit(1));
+          const qSnap = await getDocs(q);
+          if (!qSnap.empty) { const data = qSnap.docs[0].data() as User; setProfile({ ...data, id: qSnap.docs[0].id }); setTeacherName(data.name); setIsIdentified(true); }
         }
-      } catch (err) {
-        console.error("Erro ao carregar perfil na reserva:", err);
-      } finally {
-        setLoadingProfile(false);
-      }
+      } catch (err) { console.error(err); } finally { setLoadingProfile(false); }
     }
     fetchProfile();
   }, [db, authUser, isUserLoading, isMaster]);
@@ -133,167 +94,73 @@ export default function PublicBookingPage() {
       const q = query(collection(db, 'users'), where('email', '==', guestEmail.toLowerCase().trim()), limit(1));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        const userData = snap.docs[0].data() as User;
-        const userId = snap.docs[0].id;
-        setProfile({ ...userData, id: userId });
-        setTeacherName(userData.name || '');
-        setIsIdentified(true);
-        
-        if (userData.roleId === 'ADMIN') {
-          setUserPerms({
-            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-            canViewSegmentAppointments: true, canViewClassAppointments: true,
-            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true, canChangeStatus: true,
-            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
-          });
-        } else {
-          const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
-          if (roleDoc.exists()) setUserPerms(roleDoc.data() as RoleConfig);
-        }
-        toast({ title: "Olá, " + userData.name });
-      } else {
-        toast({ variant: "destructive", title: "Acesso Negado", description: "E-mail não cadastrado na base oficial da escola." });
-      }
-    } catch (e) {
-      toast({ title: "Erro na verificação", variant: "destructive" });
-    } finally {
-      setIsVerifyingEmail(false);
-    }
+        const data = snap.docs[0].data() as User;
+        setProfile({ ...data, id: snap.docs[0].id }); setTeacherName(data.name); setIsIdentified(true);
+        const rSnap = await getDoc(doc(db, 'roles_config', data.roleId)); if (rSnap.exists()) setUserPerms(rSnap.data() as RoleConfig);
+        toast({ title: "Olá, " + data.name });
+      } else toast({ variant: "destructive", title: "E-mail não cadastrado." });
+    } finally { setIsVerifyingEmail(false); }
   };
 
   const filteredClasses = useMemo(() => {
     if (!rawClasses) return [];
-    
     return rawClasses.filter(c => {
       if (isMaster || profile?.roleId === 'ADMIN' || userPerms?.canViewAllAppointments) return true;
       if (!profile) return false;
-      const userClassIds = profile.classIds || [];
-      const userSegmentIds = profile.segmentIds || [];
-      if (userPerms?.canViewSegmentAppointments && userSegmentIds.includes(c.schoolSegmentId)) return true;
-      if (userPerms?.canViewClassAppointments && userClassIds.includes(c.id)) return true;
-      return userClassIds.includes(c.id) || userSegmentIds.includes(c.schoolSegmentId);
+      const uC = profile.classIds || []; const uS = profile.segmentIds || [];
+      return uC.includes(c.id) || uS.includes(c.schoolSegmentId);
     }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [rawClasses, profile, userPerms, isMaster]);
 
-  const selectedClass = useMemo(() => filteredClasses.find(c => c.id === selectedClassId), [filteredClasses, selectedClassId]);
-  const selectedSegment = useMemo(() => rawSegments?.find(s => s.id === selectedClass?.schoolSegmentId), [rawSegments, selectedClass]);
+  const selClass = useMemo(() => filteredClasses.find(c => c.id === selectedClassId), [filteredClasses, selectedClassId]);
+  const selSeg = useMemo(() => rawSegments?.find(s => s.id === selClass?.schoolSegmentId), [rawSegments, selClass]);
   
-  const filteredLocations = useMemo(() => {
-    if (!rawLocations) return [];
-    return rawLocations.filter(l => 
-      l.isActive && 
-      (!selectedSegment?.unit || !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase())
-    );
-  }, [rawLocations, selectedSegment]);
+  const filteredLocs = useMemo(() => rawLocations?.filter(l => l.isActive && (!selSeg?.unit || !l.unit || l.unit.toLowerCase() === selSeg.unit.toLowerCase())) || [], [rawLocations, selSeg]);
 
-  const availableSlots = useMemo(() => {
+  const avSlots = useMemo(() => {
     if (!slots || !date || !selectedClassId) return [];
     const dateStr = format(date, 'yyyy-MM-dd');
-    const dayOfWeekStr = date.getDay().toString();
-
-    // Regra de Antecedência
+    const day = date.getDay().toString();
     const now = new Date();
-    const minAdvanceDays = appSettings?.minAdvanceBookingDays ?? 1;
-    const minAdvanceHours = appSettings?.minAdvanceBookingHours ?? 0;
-    const minAdvanceLimit = addHours(addDays(now, minAdvanceDays), minAdvanceHours);
+    const minLimit = addHours(addDays(now, appSettings?.minAdvanceBookingDays ?? 1), appSettings?.minAdvanceBookingHours ?? 0);
 
     return slots.filter(s => {
-      if (s.dayOfWeek !== dayOfWeekStr) return false;
-      
-      const targetMatches = s.schoolClassId 
-        ? s.schoolClassId === selectedClassId 
-        : s.schoolSegmentId 
-          ? s.schoolSegmentId === selectedClass?.schoolSegmentId 
-          : !s.schoolClassId && !s.schoolSegmentId;
-          
+      if (s.dayOfWeek !== day) return false;
+      const targetMatches = s.schoolClassId ? s.schoolClassId === selectedClassId : s.schoolSegmentId ? s.schoolSegmentId === selClass?.schoolSegmentId : !s.schoolClassId && !s.schoolSegmentId;
       if (!targetMatches) return false;
-
-      // Validar antecedência por horário
       const [h, m] = s.startTime.split(':').map(Number);
-      const slotDateTime = new Date(date);
-      slotDateTime.setHours(h, m, 0, 0);
-      if (slotDateTime < minAdvanceLimit) return false;
-      
+      const sDT = new Date(date); sDT.setHours(h, m, 0, 0);
+      if (sDT < minLimit) return false;
       if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
-      
-      return !allBlocks?.some(block => {
-        if (block.date !== dateStr) return false;
-        const t2m = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-        const slotStart = t2m(s.startTime);
-        const slotEnd = slotStart + (s.durationMinutes || 60);
-        const blockStart = t2m(block.startTime);
-        const blockEnd = t2m(block.endTime);
-        return slotStart < blockEnd && slotEnd > blockStart;
-      });
+      return !allBlocks?.some(b => b.date === dateStr && timeToMin(s.startTime) < timeToMin(b.endTime) && (timeToMin(s.startTime) + (s.durationMinutes || 60)) > timeToMin(b.startTime));
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [slots, date, selectedClassId, selectedClass, allAppointments, allBlocks, appSettings]);
+  }, [slots, date, selectedClassId, selClass, allAppointments, allBlocks, appSettings]);
 
   const handleSchedule = () => {
-    if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
-      toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
-      return;
-    }
-
-    const slot = slots?.find(s => s.id === selectedSlotId);
-    if (!slot) return;
-
+    if (!date || !selectedSlotId || !db || !profile) return;
+    const slot = slots?.find(s => s.id === selectedSlotId); if (!slot) return;
     const [h, m] = slot.startTime.split(':').map(Number);
-    const endTotal = h * 60 + m + (slot.durationMinutes || 60);
-    const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
-    const endM = (endTotal % 60).toString().padStart(2, '0');
-
+    const endT = h * 60 + m + (slot.durationMinutes || 60);
     addDoc(collection(db, 'appointments'), {
-      schoolClassId: selectedClassId,
-      teacherId: profile.id,
-      teacherName: teacherName,
-      photoLocationId: selectedLocationId,
-      locationIdentifier: locationIdentifier || null,
-      appointmentDate: format(date, 'yyyy-MM-dd'),
-      startTime: slot.startTime,
-      endTime: `${endH}:${endM}`,
-      status: 'PENDING',
-      observations: notes,
-      history: [{ 
-        timestamp: new Date().toISOString(), 
-        userId: profile.id, 
-        userName: teacherName, 
-        action: 'CRIACAO', 
-        details: 'Reserva realizada pelo sistema.' 
-      }],
+      schoolClassId: selectedClassId, teacherId: profile.id, teacherName: teacherName,
+      photoLocationId: selectedLocationId, locationIdentifier: locationIdentifier || null,
+      appointmentDate: format(date, 'yyyy-MM-dd'), startTime: slot.startTime,
+      endTime: `${Math.floor(endT/60).toString().padStart(2,'0')}:${(endT%60).toString().padStart(2,'0')}`,
+      status: 'PENDING', observations: notes,
+      history: [{ timestamp: new Date().toISOString(), userId: profile.id, userName: teacherName, action: 'CRIACAO', details: 'Reserva realizada.' }],
       createdAt: serverTimestamp(),
     }).then(() => setIsSuccess(true));
   };
 
-  const minBookingDate = useMemo(() => {
-    const days = appSettings?.minAdvanceBookingDays ?? 1;
-    return addDays(startOfDay(new Date()), days);
-  }, [appSettings]);
+  const minBookingDate = useMemo(() => addDays(startOfDay(new Date()), appSettings?.minAdvanceBookingDays ?? 1), [appSettings]);
 
-  if (isUserLoading || (authUser && loadingProfile)) {
-    return (
-      <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Identificando usuário...</p>
-        </div>
-      </div>
-    );
-  }
+  if (isUserLoading || (authUser && loadingProfile)) return <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   if (isSuccess) return (
     <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">
-      <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-500">
-        <div className="bg-primary p-10 text-center text-primary-foreground">
-          <CheckCircle2 className="w-20 h-20 mx-auto mb-4" />
-          <h2 className="text-3xl font-bold">Sessão Agendada!</h2>
-          <p className="mt-2 opacity-80">Sua reserva foi encaminhada para a coordenação.</p>
-        </div>
-        <CardContent className="p-8 space-y-4">
-          <Button onClick={() => window.location.reload()} className="w-full rounded-xl h-12 text-lg">Nova reserva</Button>
-          <Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full h-12">Ir para o Painel</Button>
-        </CardContent>
+      <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95">
+        <div className="bg-primary p-10 text-center text-white"><CheckCircle2 className="w-20 h-20 mx-auto mb-4" /><h2 className="text-3xl font-bold">Agendado!</h2><p className="mt-2 opacity-80">Sua reserva foi encaminhada para a coordenação.</p></div>
+        <CardContent className="p-8 space-y-4"><Button onClick={() => window.location.reload()} className="w-full rounded-xl h-12 text-lg">Nova reserva</Button><Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full h-12">Ir para o Painel</Button></CardContent>
       </Card>
     </div>
   );
@@ -301,219 +168,32 @@ export default function PublicBookingPage() {
   return (
     <div className="min-h-screen bg-[#ECF1FA] py-12 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => router.push(authUser ? '/dashboard' : '/')} className="rounded-xl gap-2 h-11 px-6 bg-white shadow-sm">
-            <ArrowLeft className="w-4 h-4" /> Voltar
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="bg-primary p-2 rounded-lg"><Camera className="w-5 h-5 text-primary-foreground" /></div>
-            <span className="font-bold text-xl text-primary">SchoolLens</span>
-          </div>
-        </div>
+        <div className="flex items-center justify-between"><Button variant="ghost" onClick={() => router.push(authUser ? '/dashboard' : '/')} className="rounded-xl gap-2 h-11 px-6 bg-white shadow-sm"><ArrowLeft className="w-4 h-4" /> Voltar</Button><div className="flex items-center gap-2"><div className="bg-primary p-2 rounded-lg"><Camera className="w-5 h-5 text-white" /></div><span className="font-bold text-xl text-primary">SchoolLens</span></div></div>
 
         {!isIdentified ? (
-          <div className="max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Card className="shadow-2xl rounded-3xl border-none overflow-hidden bg-white">
-              <CardHeader className="bg-primary text-primary-foreground text-center py-8">
-                <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <CardTitle className="text-2xl">Identificação</CardTitle>
-                <CardDescription className="text-primary-foreground/70">Digite seu e-mail funcional para continuar.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-10 space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="reserva-guest-email-input" className="text-sm font-bold uppercase tracking-wider text-slate-500">E-mail Institucional</Label>
-                  <Input 
-                    id="reserva-guest-email-input" 
-                    name="guestEmail" 
-                    type="email" 
-                    placeholder="professor@escola.com" 
-                    value={guestEmail} 
-                    onChange={(e) => setGuestEmail(e.target.value)} 
-                    className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200" 
-                  />
-                </div>
-                <Button 
-                  onClick={handleVerifyGuestEmail} 
-                  disabled={isVerifyingEmail || !guestEmail} 
-                  className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg"
-                >
-                  {isVerifyingEmail ? <Loader2 className="animate-spin" /> : "Verificar Cadastro"}
-                </Button>
-                <p className="text-[10px] text-center text-muted-foreground italic mt-4">
-                  * Apenas e-mails cadastrados pela administração podem realizar agendamentos.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <div className="max-w-md mx-auto"><Card className="shadow-2xl rounded-3xl border-none overflow-hidden bg-white"><CardHeader className="bg-primary text-white text-center py-8"><Mail className="w-10 h-10 mx-auto mb-2 opacity-50" /><CardTitle className="text-2xl">Identificação</CardTitle><CardDescription className="text-white/70">Digite seu e-mail funcional para continuar.</CardDescription></CardHeader><CardContent className="p-10 space-y-6"><div className="space-y-2"><Label htmlFor="guest-email-input" className="text-sm font-bold uppercase text-slate-500">E-mail Institucional</Label><Input id="guest-email-input" name="guestEmail" type="email" placeholder="professor@escola.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="rounded-xl h-12" /></div><Button onClick={handleVerifyGuestEmail} disabled={isVerifyingEmail || !guestEmail} className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg">{isVerifyingEmail ? <Loader2 className="animate-spin" /> : "Verificar Cadastro"}</Button></CardContent></Card></div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in duration-500">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in">
             <Card className="md:col-span-2 shadow-xl rounded-3xl overflow-hidden border-none bg-white">
-              <CardHeader className="bg-primary text-primary-foreground p-8">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="text-2xl">Reserva de Sessão</CardTitle>
-                    <CardDescription className="text-primary-foreground/70">Selecione os detalhes da sua sessão de fotos.</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="border-white/30 text-white h-8 px-4">Passo 2 de 2</Badge>
-                </div>
-              </CardHeader>
+              <CardHeader className="bg-primary text-white p-8"><div className="flex justify-between items-center"><div><CardTitle className="text-2xl">Reserva de Sessão</CardTitle><CardDescription className="text-white/70">Preencha os detalhes da sua sessão de fotos.</CardDescription></div><Badge variant="outline" className="border-white/30 text-white h-8 px-4">Passo 2 de 2</Badge></div></CardHeader>
               <CardContent className="p-10 space-y-8">
-                <div className="space-y-3">
-                  <Label htmlFor="reserva-teacher-name-input" className="text-xs font-bold uppercase text-slate-500">Docente Responsável</Label>
-                  <div className="relative">
-                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
-                    <Input 
-                      id="reserva-teacher-name-input" 
-                      name="teacherName" 
-                      value={teacherName} 
-                      readOnly 
-                      className="rounded-xl h-12 pl-10 bg-muted/30 border-none font-bold text-primary" 
-                    />
-                  </div>
-                </div>
-
+                <div className="space-y-3"><Label htmlFor="teacher-name-input" className="text-xs font-bold uppercase text-slate-500">Docente Responsável</Label><div className="relative"><UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" /><Input id="teacher-name-input" name="teacherName" value={teacherName} readOnly className="rounded-xl h-12 pl-10 bg-muted/30 font-bold text-primary border-none" /></div></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                    <Label htmlFor="reserva-class-select-trigger" className="text-xs font-bold uppercase text-slate-500">Qual a Turma?</Label>
-                    <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
-                      <SelectTrigger id="reserva-class-select-trigger" name="class" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
-                        <SelectValue placeholder="Selecione a turma" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl">
-                        {filteredClasses.map(c => <SelectItem key={c.id} value={c.id} className="rounded-lg">{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="reserva-location-select-trigger" className="text-xs font-bold uppercase text-slate-500">Local da Foto</Label>
-                    <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
-                      <SelectTrigger id="reserva-location-select-trigger" name="location" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
-                        <SelectValue placeholder={!selectedClassId ? "Aguardando turma..." : "Escolha o local"} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl">
-                        {filteredLocations.map(l => (
-                          <SelectItem key={l.id} value={l.id} className="rounded-lg">
-                            <div className="flex flex-col">
-                              <span>{l.name}</span>
-                              {l.unit && <span className="text-[10px] text-muted-foreground">{l.unit}</span>}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="space-y-3"><Label htmlFor="class-select-trigger" className="text-xs font-bold uppercase text-slate-500">Turma</Label><Select value={selectedClassId} onValueChange={(v) => { setSelectedClassId(v); setSelectedLocationId(''); }}><SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-12"><SelectValue placeholder="Selecione a turma" /></SelectTrigger><SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-3"><Label htmlFor="loc-select-trigger" className="text-xs font-bold uppercase text-slate-500">Local</Label><Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId}><SelectTrigger id="loc-select-trigger" name="location" className="rounded-xl h-12"><SelectValue placeholder={!selectedClassId ? "Aguardando turma..." : "Escolha o local"} /></SelectTrigger><SelectContent>{filteredLocs.map(l => <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>)}</SelectContent></Select></div>
                 </div>
-
-                {rawLocations?.find(l => l.id === selectedLocationId)?.requiresIdentifier && (
-                  <div className="space-y-3 bg-primary/5 p-6 rounded-2xl border border-primary/10 animate-in slide-in-from-top-2">
-                    <Label htmlFor="reserva-identifier-input" className="text-xs font-bold text-primary uppercase">Identificação Específica (Sala/Lab)</Label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
-                      <Input 
-                        id="reserva-identifier-input" 
-                        name="locationIdentifier" 
-                        placeholder="Ex: Sala 12, Laboratório B..." 
-                        value={locationIdentifier} 
-                        onChange={(e) => setLocationIdentifier(e.target.value)} 
-                        className="rounded-xl h-12 pl-10 bg-white border-primary/20" 
-                      />
-                    </div>
-                  </div>
-                )}
-
+                {rawLocations?.find(l => l.id === selectedLocationId)?.requiresIdentifier && <div className="space-y-3 bg-primary/5 p-6 rounded-2xl border border-primary/10"><Label htmlFor="id-input" className="text-xs font-bold text-primary uppercase">Identificação Específica (Sala/Lab)</Label><div className="relative"><Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" /><Input id="id-input" name="identifier" placeholder="Ex: Sala 12..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-12 pl-10" /></div></div>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                    <Label htmlFor="reserva-date-popover-trigger" className="text-xs font-bold uppercase text-slate-500">Data Desejada</Label>
-                    <Popover modal={false}>
-                      <PopoverTrigger asChild>
-                        <Button id="reserva-date-popover-trigger" name="date" variant="outline" className="w-full h-12 justify-start rounded-xl bg-[#F8FAFC] border-slate-200 shadow-sm">
-                          <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                          {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : <span className="text-muted-foreground">Escolha o dia</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-2xl shadow-2xl border-none" align="start">
-                        <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < minBookingDate} className="p-4" />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="reserva-slot-select-trigger" className="text-xs font-bold uppercase text-slate-500">Horário Disponível</Label>
-                    <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                      <SelectTrigger id="reserva-slot-select-trigger" name="slot" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
-                        <SelectValue placeholder={!date ? "Aguardando data..." : "Escolha o horário"} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl">
-                        {availableSlots.length > 0 ? (
-                          availableSlots.map(s => <SelectItem key={s.id} value={s.id} className="rounded-lg">{s.startTime}</SelectItem>)
-                        ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível ou prazo esgotado.</div>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="space-y-3"><Label htmlFor="date-trigger" className="text-xs font-bold uppercase text-slate-500">Data</Label><Popover modal={false}><PopoverTrigger asChild><Button id="date-trigger" name="date" variant="outline" className="w-full h-12 justify-start rounded-xl"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : "Escolha o dia"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 z-[100] shadow-2xl border-none" align="start"><Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < minBookingDate} /></PopoverContent></Popover></div>
+                  <div className="space-y-3"><Label htmlFor="slot-trigger" className="text-xs font-bold uppercase text-slate-500">Horário</Label><Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId}><SelectTrigger id="slot-trigger" name="slot" className="rounded-xl h-12"><SelectValue placeholder={!date ? "Aguardando data..." : "Escolha o horário"} /></SelectTrigger><SelectContent>{avSlots.length > 0 ? avSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível.</div>}</SelectContent></Select></div>
                 </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="reserva-notes-textarea" className="text-xs font-bold uppercase text-slate-500">Observações para o Fotógrafo</Label>
-                  <Textarea 
-                    id="reserva-notes-textarea" 
-                    name="notes" 
-                    placeholder="Ex: Alunos virão fantasiados, trazer acessórios específicos..." 
-                    className="rounded-2xl min-h-[120px] bg-[#F8FAFC] border-slate-200 shadow-sm p-4" 
-                    value={notes} 
-                    onChange={(e) => setNotes(e.target.value)} 
-                  />
-                </div>
+                <div className="space-y-3"><Label htmlFor="notes-area" className="text-xs font-bold uppercase text-slate-500">Observações</Label><Textarea id="notes-area" name="notes" placeholder="Ex: Alunos fantasiados..." className="rounded-2xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
               </CardContent>
-              <CardFooter className="bg-slate-50 p-10 flex justify-center border-t">
-                <Button 
-                  id="reserva-submit-booking-button"
-                  name="submitBooking"
-                  onClick={handleSchedule} 
-                  className="w-full max-w-sm rounded-2xl h-16 bg-primary text-xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform" 
-                  disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}
-                >
-                  CONCLUIR AGENDAMENTO
-                </Button>
-              </CardFooter>
+              <CardFooter className="bg-slate-50 p-10 flex justify-center border-t"><Button onClick={handleSchedule} className="w-full max-w-sm rounded-2xl h-16 bg-primary text-xl font-bold shadow-xl shadow-primary/20" disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}>CONCLUIR AGENDAMENTO</Button></CardFooter>
             </Card>
-
             <div className="space-y-6">
-              <Card className="border-none shadow-xl bg-primary text-primary-foreground rounded-3xl overflow-hidden">
-                <CardHeader className="pb-2">
-                  <div className="p-3 bg-white/20 rounded-2xl w-fit mb-4">
-                    <ShieldAlert className="w-6 h-6" />
-                  </div>
-                  <CardTitle className="text-lg">Regras Importantes</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 text-sm opacity-90">
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="w-5 h-5 shrink-0" />
-                    <p>Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h.</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="w-5 h-5 shrink-0" />
-                    <p>Mantenha a coordenação avisada sobre sessões fora da sala.</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="w-5 h-5 shrink-0" />
-                    <p>O status 'Confirmado' será atualizado pela equipe de marketing.</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
-                <CardHeader className="pb-0 p-8">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-accent" />
-                    Ajuda Rápida
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 pt-4 space-y-4 text-sm text-slate-600">
-                  <p>Não encontrou o local que desejava? Selecione "Outro" e especifique nas observações.</p>
-                  <p>Dúvidas? Entre em contato com a equipe de marketing pelo ramal 204.</p>
-                </CardContent>
-              </Card>
+              <Card className="border-none shadow-xl bg-primary text-white rounded-3xl overflow-hidden"><CardHeader className="pb-2"><div className="p-3 bg-white/20 rounded-2xl w-fit mb-4"><ShieldAlert className="w-6 h-6" /></div><CardTitle className="text-lg">Regras</CardTitle></CardHeader><CardContent className="space-y-4 text-sm opacity-90"><div className="flex gap-3"><CheckCircle2 className="w-5 h-5 shrink-0" /><p>Antecedência mínima de {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h.</p></div><div className="flex gap-3"><CheckCircle2 className="w-5 h-5 shrink-0" /><p>Mantenha a coordenação avisada sobre sessões externas.</p></div></CardContent></Card>
+              <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden"><CardHeader className="p-8 pb-0"><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent" />Ajuda</CardTitle></CardHeader><CardContent className="p-8 pt-4 space-y-4 text-sm text-slate-600"><p>Dúvidas? Entre em contato com a equipe de marketing pelo ramal 204.</p></CardContent></Card>
             </div>
           </div>
         )}
