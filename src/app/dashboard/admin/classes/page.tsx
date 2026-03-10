@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -280,12 +279,12 @@ export default function ClassesAdminPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="edit-item-name">Nome</Label>
-              <Input id="edit-item-name" value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
+              <Input id="edit-item-name" name="name" value={editingItem?.name || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)} className="rounded-xl" />
             </div>
             {editingItem?.type === 'segment' && (
               <div className="space-y-2">
                 <Label htmlFor="edit-item-unit">Unidade</Label>
-                <Input id="edit-item-unit" value={editingItem?.unit || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)} className="rounded-xl" />
+                <Input id="edit-item-unit" name="unit" value={editingItem?.unit || ''} onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)} className="rounded-xl" />
               </div>
             )}
             {editingItem?.type === 'class' && (
@@ -293,6 +292,7 @@ export default function ClassesAdminPage() {
                 <Label htmlFor="edit-item-segment">Segmento</Label>
                 <select 
                   id="edit-item-segment"
+                  name="segment"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                   value={editingItem.schoolSegmentId} 
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, schoolSegmentId: e.target.value} : null)}
@@ -303,7 +303,7 @@ export default function ClassesAdminPage() {
             )}
             <div className="space-y-2">
               <Label htmlFor="edit-item-order">Ordem</Label>
-              <Input id="edit-item-order" type="number" value={editingItem?.order || 0} onChange={(e) => setEditingItem(prev => prev ? {...prev, order: parseInt(e.target.value) || 0} : null)} className="rounded-xl" />
+              <Input id="edit-item-order" name="order" type="number" value={editingItem?.order || 0} onChange={(e) => setEditingItem(prev => prev ? {...prev, order: parseInt(e.target.value) || 0} : null)} className="rounded-xl" />
             </div>
           </div>
           <DialogFooter>

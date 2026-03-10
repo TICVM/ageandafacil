@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -163,7 +162,7 @@ export default function PublicBookingPage() {
       const t2m = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       return t2m(s.startTime) < t2m(block.endTime) && (t2m(s.startTime) + (s.durationMinutes || 60)) > t2m(block.startTime);
     });
-  }).sort((a, b) => a.startTime.startTime.localeCompare(b.startTime)) || [];
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
 
   const handleSchedule = () => {
     if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
@@ -218,8 +217,8 @@ export default function PublicBookingPage() {
             <CardHeader className="bg-primary text-primary-foreground text-center"><CardTitle>Identificação</CardTitle></CardHeader>
             <CardContent className="p-8 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="guest-email-input">E-mail Institucional</Label>
-                <Input id="guest-email-input" name="guestEmail" type="email" placeholder="professor@escola.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="rounded-xl h-12" />
+                <Label htmlFor="reserva-guest-email">E-mail Institucional</Label>
+                <Input id="reserva-guest-email" name="guestEmail" type="email" placeholder="professor@escola.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="rounded-xl h-12" />
               </div>
               <Button onClick={handleVerifyGuestEmail} disabled={isVerifyingEmail || !guestEmail} className="w-full h-12">{isVerifyingEmail ? <Loader2 className="animate-spin" /> : "Verificar"}</Button>
             </CardContent>
@@ -230,37 +229,37 @@ export default function PublicBookingPage() {
               <CardHeader className="bg-primary text-primary-foreground p-6"><CardTitle>Reserva de Sessão</CardTitle></CardHeader>
               <CardContent className="p-8 space-y-6 bg-white">
                 <div className="space-y-2">
-                  <Label htmlFor="teacher-name-input">Docente</Label>
-                  <Input id="teacher-name-input" name="teacherName" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
+                  <Label htmlFor="reserva-teacher-name">Docente</Label>
+                  <Input id="reserva-teacher-name" name="teacherName" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="class-select-trigger">Turma</Label>
+                    <Label htmlFor="reserva-class-select">Turma</Label>
                     <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
-                      <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-11"><SelectValue placeholder="Turma" /></SelectTrigger>
+                      <SelectTrigger id="reserva-class-select" name="class" className="rounded-xl h-11"><SelectValue placeholder="Turma" /></SelectTrigger>
                       <SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="location-select-trigger">Local</Label>
+                    <Label htmlFor="reserva-location-select">Local</Label>
                     <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
-                      <SelectTrigger id="location-select-trigger" name="location" className="rounded-xl h-11"><SelectValue placeholder="Local" /></SelectTrigger>
+                      <SelectTrigger id="reserva-location-select" name="location" className="rounded-xl h-11"><SelectValue placeholder="Local" /></SelectTrigger>
                       <SelectContent>{filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
                 {selectedLocation?.requiresIdentifier && (
                   <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border">
-                    <Label htmlFor="identifier-input">Qual sala ou número?</Label>
-                    <Input id="identifier-input" name="locationIdentifier" placeholder="Ex: Sala 12" value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
+                    <Label htmlFor="reserva-identifier">Qual sala ou número?</Label>
+                    <Input id="reserva-identifier" name="locationIdentifier" placeholder="Ex: Sala 12" value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="date-popover-trigger">Data</Label>
+                    <Label htmlFor="reserva-date-trigger">Data</Label>
                     <Popover modal={false}>
                       <PopoverTrigger asChild>
-                        <Button id="date-popover-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
+                        <Button id="reserva-date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {date ? format(date, "dd/MM/yyyy") : <span>Escolha a data</span>}
                         </Button>
@@ -271,16 +270,16 @@ export default function PublicBookingPage() {
                     </Popover>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="slot-select-trigger">Horário</Label>
+                    <Label htmlFor="reserva-slot-select">Horário</Label>
                     <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                      <SelectTrigger id="slot-select-trigger" name="slot" className="rounded-xl h-11"><SelectValue placeholder="Horário" /></SelectTrigger>
+                      <SelectTrigger id="reserva-slot-select" name="slot" className="rounded-xl h-11"><SelectValue placeholder="Horário" /></SelectTrigger>
                       <SelectContent>{availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="notes-textarea">Observações</Label>
-                  <Textarea id="notes-textarea" name="notes" placeholder="Descreva a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Label htmlFor="reserva-notes">Observações</Label>
+                  <Textarea id="reserva-notes" name="notes" placeholder="Descreva a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
               </CardContent>
               <CardFooter className="bg-muted/30 p-8 flex justify-center">

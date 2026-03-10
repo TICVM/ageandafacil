@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -247,17 +246,17 @@ export default function SlotAdminPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="start-time-input" className="text-xs font-bold">Início</Label>
-                      <Input id="start-time-input" name="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="slot-start-time" className="text-xs font-bold">Início</Label>
+                      <Input id="slot-start-time" name="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl h-10" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="duration-input" className="text-xs font-bold">Duração (min)</Label>
-                      <Input id="duration-input" name="duration" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="slot-duration" className="text-xs font-bold">Duração (min)</Label>
+                      <Input id="slot-duration" name="duration" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="rounded-xl h-10" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="target-select-trigger" className="text-xs font-bold">Alvo</Label>
+                    <Label className="text-xs font-bold">Alvo</Label>
                     <div className="flex gap-1 mb-2">
                       <Button variant={targetType === 'global' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('global'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Global</Button>
                       <Button variant={targetType === 'segment' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('segment'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Segmento</Button>
@@ -265,7 +264,7 @@ export default function SlotAdminPage() {
                     </div>
                     {targetType !== 'global' && (
                       <Select onValueChange={setTargetId} value={targetId} modal={false}>
-                        <SelectTrigger id="target-select-trigger" name="target" className="rounded-xl h-10">
+                        <SelectTrigger id="slot-target-select" name="target" className="rounded-xl h-10">
                           <SelectValue placeholder={targetType === 'segment' ? "Escolha o Segmento" : "Escolha a Turma"} />
                         </SelectTrigger>
                         <SelectContent>
@@ -322,11 +321,11 @@ export default function SlotAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="block-date-popover-trigger" className="text-xs font-bold">Data(s) do Evento</Label>
+                    <Label htmlFor="block-date-trigger" className="text-xs font-bold">Data(s) do Evento</Label>
                     <Popover modal={false}>
                       <PopoverTrigger asChild>
                         <Button
-                          id="block-date-popover-trigger"
+                          id="block-date-trigger"
                           name="blockDate"
                           variant={"outline"}
                           className={cn(
@@ -366,19 +365,19 @@ export default function SlotAdminPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="block-start-input" className="text-xs font-bold">Bloquear De:</Label>
-                      <Input id="block-start-input" name="blockStart" type="time" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="block-start" className="text-xs font-bold">Bloquear De:</Label>
+                      <Input id="block-start" name="blockStart" type="time" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} className="rounded-xl h-10" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="block-end-input" className="text-xs font-bold">Até:</Label>
-                      <Input id="block-end-input" name="blockEnd" type="time" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="block-end" className="text-xs font-bold">Até:</Label>
+                      <Input id="block-end" name="blockEnd" type="time" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} className="rounded-xl h-10" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="block-reason-input" className="text-xs font-bold">Motivo do Bloqueio</Label>
+                    <Label htmlFor="block-reason" className="text-xs font-bold">Motivo do Bloqueio</Label>
                     <Input 
-                      id="block-reason-input"
+                      id="block-reason"
                       name="reason"
                       placeholder="Ex: Reunião Pedagógica, Feriado..." 
                       value={blockReason}
@@ -519,9 +518,9 @@ export default function SlotAdminPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="bulk-dates-textarea">Lista de datas para bloqueio</Label>
+            <Label htmlFor="bulk-dates-list">Lista de datas para bloqueio</Label>
             <Textarea 
-              id="bulk-dates-textarea"
+              id="bulk-dates-list"
               name="bulkDates"
               placeholder="01/05/2025&#10;07/09/2025&#10;12/10/2025" 
               className="rounded-xl min-h-[200px] font-mono text-sm mt-2"

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -165,6 +164,7 @@ export default function AppointmentsPage() {
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
+    // Garante que o estado de edição comece limpo ao abrir o diálogo
     setEditDate(undefined);
     setEditSlotId('');
     setEditLocationId(booking.photoLocationId);
@@ -251,7 +251,7 @@ export default function AppointmentsPage() {
     }).sort((a, b) => {
       const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
       if (dateCompare !== 0) return dateCompare;
-      return a.startTime.startTime.localeCompare(b.startTime) || 0;
+      return a.startTime.localeCompare(b.startTime) || 0;
     });
   }, [list, userPerms, profile, classes, isMaster, searchTerm]);
 
@@ -426,7 +426,6 @@ export default function AppointmentsPage() {
         <DialogContent 
           className="max-w-3xl rounded-3xl overflow-hidden p-0"
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
@@ -494,11 +493,12 @@ export default function AppointmentsPage() {
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent 
+          id="reschedule-dialog-content"
           className="max-w-2xl rounded-3xl overflow-hidden p-0" 
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
+            // Impede o fechamento do diálogo ao interagir com portais de calendário/select
             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
               e.preventDefault();
             }
@@ -539,13 +539,13 @@ export default function AppointmentsPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="reschedule-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <Label htmlFor="reschedule-new-date-button" className="text-sm font-bold flex items-center gap-2 text-orange-500">
                       <CalendarIcon className="w-4 h-4" /> Nova Data
                     </Label>
                     <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
                       <PopoverTrigger asChild>
                         <Button 
-                          id="reschedule-new-date-trigger" 
+                          id="reschedule-new-date-button" 
                           name="newDate"
                           variant="outline" 
                           className="w-full h-11 justify-start rounded-xl bg-white border-orange-200"
@@ -609,11 +609,11 @@ export default function AppointmentsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reschedule-id-input" className="text-sm font-bold flex items-center gap-2 text-slate-600">
+                    <Label htmlFor="reschedule-identifier-input" className="text-sm font-bold flex items-center gap-2 text-slate-600">
                       <Hash className="w-4 h-4" /> Identificador Específico
                     </Label>
                     <Input 
-                      id="reschedule-id-input" 
+                      id="reschedule-identifier-input" 
                       name="locationIdentifier" 
                       value={editIdentifier} 
                       onChange={(e) => setEditIdentifier(e.target.value)} 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -90,21 +89,16 @@ export default function LocationsAdminPage() {
               Novo Local
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-2xl" onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
-              e.preventDefault();
-            }
-          }} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogContent className="rounded-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Adicionar Local</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-loc-name" className="text-sm font-semibold">Nome do Local</Label>
+                  <Label htmlFor="loc-name-new" className="text-sm font-semibold">Nome do Local</Label>
                   <Input 
-                    id="new-loc-name"
+                    id="loc-name-new"
                     name="name"
                     placeholder="Ex: Sala de Aula" 
                     value={newLoc.name} 
@@ -113,9 +107,9 @@ export default function LocationsAdminPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="new-loc-unit" className="text-sm font-semibold">Unidade</Label>
+                  <Label htmlFor="loc-unit-new" className="text-sm font-semibold">Unidade</Label>
                   <Input 
-                    id="new-loc-unit"
+                    id="loc-unit-new"
                     name="unit"
                     placeholder="Ex: Unidade I" 
                     value={newLoc.unit} 
@@ -127,21 +121,21 @@ export default function LocationsAdminPage() {
 
               <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
                 <Switch 
-                  id="requires-id-switch-new" 
+                  id="loc-requires-id-new" 
                   name="requiresIdentifier"
                   checked={newLoc.requiresIdentifier}
                   onCheckedChange={(checked) => setNewLoc({...newLoc, requiresIdentifier: checked})}
                 />
                 <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="requires-id-switch-new" className="font-bold cursor-pointer">Exige identificação específica?</Label>
+                  <Label htmlFor="loc-requires-id-new" className="font-bold cursor-pointer">Exige identificação específica?</Label>
                   <p className="text-xs text-muted-foreground">Habilite se for necessário pedir o número da sala ou nome do laboratório.</p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="new-loc-desc" className="text-sm font-semibold">Descrição/Dicas</Label>
+                <Label htmlFor="loc-desc-new" className="text-sm font-semibold">Descrição/Dicas</Label>
                 <Textarea 
-                  id="new-loc-desc"
+                  id="loc-desc-new"
                   name="description"
                   placeholder="Dicas de iluminação ou acesso..." 
                   value={newLoc.description} 
@@ -161,10 +155,10 @@ export default function LocationsAdminPage() {
       <Card className="border-none shadow-md overflow-hidden bg-white">
         <div className="p-4 border-b bg-muted/10">
           <div className="relative max-w-sm">
-            <Label htmlFor="search-locations-input" className="sr-only">Buscar locais</Label>
+            <Label htmlFor="search-locations" className="sr-only">Buscar locais</Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
-              id="search-locations-input"
+              id="search-locations"
               name="search"
               placeholder="Buscar local ou unidade..." 
               className="pl-9 rounded-xl h-11 bg-white"
@@ -253,21 +247,16 @@ export default function LocationsAdminPage() {
       </Card>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="rounded-2xl" onInteractOutside={(e) => {
-          const target = e.target as HTMLElement;
-          if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
-            e.preventDefault();
-          }
-        }} onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="rounded-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Editar Local</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-loc-name" className="text-sm font-semibold">Nome do Local</Label>
+                <Label htmlFor="loc-name-edit" className="text-sm font-semibold">Nome do Local</Label>
                 <Input 
-                  id="edit-loc-name"
+                  id="loc-name-edit"
                   name="name"
                   value={editingItem?.name || ''} 
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)}
@@ -275,9 +264,9 @@ export default function LocationsAdminPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-loc-unit" className="text-sm font-semibold">Unidade</Label>
+                <Label htmlFor="loc-unit-edit" className="text-sm font-semibold">Unidade</Label>
                 <Input 
-                  id="edit-loc-unit"
+                  id="loc-unit-edit"
                   name="unit"
                   value={editingItem?.unit || ''} 
                   onChange={(e) => setEditingItem(prev => prev ? {...prev, unit: e.target.value} : null)}
@@ -288,20 +277,20 @@ export default function LocationsAdminPage() {
 
             <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
               <Switch 
-                id="requires-id-switch-edit" 
+                id="loc-requires-id-edit" 
                 name="requiresIdentifier"
                 checked={editingItem?.requiresIdentifier || false}
                 onCheckedChange={(checked) => setEditingItem(prev => prev ? {...prev, requiresIdentifier: checked} : null)}
               />
               <div className="grid gap-1.5 leading-none">
-                <Label htmlFor="requires-id-switch-edit" className="font-bold cursor-pointer">Exige identificação específica?</Label>
+                <Label htmlFor="loc-requires-id-edit" className="font-bold cursor-pointer">Exige identificação específica?</Label>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-loc-desc" className="text-sm font-semibold">Descrição/Dicas</Label>
+              <Label htmlFor="loc-desc-edit" className="text-sm font-semibold">Descrição/Dicas</Label>
               <Textarea 
-                id="edit-loc-desc"
+                id="loc-desc-edit"
                 name="description"
                 placeholder="Dicas de iluminação ou acesso..." 
                 value={editingItem?.description || ''} 
