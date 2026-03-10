@@ -354,7 +354,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
                               <status.icon className="w-3 h-3" />
@@ -395,7 +395,7 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}>
                           <Info className="w-4 h-4" />
                         </Button>
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
                               <MoreHorizontal className="w-4 h-4" />
@@ -435,7 +435,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0">
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
               <FileText className="w-6 h-6" /> Detalhes da Sessão
@@ -501,16 +501,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent 
-          className="max-w-2xl rounded-3xl overflow-hidden p-0"
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            // Se o clique for em um portal (popover, select content), não bloqueie nem feche
-            if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
-              e.preventDefault();
-            }
-          }}
-        >
+        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
               <Edit3 className="w-6 h-6" /> Reagendar Sessão
@@ -524,7 +515,7 @@ export default function AppointmentsPage() {
                   <Label htmlFor="reschedule-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500">
                     <CalendarIcon className="w-4 h-4" /> Nova Data
                   </Label>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <Button 
                         id="reschedule-date-trigger" 
@@ -557,12 +548,7 @@ export default function AppointmentsPage() {
                   <Label htmlFor="reschedule-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
                     <Clock className="w-4 h-4" /> Novo Horário
                   </Label>
-                  <Select 
-                    value={editSlotId} 
-                    onValueChange={setEditSlotId} 
-                    disabled={!editDate} 
-                    modal={false}
-                  >
+                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
                     <SelectTrigger id="reschedule-slot-select" name="slot" className="rounded-xl h-11">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -585,11 +571,7 @@ export default function AppointmentsPage() {
                   <Label htmlFor="reschedule-location-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
                     <MapPin className="w-4 h-4" /> Local
                   </Label>
-                  <Select 
-                    value={editLocationId} 
-                    onValueChange={setEditLocationId} 
-                    modal={false}
-                  >
+                  <Select value={editLocationId} onValueChange={setEditLocationId}>
                     <SelectTrigger id="reschedule-location-select" name="location" className="rounded-xl h-11">
                       <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
