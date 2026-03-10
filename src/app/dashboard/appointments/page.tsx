@@ -165,7 +165,6 @@ export default function AppointmentsPage() {
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
-    // Inicializamos os campos novos como vazios ou mantemos nulo para forçar escolha
     setEditDate(undefined);
     setEditSlotId('');
     setEditLocationId(booking.photoLocationId);
@@ -199,7 +198,7 @@ export default function AppointmentsPage() {
       details: `Sessão reagendada de ${format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')} ${editingBooking.startTime} para ${format(editDate, 'dd/MM/yyyy')} ${slot.startTime}.`
     };
 
-    const updateData = {
+    updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
       appointmentDate: newDate,
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
@@ -208,9 +207,7 @@ export default function AppointmentsPage() {
       observations: editNotes,
       status: 'RESCHEDULED',
       history: [...(editingBooking.history || []), newHistoryEntry]
-    };
-
-    updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), updateData);
+    });
 
     setEditingBooking(null);
     setIsSaving(false);
@@ -383,12 +380,12 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}>
+                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)} aria-label="Ver detalhes">
                           <Info className="w-4 h-4" />
                         </Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full">
+                            <Button variant="ghost" size="icon" className="rounded-full" aria-label="Mais opções">
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -496,7 +493,6 @@ export default function AppointmentsPage() {
           className="max-w-2xl rounded-3xl overflow-hidden p-0" 
           onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
-             // Evita que o diálogo bloqueie interações em portais (como o calendário)
              const target = e.target as HTMLElement;
              if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
                e.preventDefault();
@@ -507,11 +503,10 @@ export default function AppointmentsPage() {
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
               <Edit3 className="w-6 h-6" /> Reagendar Sessão
             </DialogTitle>
-            <DialogDescription className="text-orange-50/80">Compare o agendamento atual com os novos dados de reagendamento.</DialogDescription>
+            <DialogDescription className="text-orange-50/80">Confira o agendamento atual e defina a nova data e horário.</DialogDescription>
           </DialogHeader>
           {editingBooking && (
-            <div className="p-8 space-y-8">
-              {/* Seção Agendamento Atual (Fixado) */}
+            <div className="p-8 space-y-8 bg-white">
               <div className="bg-muted/30 p-5 rounded-2xl border border-dashed border-slate-300">
                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3 flex items-center gap-2">
                     <Clock className="w-3 h-3" /> Agendamento Atual
@@ -536,7 +531,6 @@ export default function AppointmentsPage() {
                  <div className="h-px bg-slate-200 flex-1"></div>
               </div>
 
-              {/* Seção Novo Agendamento (Editável) */}
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -549,20 +543,20 @@ export default function AppointmentsPage() {
                           id="reschedule-new-date-trigger" 
                           name="newDate"
                           variant="outline" 
-                          className="w-full h-11 justify-start rounded-xl bg-white"
+                          className="w-full h-11 justify-start rounded-xl bg-white border-orange-200"
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione a nova data</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[60]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                      <PopoverContent className="w-auto p-0 z-[100]" align="start" onInteractOutside={(e) => e.preventDefault()}>
                         <Calendar 
                           mode="single" 
                           selected={editDate} 
                           onSelect={(d) => {
                             if (d) {
                               setEditDate(d);
-                              setEditSlotId(''); // Limpa horário anterior para forçar nova escolha
+                              setEditSlotId('');
                               setIsCalendarOpen(false);
                             }
                           }} 
@@ -577,10 +571,10 @@ export default function AppointmentsPage() {
                       <Clock className="w-4 h-4" /> Novo Horário
                     </Label>
                     <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
-                      <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-11 bg-white">
+                      <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-11 bg-white border-orange-200">
                         <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
-                      <SelectContent className="z-[60]">
+                      <SelectContent className="z-[100]">
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => (
                             <SelectItem key={s.id} value={s.id}>
@@ -604,7 +598,7 @@ export default function AppointmentsPage() {
                       <SelectTrigger id="reschedule-location-select" name="location" className="rounded-xl h-11 bg-white">
                         <SelectValue placeholder="Selecione o local" />
                       </SelectTrigger>
-                      <SelectContent className="z-[60]">
+                      <SelectContent className="z-[100]">
                         {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -632,7 +626,7 @@ export default function AppointmentsPage() {
                     value={editNotes} 
                     onChange={(e) => setEditNotes(e.target.value)} 
                     className="rounded-xl h-11" 
-                    placeholder="Alguma instrução especial para a equipe de fotos?"
+                    placeholder="Instruções para a equipe de fotos"
                   />
                 </div>
               </div>
@@ -641,11 +635,11 @@ export default function AppointmentsPage() {
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-6" disabled={isSaving}>Cancelar</Button>
                 <Button 
                   onClick={handleSaveEdit} 
-                  className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-8 shadow-lg shadow-orange-500/20" 
+                  className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-8 shadow-lg" 
                   disabled={isSaving || !editSlotId || !editDate}
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Confirmar Reagendamento
+                  Salvar Reagendamento
                 </Button>
               </DialogFooter>
             </div>

@@ -63,27 +63,21 @@ export default function PublicBookingPage() {
   useEffect(() => {
     async function fetchProfile() {
       if (isUserLoading) return;
-
       if (!db || !authUser) {
         setLoadingProfile(false);
         return;
       }
-      
       setLoadingProfile(true);
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
-        const isMasterEmail = userEmail === 'herbertpacheco@cvmsp.com.br';
-
         const userDocRef = doc(db, 'users', authUser.uid);
         const userDoc = await getDoc(userDocRef);
-        
         if (userDoc.exists()) {
           const profileData = userDoc.data() as User;
           setProfile({ ...profileData, id: authUser.uid });
           setTeacherName(profileData.name || '');
           setIsIdentified(true);
-          
-          if (profileData.roleId === 'ADMIN' || isMasterEmail) {
+          if (profileData.roleId === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br') {
             setUserPerms({
               canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
               canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
@@ -94,25 +88,11 @@ export default function PublicBookingPage() {
             });
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', profileData.roleId));
-            if (roleDoc.exists()) {
-              setUserPerms(roleDoc.data() as RoleConfig);
-            }
+            if (roleDoc.exists()) setUserPerms(roleDoc.data() as RoleConfig);
           }
-        } else if (isMasterEmail) {
-          setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: userEmail || '', roleId: 'ADMIN' });
-          setTeacherName('Herbert Pacheco');
-          setIsIdentified(true);
-          setUserPerms({
-            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-            canViewSegmentAppointments: true, canViewClassAppointments: true,
-            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true, canChangeStatus: true,
-            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
-          });
         }
       } catch (err) {
-        console.error("Erro ao carregar perfil na reserva:", err);
+        console.error("Erro ao carregar perfil:", err);
       } finally {
         setLoadingProfile(false);
       }
@@ -126,14 +106,12 @@ export default function PublicBookingPage() {
     try {
       const q = query(collection(db, 'users'), where('email', '==', guestEmail.toLowerCase().trim()), limit(1));
       const snap = await getDocs(q);
-      
       if (!snap.empty) {
         const userData = snap.docs[0].data() as User;
         const userId = snap.docs[0].id;
         setProfile({ ...userData, id: userId });
         setTeacherName(userData.name || '');
         setIsIdentified(true);
-
         if (userData.roleId === 'ADMIN') {
           setUserPerms({
             canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
@@ -145,17 +123,11 @@ export default function PublicBookingPage() {
           });
         } else {
           const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
-          if (roleDoc.exists()) {
-            setUserPerms(roleDoc.data() as RoleConfig);
-          }
+          if (roleDoc.exists()) setUserPerms(roleDoc.data() as RoleConfig);
         }
-        toast({ title: "Olá, " + userData.name, description: "Identificação realizada com sucesso." });
+        toast({ title: "Olá, " + userData.name });
       } else {
-        toast({ 
-          variant: "destructive",
-          title: "Acesso Negado", 
-          description: "E-mail não cadastrado. Por favor, peça para o seu coordenador ou administrador efetuar seu cadastro antes de realizar o agendamento." 
-        });
+        toast({ variant: "destructive", title: "Acesso Negado", description: "E-mail não cadastrado." });
       }
     } catch (e) {
       toast({ title: "Erro na verificação", variant: "destructive" });
@@ -166,11 +138,9 @@ export default function PublicBookingPage() {
 
   const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const locations = rawLocations || [];
-
   const filteredClasses = rawClasses?.filter(c => {
     if (!profile || !userPerms) return false;
-    const userEmail = profile.email?.toLowerCase().trim();
-    if (profile.roleId === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br' || userPerms.canViewAllAppointments) return true;
+    if (profile.roleId === 'ADMIN' || userPerms.canViewAllAppointments) return true;
     if (userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(c.schoolSegmentId)) return true;
     if (userPerms.canViewClassAppointments && profile.classIds?.includes(c.id)) return true;
     return false;
@@ -179,308 +149,149 @@ export default function PublicBookingPage() {
   const selectedClass = filteredClasses?.find(c => c.id === selectedClassId);
   const selectedSegment = segments?.find(s => s.id === selectedClass?.schoolSegmentId);
   const selectedLocation = locations?.find(l => l.id === selectedLocationId);
-
-  const filteredLocations = locations?.filter(l => {
-    if (!l.isActive) return false;
-    const userEmail = profile?.email?.toLowerCase().trim();
-    if (profile?.roleId === 'ADMIN' || userEmail === 'herbertpacheco@cvmsp.com.br') return true;
-    if (!selectedSegment || !selectedSegment.unit) return true;
-    return !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase();
-  }) || [];
+  const filteredLocations = locations?.filter(l => l.isActive && (!selectedSegment?.unit || !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase())) || [];
 
   const availableSlots = slots?.filter(s => {
     if (!date) return false;
-    const dayMatches = s.dayOfWeek === date.getDay().toString();
-    if (!dayMatches) return false;
-
-    const targetMatches = s.schoolClassId 
-      ? s.schoolClassId === selectedClassId
-      : s.schoolSegmentId 
-        ? s.schoolSegmentId === selectedClass?.schoolSegmentId
-        : !s.schoolClassId && !s.schoolSegmentId;
-    
+    if (s.dayOfWeek !== date.getDay().toString()) return false;
+    const targetMatches = s.schoolClassId ? s.schoolClassId === selectedClassId : s.schoolSegmentId ? s.schoolSegmentId === selectedClass?.schoolSegmentId : !s.schoolClassId && !s.schoolSegmentId;
     if (!targetMatches) return false;
-
     const dateStr = format(date, 'yyyy-MM-dd');
-    const isTaken = allAppointments?.some(app => 
-      app.appointmentDate === dateStr && 
-      app.startTime === s.startTime && 
-      app.status !== 'CANCELLED'
-    );
-    if (isTaken) return false;
-
-    const isBlocked = allBlocks?.some(block => {
+    if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
+    return !allBlocks?.some(block => {
       if (block.date !== dateStr) return false;
-      const timeToMin = (t: string) => {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-      };
-      const slotStart = timeToMin(s.startTime);
-      const slotEnd = slotStart + (s.durationMinutes || 60);
-      const blockStart = timeToMin(block.startTime);
-      const blockEnd = timeToMin(block.endTime);
-      return slotStart < blockEnd && slotEnd > blockStart;
+      const t2m = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      return t2m(s.startTime) < t2m(block.endTime) && (t2m(s.startTime) + (s.durationMinutes || 60)) > t2m(block.startTime);
     });
-
-    return !isBlocked;
-  }).sort((a, b) => a.startTime.localeCompare(b.startTime) || 0) || [];
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
 
   const handleSchedule = () => {
-    if (userPerms && !userPerms.canCreateBookings) {
-      toast({ title: "Acesso Negado", description: "Seu perfil não tem permissão para criar reservas.", variant: "destructive" });
-      return;
-    }
     if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
-      toast({ title: "Erro", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
+      toast({ title: "Erro", description: "Preencha todos os campos.", variant: "destructive" });
       return;
     }
-    
     const slot = slots?.find(s => s.id === selectedSlotId);
     if (!slot) return;
-
     const [h, m] = slot.startTime.split(':').map(Number);
     const endTotal = h * 60 + m + (slot.durationMinutes || 60);
     const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
     const endM = (endTotal % 60).toString().padStart(2, '0');
-
-    const appointmentDate = format(date, 'yyyy-MM-dd');
-    
-    const initialHistory: HistoryEntry = {
-      timestamp: new Date().toISOString(),
-      userId: profile.id,
-      userName: profile.name || teacherName,
-      action: 'CRIACAO',
-      details: `Reserva inicial realizada para o dia ${format(date, 'dd/MM/yyyy')} às ${slot.startTime}.`
-    };
-
     addDoc(collection(db, 'appointments'), {
       schoolClassId: selectedClassId,
       teacherId: profile.id,
       teacherName: teacherName,
       photoLocationId: selectedLocationId,
       locationIdentifier: locationIdentifier || null,
-      appointmentDate: appointmentDate,
+      appointmentDate: format(date, 'yyyy-MM-dd'),
       startTime: slot.startTime,
       endTime: `${endH}:${endM}`,
       status: 'PENDING',
       observations: notes,
-      aiBrief: aiBrief || null,
-      history: [initialHistory],
+      history: [{ timestamp: new Date().toISOString(), userId: profile.id, userName: teacherName, action: 'CRIACAO', details: 'Reserva realizada.' }],
       createdAt: serverTimestamp(),
-    }).then(() => {
-      setIsSuccess(true);
-    });
+    }).then(() => setIsSuccess(true));
   };
 
-  if (isUserLoading || (authUser && loadingProfile)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Sincronizando acesso...</p>
+  if (isSuccess) return (
+    <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">
+      <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden">
+        <div className="bg-primary p-8 text-center text-primary-foreground">
+          <CheckCircle2 className="w-16 h-16 mx-auto mb-4" />
+          <h2 className="text-3xl font-bold">Sessão Agendada!</h2>
         </div>
-      </div>
-    );
-  }
-
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in duration-300">
-          <div className="bg-primary p-8 text-center text-primary-foreground">
-            <CheckCircle2 className="w-16 h-16 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold">Sessão Agendada!</h2>
-            <p className="text-primary-foreground/80">Sua reserva foi enviada e aguarda confirmação da equipe.</p>
-          </div>
-          <CardContent className="p-8 space-y-4">
-            <div className="flex justify-between border-b pb-2"><span>Turma:</span><span className="font-bold">{selectedClass?.name}</span></div>
-            <div className="flex justify-between border-b pb-2"><span>Data:</span><span className="font-bold">{date && format(date, 'dd/MM/yyyy')}</span></div>
-            <div className="flex justify-between border-b pb-2"><span>Status:</span><Badge variant="secondary" className="bg-orange-100 text-orange-700">Aguardando confirmação</Badge></div>
-            <Button onClick={() => window.location.reload()} className="w-full rounded-xl h-12 mt-4">Fazer outra reserva</Button>
-            <Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full">Ir para o Painel</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+        <CardContent className="p-8">
+          <Button onClick={() => window.location.reload()} className="w-full rounded-xl h-12">Fazer outra reserva</Button>
+          <Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full mt-2">Ir para o Painel</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#ECF1FA] py-12 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
-        <div className="flex justify-between items-center">
-          <Button 
-            variant="ghost" 
-            onClick={() => router.push(authUser ? '/dashboard' : '/')} 
-            className="rounded-xl gap-2 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {authUser ? 'Voltar ao Painel' : 'Voltar para Login'}
-          </Button>
-        </div>
-
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="bg-primary p-4 rounded-2xl shadow-lg mb-2"><Camera className="w-10 h-10 text-primary-foreground" /></div>
-          <h1 className="text-4xl font-bold text-primary">SchoolLens</h1>
-          <p className="text-muted-foreground">Sistema de Agendamento Inteligente</p>
-        </div>
-
+        <Button variant="ghost" onClick={() => router.push(authUser ? '/dashboard' : '/')} className="rounded-xl gap-2">
+          <ArrowLeft className="w-4 h-4" /> Voltar
+        </Button>
         {!isIdentified ? (
-          <Card className="max-w-md mx-auto shadow-xl border-none rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <CardHeader className="bg-primary text-primary-foreground p-6 text-center">
-              <CardTitle className="text-xl">Identificação Rápida</CardTitle>
-              <CardDescription className="text-primary-foreground/80">Informe seu e-mail institucional para iniciar o agendamento.</CardDescription>
-            </CardHeader>
+          <Card className="max-w-md mx-auto shadow-xl rounded-3xl">
+            <CardHeader className="bg-primary text-primary-foreground text-center"><CardTitle>Identificação</CardTitle></CardHeader>
             <CardContent className="p-8 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="guest-email-input" className="text-sm font-semibold flex items-center gap-2 text-slate-600">
-                  <Mail className="w-4 h-4" /> E-mail Institucional
-                </Label>
-                <Input 
-                  id="guest-email-input"
-                  name="guestEmail"
-                  type="email"
-                  placeholder="ex: professor@escola.com" 
-                  value={guestEmail} 
-                  onChange={(e) => setGuestEmail(e.target.value)} 
-                  className="rounded-xl h-12 border-slate-200"
-                />
+                <Label htmlFor="guest-email-input">E-mail Institucional</Label>
+                <Input id="guest-email-input" name="guestEmail" type="email" placeholder="professor@escola.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="rounded-xl h-12" />
               </div>
-              <Button 
-                onClick={handleVerifyGuestEmail} 
-                disabled={isVerifyingEmail || !guestEmail} 
-                className="w-full rounded-xl h-12 gap-2 text-lg"
-              >
-                {isVerifyingEmail ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                Verificar E-mail
-              </Button>
+              <Button onClick={handleVerifyGuestEmail} disabled={isVerifyingEmail || !guestEmail} className="w-full h-12">{isVerifyingEmail ? <Loader2 className="animate-spin" /> : "Verificar"}</Button>
             </CardContent>
-            <CardFooter className="bg-muted/30 p-4 text-center">
-              <p className="text-[10px] text-muted-foreground">
-                Seu e-mail deve estar previamente cadastrado no sistema por um administrador.
-              </p>
-            </CardFooter>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="md:col-span-2 space-y-8 animate-in fade-in duration-500">
-              <Card className="shadow-xl border-none rounded-3xl overflow-hidden">
-                <CardHeader className="bg-primary text-primary-foreground p-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle className="flex items-center gap-2"><CalendarIcon className="w-5 h-5" /> Reserva de Sessão</CardTitle>
-                      <CardDescription className="text-primary-foreground/80">Selecione os detalhes abaixo para agendar suas fotos.</CardDescription>
-                    </div>
-                    <Badge variant="outline" className="text-primary-foreground border-primary-foreground/20 gap-1">
-                      <UserIcon className="w-3 h-3" /> {profile?.name}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-8 space-y-6 bg-white">
+            <Card className="md:col-span-2 shadow-xl rounded-3xl overflow-hidden">
+              <CardHeader className="bg-primary text-primary-foreground p-6"><CardTitle>Reserva de Sessão</CardTitle></CardHeader>
+              <CardContent className="p-8 space-y-6 bg-white">
+                <div className="space-y-2">
+                  <Label htmlFor="teacher-name-input">Docente</Label>
+                  <Input id="teacher-name-input" name="teacherName" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="teacher-name-input" className="text-sm font-semibold">Docente Responsável</Label>
-                    <Input id="teacher-name-input" name="teacherName" value={teacherName} readOnly className="rounded-xl h-11 bg-muted/30 border-none font-bold" />
+                    <Label htmlFor="class-select-trigger">Turma</Label>
+                    <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
+                      <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-11"><SelectValue placeholder="Turma" /></SelectTrigger>
+                      <SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="class-select-trigger" className="text-sm font-semibold">Turma</Label>
-                      <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
-                        <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-11">
-                          <SelectValue placeholder="Selecione a turma" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filteredClasses.length > 0 ? filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhuma turma disponível para seu perfil.</div>}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location-select-trigger" className="text-sm font-semibold">Local da Foto</Label>
-                      <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
-                        <SelectTrigger id="location-select-trigger" name="location" className="rounded-xl h-11">
-                          <SelectValue placeholder="Selecione o local" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {selectedLocation?.requiresIdentifier && (
-                    <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border border-primary/10">
-                      <Label htmlFor="identifier-input" className="text-sm font-bold flex items-center gap-2 text-primary"><Hash className="w-4 h-4" /> Qual sala ou número?</Label>
-                      <Input id="identifier-input" name="locationIdentifier" placeholder="Ex: Sala 12, Laboratório..." value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="date-trigger" className="text-sm font-semibold">Data</Label>
-                      <Popover modal={false}>
-                        <PopoverTrigger asChild>
-                          <Button id="date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date ? format(date, "PPP", { locale: ptBR }) : <span>Escolha a data</span>}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < new Date()} />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="slot-select-trigger" className="text-sm font-semibold">Horário</Label>
-                      <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                        <SelectTrigger id="slot-select-trigger" name="slot" className="rounded-xl h-11">
-                          <SelectValue placeholder="Escolha o horário" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableSlots.length > 0 ? availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>) : <div className="p-4 text-xs text-center text-muted-foreground">Indisponível para esta data ou turma.</div>}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="notes-textarea" className="text-sm font-semibold">Observações (Para o Briefing)</Label>
-                    <Textarea id="notes-textarea" name="notes" placeholder="Descreva brevemente como será a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                    <Label htmlFor="location-select-trigger">Local</Label>
+                    <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
+                      <SelectTrigger id="location-select-trigger" name="location" className="rounded-xl h-11"><SelectValue placeholder="Local" /></SelectTrigger>
+                      <SelectContent>{filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
-                </CardContent>
-                <CardFooter className="bg-muted/30 p-8 flex justify-center">
-                  <Button 
-                    onClick={handleSchedule} 
-                    className="w-full max-w-sm rounded-2xl h-14 bg-primary text-xl font-bold shadow-lg hover:scale-105 transition-transform"
-                    disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}
-                  >
-                    CONCLUIR RESERVA
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
-
+                </div>
+                {selectedLocation?.requiresIdentifier && (
+                  <div className="space-y-2 bg-primary/5 p-4 rounded-2xl border">
+                    <Label htmlFor="identifier-input">Qual sala ou número?</Label>
+                    <Input id="identifier-input" name="locationIdentifier" placeholder="Ex: Sala 12" value={locationIdentifier} onChange={(e) => setLocationIdentifier(e.target.value)} className="rounded-xl h-11 bg-white" />
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="date-trigger">Data</Label>
+                    <Popover modal={false}>
+                      <PopoverTrigger asChild>
+                        <Button id="date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {date ? format(date, "dd/MM/yyyy") : <span>Escolha a data</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < startOfDay(new Date())} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slot-select-trigger">Horário</Label>
+                    <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
+                      <SelectTrigger id="slot-select-trigger" name="slot" className="rounded-xl h-11"><SelectValue placeholder="Horário" /></SelectTrigger>
+                      <SelectContent>{availableSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes-textarea">Observações</Label>
+                  <Textarea id="notes-textarea" name="notes" placeholder="Descreva a sessão..." className="rounded-xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </div>
+              </CardContent>
+              <CardFooter className="bg-muted/30 p-8 flex justify-center">
+                <Button onClick={handleSchedule} className="w-full max-w-sm rounded-2xl h-14 bg-primary text-xl font-bold" disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}>CONCLUIR RESERVA</Button>
+              </CardFooter>
+            </Card>
             <div className="space-y-6">
-              <Card className="border-none shadow-xl bg-accent/5 rounded-3xl animate-in fade-in duration-700">
-                <CardHeader className="p-6">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-accent-foreground" /> Briefing IA
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 pt-0">
-                  <div className="text-center py-10 px-4 border-2 border-dashed rounded-2xl text-xs text-muted-foreground italic">
-                    Utilize o painel para complementar sua reserva com orientações pedagógicas para a equipe de fotos.
-                  </div>
-                </CardContent>
+              <Card className="border-none shadow-xl bg-accent/5 rounded-3xl">
+                <CardHeader className="p-6"><CardTitle className="text-lg">Dicas</CardTitle></CardHeader>
+                <CardContent className="p-6 pt-0 text-xs text-muted-foreground italic">Selecione a turma para carregar os locais e horários disponíveis.</CardContent>
               </Card>
-
-              <div className="bg-primary/5 p-6 rounded-3xl border border-dashed border-primary/20">
-                <h4 className="text-sm font-bold text-primary flex items-center gap-2 mb-2">
-                  <Building2 className="w-4 h-4" /> Unidade Escolar
-                </h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  As opções de locais e horários são filtradas automaticamente com base no seu cadastro docente.
-                </p>
-              </div>
             </div>
           </div>
         )}
