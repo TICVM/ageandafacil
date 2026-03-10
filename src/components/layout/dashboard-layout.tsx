@@ -46,7 +46,6 @@ const DEFAULT_PERMS: AppPermissions = {
   canViewAllAppointments: false,
   canViewSegmentAppointments: false,
   canViewClassAppointments: false,
-  canEditAppointments: false,
   canCancelAppointments: false,
   canDeleteAppointments: false,
   canCreateBookings: true,
@@ -54,8 +53,7 @@ const DEFAULT_PERMS: AppPermissions = {
   canStatusPending: false,
   canStatusConfirmed: false,
   canStatusCancelled: false,
-  canStatusRescheduled: false,
-  canStatusReScheduleRequest: false,
+  canStatusCompleted: false,
 };
 
 const ADMIN_PERMS: AppPermissions = {
@@ -67,7 +65,6 @@ const ADMIN_PERMS: AppPermissions = {
   canViewAllAppointments: true,
   canViewSegmentAppointments: true,
   canViewClassAppointments: true,
-  canEditAppointments: true,
   canCancelAppointments: true,
   canDeleteAppointments: true,
   canCreateBookings: true,
@@ -75,8 +72,7 @@ const ADMIN_PERMS: AppPermissions = {
   canStatusPending: true,
   canStatusConfirmed: true,
   canStatusCancelled: true,
-  canStatusRescheduled: true,
-  canStatusReScheduleRequest: true,
+  canStatusCompleted: true,
 };
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -90,7 +86,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [userPerms, setUserPerms] = useState<AppPermissions>(DEFAULT_PERMS);
   const [roleName, setRoleName] = useState('');
 
-  // Fetch global settings
   const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
   const { data: appSettings } = useDoc<AppSettingsType>(settingsRef);
 
@@ -183,7 +178,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     adminItems.push({ title: 'Relatórios', icon: PieChart, href: '/dashboard/admin/reports' });
   }
 
-  // Acesso às configurações apenas para Administrador Master ou Admin
   if (authUser?.email === 'herbertpacheco@cvmsp.com.br' || profile?.roleId === 'ADMIN') {
     adminItems.push({ title: 'Configurações', icon: Settings, href: '/dashboard/admin/settings' });
   }

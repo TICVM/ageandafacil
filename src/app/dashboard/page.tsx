@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, ListTodo, PieChart, Loader2, Building2, Edit3 } from 'lucide-react';
+import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, Loader2, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, getDoc } from 'firebase/firestore';
@@ -17,7 +17,6 @@ export default function Dashboard() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [now, setNow] = useState<Date | null>(null);
 
-  // Evita erros de hidratação inicializando a data apenas no cliente
   useEffect(() => {
     setNow(new Date());
   }, []);
@@ -114,13 +113,6 @@ export default function Dashboard() {
         bg: 'bg-blue-100'
       },
       {
-        title: 'Reagendados',
-        value: userBookings.filter(b => b.status === 'RESCHEDULED').length,
-        icon: Edit3,
-        color: 'text-orange-600',
-        bg: 'bg-orange-100'
-      },
-      {
         title: 'Próximos 7 Dias',
         value: userBookings.filter(b => b.appointmentDate >= todayStr && b.appointmentDate <= nextWeekStr).length,
         icon: CalendarDays,
@@ -152,7 +144,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
           <Card key={stat.title} className="border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow bg-white">
             <CardContent className="p-6">
@@ -248,34 +240,18 @@ export default function Dashboard() {
             </Link>
             <Link href="/dashboard/appointments">
               <Button variant="outline" className="w-full h-24 rounded-2xl flex-col gap-2 hover:bg-primary/5 border-slate-200 transition-all hover:border-primary/50">
-                <ListTodo className="w-6 h-6 text-primary" />
+                <Camera className="w-6 h-6 text-primary" />
                 Ver Agenda
               </Button>
             </Link>
             <Link href={isAdmin ? "/dashboard/admin/reports" : "/dashboard/appointments"}>
               <Button variant="outline" className="w-full h-24 rounded-2xl flex-col gap-2 hover:bg-primary/5 border-slate-200 transition-all hover:border-primary/50">
-                <PieChart className="w-6 h-6 text-primary" />
+                <Camera className="w-6 h-6 text-primary" />
                 {isAdmin ? 'Relatórios' : 'Meu Histórico'}
               </Button>
             </Link>
           </CardContent>
         </Card>
-      </div>
-
-      <div className="bg-white rounded-3xl p-8 border shadow-sm">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="bg-primary p-4 rounded-2xl shadow-xl">
-            <Camera className="w-10 h-10 text-primary-foreground" />
-          </div>
-          <div className="text-center md:text-left">
-            <h2 className="text-2xl font-bold text-slate-800">Dicas para uma sessão incrível</h2>
-            <p className="text-muted-foreground max-w-2xl mt-2 leading-relaxed">
-              Lembre-se de conferir se o local está disponível e avisar os pais com antecedência. 
-              Sessões bem planejadas geram os melhores registros para a escola!
-            </p>
-          </div>
-          <Button variant="outline" className="md:ml-auto rounded-xl border-primary text-primary hover:bg-primary/5">Ver Tutorial</Button>
-        </div>
       </div>
     </div>
   );

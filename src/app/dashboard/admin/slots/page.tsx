@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy, ShieldAlert, CalendarIcon, ListPlus, Save, Timer, AlertCircle } from 'lucide-react';
+import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, serverTimestamp, setDoc } from 'firebase/firestore';
-import { deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -70,18 +71,14 @@ export default function SlotAdminPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
 
-  // States for Advance Rules
+  // Advance Rules State
   const [bookingDays, setBookingDays] = useState(1);
   const [bookingHours, setBookingHours] = useState(0);
-  const [rescheduleDays, setRescheduleDays] = useState(1);
-  const [rescheduleHours, setRescheduleHours] = useState(0);
 
   useEffect(() => {
     if (appSettings) {
       setBookingDays(appSettings.minAdvanceBookingDays ?? 1);
       setBookingHours(appSettings.minAdvanceBookingHours ?? 0);
-      setRescheduleDays(appSettings.minAdvanceRescheduleDays ?? 1);
-      setRescheduleHours(appSettings.minAdvanceRescheduleHours ?? 0);
     }
   }, [appSettings]);
 
@@ -92,8 +89,6 @@ export default function SlotAdminPage() {
       await setDoc(settingsRef, {
         minAdvanceBookingDays: bookingDays,
         minAdvanceBookingHours: bookingHours,
-        minAdvanceRescheduleDays: rescheduleDays,
-        minAdvanceRescheduleHours: rescheduleHours
       }, { merge: true });
       toast({ title: "Regras Atualizadas" });
     } catch (e) {
@@ -359,19 +354,6 @@ export default function SlotAdminPage() {
                   <div className="space-y-1">
                     <Label htmlFor="booking-hours-input" className="text-[10px] font-bold">Horas</Label>
                     <Input id="booking-hours-input" name="bookingHours" type="number" value={bookingHours} onChange={(e) => setBookingHours(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest border-b pb-1">Reagendamentos</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="reschedule-days-input" className="text-[10px] font-bold">Dias</Label>
-                    <Input id="reschedule-days-input" name="rescheduleDays" type="number" value={rescheduleDays} onChange={(e) => setRescheduleDays(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="reschedule-hours-input" className="text-[10px] font-bold">Horas</Label>
-                    <Input id="reschedule-hours-input" name="rescheduleHours" type="number" value={rescheduleHours} onChange={(e) => setRescheduleHours(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
                   </div>
                 </div>
               </div>

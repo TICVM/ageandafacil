@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -9,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, Edit3, XCircle, ListTodo, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, XCircle, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, CheckCircle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -27,7 +28,6 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canViewAllAppointments: false,
   canViewSegmentAppointments: false,
   canViewClassAppointments: false,
-  canEditAppointments: false,
   canCancelAppointments: false,
   canDeleteAppointments: false,
   canCreateBookings: true,
@@ -35,8 +35,6 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canStatusPending: false,
   canStatusConfirmed: false,
   canStatusCancelled: false,
-  canStatusRescheduled: false,
-  canStatusReScheduleRequest: false,
   canStatusCompleted: false,
 };
 
@@ -132,7 +130,6 @@ export default function RolesAdminPage() {
                       {role.canViewAllAppointments ? <Badge variant="outline" className="text-[9px] bg-blue-50 border-blue-100 text-blue-700 font-bold uppercase">Total</Badge> : 
                        role.canViewSegmentAppointments ? <Badge variant="outline" className="text-[9px] bg-purple-50 border-purple-100 text-purple-700 font-bold uppercase">Segmento</Badge> :
                        <Badge variant="outline" className="text-[9px] bg-orange-50 border-orange-100 text-orange-700 font-bold uppercase">Turma</Badge>}
-                      {(role.canEditAppointments || role.canCancelAppointments) && <Badge variant="secondary" className="text-[9px] font-bold uppercase">Edição</Badge>}
                       {role.canChangeStatus && <Badge variant="secondary" className="text-[9px] bg-green-50 text-green-700 border-green-100 font-bold uppercase">Validador</Badge>}
                     </div>
                   </TableCell>
@@ -291,7 +288,6 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                     <h3 className="font-bold text-xs uppercase tracking-widest">Ações em Reservas</h3>
                   </div>
                   <div className="bg-destructive/5 p-6 rounded-3xl border border-destructive/10 space-y-3">
-                    {renderPermissionToggle("Editar/Reagendar", "canEditAppointments", Edit3)}
                     {renderPermissionToggle("Cancelar Sessões", "canCancelAppointments", XCircle)}
                     {renderPermissionToggle("Excluir Registro", "canDeleteAppointments", Trash2)}
                   </div>
@@ -312,8 +308,6 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                        {renderPermissionToggle("Aguard. Confirmação", "canStatusPending", Clock)}
                        {renderPermissionToggle("Confirmar Sessão", "canStatusConfirmed", CheckCircle2)}
                        {renderPermissionToggle("Concluir Sessão", "canStatusCompleted", CheckCircle)}
-                       {renderPermissionToggle("Solicitar Reagendamento", "canStatusReScheduleRequest", AlertTriangle)}
-                       {renderPermissionToggle("Marcar como Reagendado", "canStatusRescheduled", Edit3)}
                        {renderPermissionToggle("Marcar como Cancelado", "canStatusCancelled", XCircle)}
                     </div>
                   </div>

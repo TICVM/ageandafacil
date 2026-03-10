@@ -10,7 +10,6 @@ export interface AppPermissions {
   canViewAllAppointments: boolean;
   canViewSegmentAppointments: boolean;
   canViewClassAppointments: boolean;
-  canEditAppointments: boolean;
   canCancelAppointments: boolean;
   canDeleteAppointments: boolean;
   canCreateBookings: boolean;
@@ -19,8 +18,6 @@ export interface AppPermissions {
   canStatusPending: boolean;
   canStatusConfirmed: boolean;
   canStatusCancelled: boolean;
-  canStatusRescheduled: boolean;
-  canStatusReScheduleRequest: boolean;
   canStatusCompleted: boolean;
 }
 
@@ -78,7 +75,7 @@ export interface HistoryEntry {
   timestamp: string;
   userId: string;
   userName: string;
-  action: 'CRIACAO' | 'ALTERACAO_DE_STATUS' | 'REAGENDAMENTO';
+  action: 'CRIACAO' | 'ALTERACAO_DE_STATUS';
   details: string;
 }
 
@@ -92,7 +89,7 @@ export interface Booking {
   appointmentDate: string;
   startTime: string;
   endTime: string;
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'RESCHEDULED' | 'RE_SCHEDULE_REQUEST' | 'COMPLETED';
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
   observations: string;
   sessionDurationMinutes: number;
   aiBrief?: AISessionBriefAssistantOutput | null;
@@ -124,6 +121,4 @@ export interface AppSettings {
   schoolName: string;
   minAdvanceBookingDays: number;
   minAdvanceBookingHours: number;
-  minAdvanceRescheduleDays: number;
-  minAdvanceRescheduleHours: number;
 }
