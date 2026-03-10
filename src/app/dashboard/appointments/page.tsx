@@ -211,7 +211,6 @@ export default function AppointmentsPage() {
         history: [...(booking.history || []), newHistoryEntry]
       });
       
-      // Atualiza o estado local para que o diálogo aberto reflita a mudança imediatamente
       if (selectedBooking?.id === booking.id) {
         setSelectedBooking(prev => prev ? {
           ...prev,
@@ -249,7 +248,6 @@ export default function AppointmentsPage() {
     .sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
   }, [list, userPerms, profile, classMap, isMaster, searchTerm]);
 
-  // Calendar logic
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -260,7 +258,6 @@ export default function AppointmentsPage() {
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToday = () => setCurrentMonth(new Date());
 
-  // Reschedule Logic
   const avRescheduleSlots = useMemo(() => {
     if (!slots || !newDate || !rescheduleBooking) return [];
     const dateStr = format(newDate, 'yyyy-MM-dd');
@@ -521,10 +518,13 @@ export default function AppointmentsPage() {
 
       {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleBooking} onOpenChange={() => setRescheduleBooking(null)}>
-        <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
+        <DialogContent 
+          className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Escolha um novo horário para a sua sessão de fotos.</DialogDescription>
+            <DialogDescription className="text-white/70">Escolha um novo horário para a sua sessão de fotos escolar.</DialogDescription>
           </DialogHeader>
           {rescheduleBooking && (
             <div className="p-8 space-y-8">
@@ -549,7 +549,11 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                    <PopoverContent 
+                      className="w-auto p-0 z-[110]" 
+                      align="start"
+                      onInteractOutside={(e) => e.preventDefault()}
+                    >
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -562,11 +566,11 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent onInteractOutside={(e) => e.preventDefault()}>
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -583,7 +587,10 @@ export default function AppointmentsPage() {
 
       {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
+        <DialogContent 
+          className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-white/70">Informações completas e histórico da reserva selecionada.</DialogDescription>
@@ -637,7 +644,9 @@ export default function AppointmentsPage() {
 
                 <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
                   <p className="text-[10px] font-bold uppercase text-muted-foreground mb-3">Observações</p>
-                  <p className="text-sm italic text-slate-700">{selectedBooking.observations || "Sem notas."}</p>
+                  <ScrollArea className="h-[100px]">
+                    <p className="text-sm italic text-slate-700 whitespace-pre-wrap">{selectedBooking.observations || "Sem notas."}</p>
+                  </ScrollArea>
                 </div>
               </div>
               
@@ -693,8 +702,7 @@ export default function AppointmentsPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-bold text-center">Excluir Agendamento?</AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
-              Esta ação removerá permanentemente a reserva do sistema. <br />
-              <strong>Esta operação não pode ser desfeita.</strong>
+              Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
