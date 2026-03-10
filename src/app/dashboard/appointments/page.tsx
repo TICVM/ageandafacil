@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -355,7 +354,7 @@ export default function AppointmentsPage() {
                       {hasAnyStatusPermission ? (
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none", status.color)}>
+                            <Badge id={`status-badge-trigger-${b.id}`} className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none", status.color)}>
                               <status.icon className="w-3.5 h-3.5" />
                               {status.label}
                             </Badge>
@@ -402,7 +401,7 @@ export default function AppointmentsPage() {
                         </Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" aria-label="Mais opções">
+                            <Button id={`more-actions-trigger-${b.id}`} variant="ghost" size="icon" className="rounded-full hover:bg-muted" aria-label="Mais opções">
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -502,7 +501,7 @@ export default function AppointmentsPage() {
                           </div>
                           <p className="text-sm font-semibold text-slate-700 leading-snug">{entry.details}</p>
                           <div className="flex items-center gap-1.5 mt-2 text-[10px] text-muted-foreground">
-                            <UserIcon className="w-3  h-3" />
+                            <UserIcon className="w-3 h-3" />
                             <span className="font-medium">{entry.userName}</span>
                           </div>
                         </div>
@@ -614,7 +613,7 @@ export default function AppointmentsPage() {
                       <SelectTrigger id="reschedule-new-slot-id-select" name="newSlot" className="rounded-xl h-12 bg-[#FFFBF9] border-orange-200 shadow-sm hover:border-orange-400 transition-colors">
                         <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
-                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none">
+                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none" onInteractOutside={(e) => e.preventDefault()}>
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => (
                             <SelectItem key={s.id} value={s.id} className="rounded-lg">
@@ -641,7 +640,7 @@ export default function AppointmentsPage() {
                       <SelectTrigger id="reschedule-location-id-select" name="location" className="rounded-xl h-12 bg-white border-slate-200 shadow-sm">
                         <SelectValue placeholder="Selecione o local" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none">
+                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none" onInteractOutside={(e) => e.preventDefault()}>
                         {locations?.filter(l => l.isActive).map(l => (
                           <SelectItem key={l.id} value={l.id} className="rounded-lg">
                             <div className="flex flex-col">
@@ -684,6 +683,8 @@ export default function AppointmentsPage() {
               <DialogFooter className="gap-3 border-t pt-8">
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-8 font-medium border-slate-200" disabled={isSaving}>Cancelar</Button>
                 <Button 
+                  id="reschedule-confirm-button"
+                  name="confirmReschedule"
                   onClick={handleSaveEdit} 
                   className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl shadow-orange-500/20 font-bold transition-transform hover:scale-105" 
                   disabled={isSaving || !editSlotId || !editDate}

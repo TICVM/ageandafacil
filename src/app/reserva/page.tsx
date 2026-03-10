@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,6 @@ import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
 import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, HistoryEntry } from '@/lib/types';
-import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 import { toast } from '@/hooks/use-toast';
 
 export default function PublicBookingPage() {
@@ -34,7 +32,6 @@ export default function PublicBookingPage() {
   const [locationIdentifier, setLocationIdentifier] = useState('');
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [notes, setNotes] = useState('');
-  const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   
   const [profile, setProfile] = useState<User | null>(null);
@@ -44,6 +41,10 @@ export default function PublicBookingPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [isIdentified, setIsIdentified] = useState(false);
+
+  const isMaster = useMemo(() => {
+    return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
+  }, [authUser]);
 
   const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
@@ -72,8 +73,8 @@ export default function PublicBookingPage() {
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
         
-        if (userEmail === 'herbertpacheco@cvmsp.com.br') {
-          const masterProfile: User = { id: authUser.uid, name: 'Herbert Pacheco', email: userEmail, roleId: 'ADMIN' };
+        if (isMaster) {
+          const masterProfile: User = { id: authUser.uid, name: 'Herbert Pacheco', email: userEmail!, roleId: 'ADMIN' };
           setProfile(masterProfile);
           setTeacherName(masterProfile.name);
           setIsIdentified(true);
@@ -120,7 +121,7 @@ export default function PublicBookingPage() {
       }
     }
     fetchProfile();
-  }, [db, authUser, isUserLoading]);
+  }, [db, authUser, isUserLoading, isMaster]);
 
   const handleVerifyGuestEmail = async () => {
     if (!guestEmail || !db) return;
@@ -159,52 +160,71 @@ export default function PublicBookingPage() {
     }
   };
 
-  const segments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
-  const locations = rawLocations || [];
-  
-  const filteredClasses = rawClasses?.filter(c => {
-    if (!profile) return true;
-    if (profile.roleId === 'ADMIN') return true;
-    if (userPerms?.canViewAllAppointments) return true;
-    if (userPerms?.canViewSegmentAppointments && profile.segmentIds?.includes(c.schoolSegmentId)) return true;
-    if (userPerms?.canViewClassAppointments && profile.classIds?.includes(c.id)) return true;
-    return true;
-  }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) || [];
-
-  const selectedClass = filteredClasses?.find(c => c.id === selectedClassId);
-  const selectedSegment = segments?.find(s => s.id === selectedClass?.schoolSegmentId);
-  const selectedLocation = locations?.find(l => l.id === selectedLocationId);
-  
-  const filteredLocations = locations?.filter(l => 
-    l.isActive && 
-    (!selectedSegment?.unit || !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase())
-  ) || [];
-
-  const availableSlots = slots?.filter(s => {
-    if (!date || !selectedClassId) return false;
-    if (s.dayOfWeek !== date.getDay().toString()) return false;
+  const filteredClasses = useMemo(() => {
+    if (!rawClasses) return [];
     
-    const targetMatches = s.schoolClassId 
-      ? s.schoolClassId === selectedClassId 
-      : s.schoolSegmentId 
-        ? s.schoolSegmentId === selectedClass?.schoolSegmentId 
-        : !s.schoolClassId && !s.schoolSegmentId;
-        
-    if (!targetMatches) return false;
-    
+    // Filtro de permissões estrito
+    return rawClasses.filter(c => {
+      // Admin e Master vêm tudo
+      if (isMaster || profile?.roleId === 'ADMIN' || userPerms?.canViewAllAppointments) return true;
+      
+      // Se não tem perfil carregado mas está identificado, precisamos das permissões
+      if (!profile) return false;
+
+      const userClassIds = profile.classIds || [];
+      const userSegmentIds = profile.segmentIds || [];
+
+      // Permissão por Segmento
+      if (userPerms?.canViewSegmentAppointments && userSegmentIds.includes(c.schoolSegmentId)) return true;
+      
+      // Permissão por Turma
+      if (userPerms?.canViewClassAppointments && userClassIds.includes(c.id)) return true;
+
+      // Fallback: se o usuário está explicitamente vinculado à turma ou segmento
+      return userClassIds.includes(c.id) || userSegmentIds.includes(c.schoolSegmentId);
+    }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [rawClasses, profile, userPerms, isMaster]);
+
+  const selectedClass = useMemo(() => filteredClasses.find(c => c.id === selectedClassId), [filteredClasses, selectedClassId]);
+  const selectedSegment = useMemo(() => rawSegments?.find(s => s.id === selectedClass?.schoolSegmentId), [rawSegments, selectedClass]);
+  
+  const filteredLocations = useMemo(() => {
+    if (!rawLocations) return [];
+    return rawLocations.filter(l => 
+      l.isActive && 
+      (!selectedSegment?.unit || !l.unit || l.unit.toLowerCase() === selectedSegment.unit.toLowerCase())
+    );
+  }, [rawLocations, selectedSegment]);
+
+  const availableSlots = useMemo(() => {
+    if (!slots || !date || !selectedClassId) return [];
     const dateStr = format(date, 'yyyy-MM-dd');
-    if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
-    
-    return !allBlocks?.some(block => {
-      if (block.date !== dateStr) return false;
-      const t2m = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-      const slotStart = t2m(s.startTime);
-      const slotEnd = slotStart + (s.durationMinutes || 60);
-      const blockStart = t2m(block.startTime);
-      const blockEnd = t2m(block.endTime);
-      return slotStart < blockEnd && slotEnd > blockStart;
-    });
-  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
+    const dayOfWeekStr = date.getDay().toString();
+
+    return slots.filter(s => {
+      if (s.dayOfWeek !== dayOfWeekStr) return false;
+      
+      const targetMatches = s.schoolClassId 
+        ? s.schoolClassId === selectedClassId 
+        : s.schoolSegmentId 
+          ? s.schoolSegmentId === selectedClass?.schoolSegmentId 
+          : !s.schoolClassId && !s.schoolSegmentId;
+          
+      if (!targetMatches) return false;
+      
+      if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
+      
+      return !allBlocks?.some(block => {
+        if (block.date !== dateStr) return false;
+        const t2m = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const slotStart = t2m(s.startTime);
+        const slotEnd = slotStart + (s.durationMinutes || 60);
+        const blockStart = t2m(block.startTime);
+        const blockEnd = t2m(block.endTime);
+        return slotStart < blockEnd && slotEnd > blockStart;
+      });
+    }).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [slots, date, selectedClassId, selectedClass, allAppointments, allBlocks]);
 
   const handleSchedule = () => {
     if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
@@ -350,7 +370,7 @@ export default function PublicBookingPage() {
                       <SelectTrigger id="reserva-class-select-trigger" name="class" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder="Selecione a turma" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl">
+                      <SelectContent className="rounded-xl shadow-2xl" onInteractOutside={(e) => e.preventDefault()}>
                         {filteredClasses.map(c => <SelectItem key={c.id} value={c.id} className="rounded-lg">{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -361,7 +381,7 @@ export default function PublicBookingPage() {
                       <SelectTrigger id="reserva-location-select-trigger" name="location" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder={!selectedClassId ? "Aguardando turma..." : "Escolha o local"} />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl">
+                      <SelectContent className="rounded-xl shadow-2xl" onInteractOutside={(e) => e.preventDefault()}>
                         {filteredLocations.map(l => (
                           <SelectItem key={l.id} value={l.id} className="rounded-lg">
                             <div className="flex flex-col">
@@ -375,7 +395,7 @@ export default function PublicBookingPage() {
                   </div>
                 </div>
 
-                {selectedLocation?.requiresIdentifier && (
+                {rawLocations?.find(l => l.id === selectedLocationId)?.requiresIdentifier && (
                   <div className="space-y-3 bg-primary/5 p-6 rounded-2xl border border-primary/10 animate-in slide-in-from-top-2">
                     <Label htmlFor="reserva-identifier-input" className="text-xs font-bold text-primary uppercase">Identificação Específica (Sala/Lab)</Label>
                     <div className="relative">
@@ -402,7 +422,7 @@ export default function PublicBookingPage() {
                           {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : <span className="text-muted-foreground">Escolha o dia</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-2xl shadow-2xl border-none" align="start">
+                      <PopoverContent className="w-auto p-0 rounded-2xl shadow-2xl border-none" align="start" onInteractOutside={(e) => e.preventDefault()}>
                         <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < startOfDay(new Date())} className="p-4" />
                       </PopoverContent>
                     </Popover>
@@ -413,7 +433,7 @@ export default function PublicBookingPage() {
                       <SelectTrigger id="reserva-slot-select-trigger" name="slot" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder={!date ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl">
+                      <SelectContent className="rounded-xl shadow-2xl" onInteractOutside={(e) => e.preventDefault()}>
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => <SelectItem key={s.id} value={s.id} className="rounded-lg">{s.startTime}</SelectItem>)
                         ) : (
@@ -438,6 +458,8 @@ export default function PublicBookingPage() {
               </CardContent>
               <CardFooter className="bg-slate-50 p-10 flex justify-center border-t">
                 <Button 
+                  id="reserva-submit-booking-button"
+                  name="submitBooking"
                   onClick={handleSchedule} 
                   className="w-full max-w-sm rounded-2xl h-16 bg-primary text-xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform" 
                   disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}

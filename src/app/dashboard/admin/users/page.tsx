@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -189,10 +188,10 @@ export default function UsersAdminPage() {
     toast({ title: "Usuário Removido" });
   };
 
-  const filtered = users?.filter(u => 
+  const filtered = useMemo(() => users?.filter(u => 
     u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  ) || [], [users, searchTerm]);
 
   const getRoleName = (roleId: string) => {
     if (roleId === 'ADMIN') return 'Administrador';
@@ -355,7 +354,7 @@ export default function UsersAdminPage() {
             </div>
             <DialogFooter className="border-t pt-4">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl" disabled={isCreating}>Cancelar</Button>
-              <Button onClick={handleAdd} className="rounded-xl min-w-[140px] shadow-lg" disabled={isCreating}>
+              <Button id="save-new-user-button" name="saveNewUser" onClick={handleAdd} className="rounded-xl min-w-[140px] shadow-lg" disabled={isCreating}>
                 {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cadastrar Membro"}
               </Button>
             </DialogFooter>
@@ -544,7 +543,7 @@ export default function UsersAdminPage() {
           </div>
           <DialogFooter className="border-t pt-4">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl">Cancelar</Button>
-            <Button onClick={handleUpdate} className="rounded-xl px-10 shadow-lg transition-transform hover:scale-105">Salvar Alterações</Button>
+            <Button id="update-user-button" name="updateUser" onClick={handleUpdate} className="rounded-xl px-10 shadow-lg transition-transform hover:scale-105">Salvar Alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -86,7 +85,7 @@ export default function RolesAdminPage() {
           <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Perfis</h1>
           <p className="text-muted-foreground">Configure os níveis de acesso e as sub-permissões granulares.</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg">
+        <Button id="add-role-modal-trigger" name="addRole" onClick={() => setIsAddDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg">
           <Plus className="w-4 h-4" />
           Novo Perfil
         </Button>
@@ -193,7 +192,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   const renderPermissionToggle = (label: string, field: keyof AppPermissions, icon?: any, colorClass?: string) => {
     const Icon = icon;
-    const switchId = `perm-switch-${field}-${role.id || 'new-item'}`;
+    const switchId = `perm-switch-${field}-${role.id || 'new-role'}`;
     return (
       <div className={`flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-primary/20 transition-all ${colorClass}`}>
         <div className="flex items-center gap-3">
@@ -234,9 +233,9 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
         <ScrollArea className="max-h-[70vh] bg-[#F8FAFC]">
           <div className="p-10 space-y-12">
             <div className="space-y-4 max-w-xl">
-              <Label htmlFor={`role-name-input-${role.id || 'new-item'}`} className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Identificação do Perfil</Label>
+              <Label htmlFor={`role-name-input-${role.id || 'new-role'}`} className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Identificação do Perfil</Label>
               <Input 
-                id={`role-name-input-${role.id || 'new-item'}`}
+                id={`role-name-input-${role.id || 'new-role'}`}
                 name="name"
                 placeholder="Ex: Coordenador Pedagógico" 
                 value={role.name} 
@@ -326,7 +325,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
         <DialogFooter className="p-10 bg-white border-t flex gap-4">
           <Button variant="outline" onClick={onClose} className="rounded-2xl h-14 px-10 font-bold border-slate-200">Cancelar</Button>
-          <Button onClick={onSave} className="rounded-2xl h-14 px-12 gap-3 shadow-xl hover:scale-105 transition-transform font-bold text-lg">
+          <Button id="save-role-config-button" name="saveRole" onClick={onSave} className="rounded-2xl h-14 px-12 gap-3 shadow-xl hover:scale-105 transition-transform font-bold text-lg">
             <Save className="w-6 h-6" /> 
             Salvar Configurações
           </Button>
