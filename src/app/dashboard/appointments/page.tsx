@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon, CheckCircle } from 'lucide-react';
+import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon, CheckCircle, ArrowRight } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -165,27 +165,18 @@ export default function AppointmentsPage() {
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
-    const bookingDate = new Date(booking.appointmentDate + 'T00:00:00');
-    setEditDate(bookingDate);
+    // Inicializamos os campos novos como vazios ou mantemos nulo para forçar escolha
+    setEditDate(undefined);
+    setEditSlotId('');
     setEditLocationId(booking.photoLocationId);
     setEditIdentifier(booking.locationIdentifier || '');
     setEditNotes(booking.observations || '');
-    
-    if (slots) {
-      const dayOfWeekStr = bookingDate.getDay().toString();
-      const matchingSlot = slots.find(s => 
-        s.startTime === booking.startTime && 
-        s.dayOfWeek === dayOfWeekStr &&
-        (s.schoolClassId === booking.schoolClassId || !s.schoolClassId)
-      );
-      setEditSlotId(matchingSlot?.id || '');
-    }
     setEditingBooking(booking);
-  }, [slots]);
+  }, []);
 
   const handleSaveEdit = () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId || !profile) {
-      toast({ title: "Dados Incompletos", description: "Verifique a data e o horário selecionado.", variant: "destructive" });
+      toast({ title: "Dados Incompletos", description: "Verifique a nova data e o novo horário selecionado.", variant: "destructive" });
       return;
     }
 
@@ -354,7 +345,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
                               <status.icon className="w-3 h-3" />
@@ -395,7 +386,7 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)}>
                           <Info className="w-4 h-4" />
                         </Button>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
                               <MoreHorizontal className="w-4 h-4" />
@@ -501,115 +492,160 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent 
+          className="max-w-2xl rounded-3xl overflow-hidden p-0" 
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+             // Evita que o diálogo bloqueie interações em portais (como o calendário)
+             const target = e.target as HTMLElement;
+             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
+               e.preventDefault();
+             }
+          }}
+        >
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
               <Edit3 className="w-6 h-6" /> Reagendar Sessão
             </DialogTitle>
-            <DialogDescription className="text-orange-50/80">Altere a data, o horário ou o local para este agendamento específico.</DialogDescription>
+            <DialogDescription className="text-orange-50/80">Compare o agendamento atual com os novos dados de reagendamento.</DialogDescription>
           </DialogHeader>
           {editingBooking && (
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500">
-                    <CalendarIcon className="w-4 h-4" /> Nova Data
-                  </Label>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        id="reschedule-date-trigger" 
-                        name="rescheduleDate"
-                        variant="outline" 
-                        className="w-full h-11 justify-start rounded-xl"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {editDate ? format(editDate, "PPP", { locale: ptBR }) : "Escolha a data"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar 
-                        mode="single" 
-                        selected={editDate} 
-                        onSelect={(d) => {
-                          if (d) {
-                            setEditDate(d);
-                            setEditSlotId('');
-                            setIsCalendarOpen(false);
-                          }
-                        }} 
-                        locale={ptBR} 
-                        disabled={(d) => d < startOfDay(new Date())} 
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
-                    <Clock className="w-4 h-4" /> Novo Horário
-                  </Label>
-                  <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
-                    <SelectTrigger id="reschedule-slot-select" name="slot" className="rounded-xl h-11">
-                      <SelectValue placeholder="Escolha o horário" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSlots.length > 0 ? (
-                        availableSlots.map(s => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.startTime} ({s.durationMinutes} min)
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível.</div>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="p-8 space-y-8">
+              {/* Seção Agendamento Atual (Fixado) */}
+              <div className="bg-muted/30 p-5 rounded-2xl border border-dashed border-slate-300">
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3 flex items-center gap-2">
+                    <Clock className="w-3 h-3" /> Agendamento Atual
+                 </p>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-[10px] text-slate-500 font-bold uppercase">Data Atual</Label>
+                      <p className="font-bold text-slate-700">{format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-slate-500 font-bold uppercase">Horário Atual</Label>
+                      <p className="font-bold text-slate-700">{editingBooking.startTime} ({editingBooking.endTime})</p>
+                    </div>
+                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule-location-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
-                    <MapPin className="w-4 h-4" /> Local
-                  </Label>
-                  <Select value={editLocationId} onValueChange={setEditLocationId}>
-                    <SelectTrigger id="reschedule-location-select" name="location" className="rounded-xl h-11">
-                      <SelectValue placeholder="Selecione o local" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+
+              <div className="flex items-center justify-center">
+                 <div className="h-px bg-slate-200 flex-1"></div>
+                 <Badge variant="secondary" className="mx-4 gap-1 text-[10px] py-1 bg-orange-50 text-orange-600 border-orange-100">
+                    <ArrowRight className="w-3 h-3" /> NOVO REAGENDAMENTO
+                 </Badge>
+                 <div className="h-px bg-slate-200 flex-1"></div>
+              </div>
+
+              {/* Seção Novo Agendamento (Editável) */}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                      <CalendarIcon className="w-4 h-4" /> Nova Data
+                    </Label>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          id="reschedule-new-date-trigger" 
+                          name="newDate"
+                          variant="outline" 
+                          className="w-full h-11 justify-start rounded-xl bg-white"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione a nova data</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-[60]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                        <Calendar 
+                          mode="single" 
+                          selected={editDate} 
+                          onSelect={(d) => {
+                            if (d) {
+                              setEditDate(d);
+                              setEditSlotId(''); // Limpa horário anterior para forçar nova escolha
+                              setIsCalendarOpen(false);
+                            }
+                          }} 
+                          locale={ptBR} 
+                          disabled={(d) => d < startOfDay(new Date())} 
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-new-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                      <Clock className="w-4 h-4" /> Novo Horário
+                    </Label>
+                    <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
+                      <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-11 bg-white">
+                        <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        {availableSlots.length > 0 ? (
+                          availableSlots.map(s => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.startTime} ({s.durationMinutes} min)
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível.</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-location-select" className="text-sm font-bold flex items-center gap-2 text-slate-600">
+                      <MapPin className="w-4 h-4" /> Local da Foto
+                    </Label>
+                    <Select value={editLocationId} onValueChange={setEditLocationId} modal={false}>
+                      <SelectTrigger id="reschedule-location-select" name="location" className="rounded-xl h-11 bg-white">
+                        <SelectValue placeholder="Selecione o local" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-id-input" className="text-sm font-bold flex items-center gap-2 text-slate-600">
+                      <Hash className="w-4 h-4" /> Identificador Específico
+                    </Label>
+                    <Input 
+                      id="reschedule-id-input" 
+                      name="locationIdentifier" 
+                      value={editIdentifier} 
+                      onChange={(e) => setEditIdentifier(e.target.value)} 
+                      className="rounded-xl h-11" 
+                      placeholder="Ex: Sala 12, Pátio Sul..."
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="reschedule-id-input" className="text-sm font-bold flex items-center gap-2 text-orange-500">
-                    <Hash className="w-4 h-4" /> Identificador
-                  </Label>
+                  <Label htmlFor="reschedule-notes-input" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
                   <Input 
-                    id="reschedule-id-input" 
-                    name="locationIdentifier" 
-                    value={editIdentifier} 
-                    onChange={(e) => setEditIdentifier(e.target.value)} 
+                    id="reschedule-notes-input" 
+                    name="notes" 
+                    value={editNotes} 
+                    onChange={(e) => setEditNotes(e.target.value)} 
                     className="rounded-xl h-11" 
-                    placeholder="Ex: Sala 12"
+                    placeholder="Alguma instrução especial para a equipe de fotos?"
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="reschedule-notes-input" className="text-sm font-bold">Notas Adicionais</Label>
-                <Input 
-                  id="reschedule-notes-input" 
-                  name="notes" 
-                  value={editNotes} 
-                  onChange={(e) => setEditNotes(e.target.value)} 
-                  className="rounded-xl h-11" 
-                  placeholder="Observações importantes..."
-                />
-              </div>
-              <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl" disabled={isSaving}>Cancelar</Button>
-                <Button onClick={handleSaveEdit} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white gap-2 min-w-[140px]" disabled={isSaving || !editSlotId}>
+
+              <DialogFooter className="gap-2 border-t pt-6">
+                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-6" disabled={isSaving}>Cancelar</Button>
+                <Button 
+                  onClick={handleSaveEdit} 
+                  className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-8 shadow-lg shadow-orange-500/20" 
+                  disabled={isSaving || !editSlotId || !editDate}
+                >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Salvar
+                  Confirmar Reagendamento
                 </Button>
               </DialogFooter>
             </div>
