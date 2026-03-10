@@ -180,12 +180,7 @@ export default function UsersAdminPage() {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-2xl max-w-2xl" onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
-              e.preventDefault();
-            }
-          }}>
+          <DialogContent className="rounded-2xl max-w-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Adicionar Membro</DialogTitle>
               <DialogDescription>Defina o papel e as permissões de acesso.</DialogDescription>
@@ -335,12 +330,7 @@ export default function UsersAdminPage() {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="rounded-2xl max-w-2xl" onInteractOutside={(e) => {
-          const target = e.target as HTMLElement;
-          if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
-            e.preventDefault();
-          }
-        }}>
+        <DialogContent className="rounded-2xl max-w-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader><DialogTitle>Editar Perfil</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
             <div className="space-y-4">

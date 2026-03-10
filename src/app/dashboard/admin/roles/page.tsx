@@ -201,7 +201,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
         className="rounded-3xl max-w-5xl p-0 overflow-hidden border-none shadow-2xl"
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="p-8 bg-primary text-primary-foreground">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
@@ -302,7 +302,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
         <DialogFooter className="p-8 bg-white border-t flex gap-3">
           <Button variant="outline" onClick={onClose} className="rounded-2xl h-12 px-8">Cancelar</Button>
-          <Button onClick={onSave} className="rounded-2xl h-12 px-10 gap-2 shadow-xl hover:scale-105 transition-transform">
+          <Button onClick={handleUpdate} className="rounded-2xl h-12 px-10 gap-2 shadow-xl hover:scale-105 transition-transform">
             <Save className="w-5 h-5" /> 
             Salvar Configurações
           </Button>
