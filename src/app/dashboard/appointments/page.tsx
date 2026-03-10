@@ -255,8 +255,13 @@ export default function AppointmentsPage() {
                           <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
+                          {userPerms?.canCancelAppointments && b.status !== 'CANCELLED' && (
+                            <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer rounded-lg py-2">
+                              <XCircle className="w-4 h-4" /> Cancelar Sessão
+                            </DropdownMenuItem>
+                          )}
                           {userPerms?.canDeleteAppointments && (
-                            <DropdownMenuItem onSelect={() => setDeletingId(b.id)} className="gap-2 text-destructive cursor-pointer rounded-lg py-2">
+                            <DropdownMenuItem onSelect={() => setDeletingId(b.id)} className="gap-2 text-destructive cursor-pointer rounded-lg py-2 border-t mt-1">
                               <Trash2 className="w-4 h-4" /> Excluir Registro
                             </DropdownMenuItem>
                           )}
