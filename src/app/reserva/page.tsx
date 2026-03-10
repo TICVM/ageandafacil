@@ -84,12 +84,8 @@ export default function PublicBookingPage() {
         const email = authUser.email?.toLowerCase().trim();
         if (isMaster) {
           const mProf: User = { id: authUser.uid, name: 'Herbert Pacheco', email: email!, roleId: 'ADMIN' };
-          setProfile(mProf); 
-          setTeacherName(mProf.name); 
-          setUserPerms(ADMIN_PERMS);
-          setIsIdentified(true); 
-          setLoadingProfile(false); 
-          return;
+          setProfile(mProf); setTeacherName(mProf.name); setUserPerms(ADMIN_PERMS);
+          setIsIdentified(true); setLoadingProfile(false); return;
         }
         const snap = await getDoc(doc(db, 'users', authUser.uid));
         if (snap.exists()) {
@@ -97,20 +93,6 @@ export default function PublicBookingPage() {
           setProfile({ ...data, id: authUser.uid }); setTeacherName(data.name); setIsIdentified(true);
           if (data.roleId === 'ADMIN') setUserPerms(ADMIN_PERMS);
           else { const rSnap = await getDoc(doc(db, 'roles_config', data.roleId)); if (rSnap.exists()) setUserPerms(rSnap.data() as RoleConfig); }
-        } else {
-          const q = query(collection(db, 'users'), where('email', '==', email), limit(1));
-          const qSnap = await getDocs(q);
-          if (!qSnap.empty) { 
-            const data = qSnap.docs[0].data() as User; 
-            setProfile({ ...data, id: qSnap.docs[0].id }); 
-            setTeacherName(data.name); 
-            setIsIdentified(true);
-            if (data.roleId === 'ADMIN') setUserPerms(ADMIN_PERMS);
-            else {
-              const rSnap = await getDoc(doc(db, 'roles_config', data.roleId));
-              if (rSnap.exists()) setUserPerms(rSnap.data() as RoleConfig);
-            }
-          }
         }
       } catch (err) { console.error(err); } finally { setLoadingProfile(false); }
     }
@@ -126,12 +108,8 @@ export default function PublicBookingPage() {
       if (!snap.empty) {
         const data = snap.docs[0].data() as User;
         setProfile({ ...data, id: snap.docs[0].id }); setTeacherName(data.name); setIsIdentified(true);
-        if (data.roleId === 'ADMIN') {
-          setUserPerms(ADMIN_PERMS);
-        } else {
-          const rSnap = await getDoc(doc(db, 'roles_config', data.roleId)); 
-          if (rSnap.exists()) setUserPerms(rSnap.data() as RoleConfig);
-        }
+        if (data.roleId === 'ADMIN') setUserPerms(ADMIN_PERMS);
+        else { const rSnap = await getDoc(doc(db, 'roles_config', data.roleId)); if (rSnap.exists()) setUserPerms(rSnap.data() as RoleConfig); }
         toast({ title: "Olá, " + data.name });
       } else toast({ variant: "destructive", title: "E-mail não cadastrado." });
     } finally { setIsVerifyingEmail(false); }
@@ -139,25 +117,12 @@ export default function PublicBookingPage() {
 
   const filteredClasses = useMemo(() => {
     if (!rawClasses) return [];
-    if (isMaster || profile?.roleId === 'ADMIN') {
-      return [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    }
+    if (isMaster || profile?.roleId === 'ADMIN') return [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     if (!profile) return [];
-
-    const userClassIds = profile.classIds || [];
-    const userSegmentIds = profile.segmentIds || [];
-
-    return rawClasses.filter(c => {
-      const belongsToClass = userClassIds.includes(c.id);
-      const belongsToSegment = userSegmentIds.includes(c.schoolSegmentId);
-      return belongsToClass || belongsToSegment;
-    }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const uClassIds = profile.classIds || [];
+    const uSegIds = profile.segmentIds || [];
+    return rawClasses.filter(c => uClassIds.includes(c.id) || uSegIds.includes(c.schoolSegmentId)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [rawClasses, profile, isMaster]);
-
-  const selClass = useMemo(() => filteredClasses.find(c => c.id === selectedClassId), [filteredClasses, selectedClassId]);
-  const selSeg = useMemo(() => rawSegments?.find(s => s.id === selClass?.schoolSegmentId), [rawSegments, selClass]);
-  
-  const filteredLocs = useMemo(() => rawLocations?.filter(l => l.isActive && (!selSeg?.unit || !l.unit || l.unit.toLowerCase() === selSeg.unit.toLowerCase())) || [], [rawLocations, selSeg]);
 
   const avSlots = useMemo(() => {
     if (!slots || !date || !selectedClassId) return [];
@@ -165,10 +130,10 @@ export default function PublicBookingPage() {
     const day = date.getDay().toString();
     const now = new Date();
     const minLimit = addHours(addDays(now, appSettings?.minAdvanceBookingDays ?? 1), appSettings?.minAdvanceBookingHours ?? 0);
-
+    const cls = rawClasses?.find(c => c.id === selectedClassId);
     return slots.filter(s => {
       if (s.dayOfWeek !== day) return false;
-      const targetMatches = s.schoolClassId ? s.schoolClassId === selectedClassId : s.schoolSegmentId ? s.schoolSegmentId === selClass?.schoolSegmentId : !s.schoolClassId && !s.schoolSegmentId;
+      const targetMatches = s.schoolClassId ? s.schoolClassId === selectedClassId : s.schoolSegmentId ? s.schoolSegmentId === cls?.schoolSegmentId : !s.schoolClassId && !s.schoolSegmentId;
       if (!targetMatches) return false;
       const [h, m] = s.startTime.split(':').map(Number);
       const sDT = new Date(date); sDT.setHours(h, m, 0, 0);
@@ -176,7 +141,7 @@ export default function PublicBookingPage() {
       if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
       return !allBlocks?.some(b => b.date === dateStr && timeToMin(s.startTime) < timeToMin(b.endTime) && (timeToMin(s.startTime) + (s.durationMinutes || 60)) > timeToMin(b.startTime));
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [slots, date, selectedClassId, selClass, allAppointments, allBlocks, appSettings]);
+  }, [slots, date, selectedClassId, rawClasses, allAppointments, allBlocks, appSettings]);
 
   const handleSchedule = () => {
     if (!date || !selectedSlotId || !db || !profile) return;
@@ -194,15 +159,13 @@ export default function PublicBookingPage() {
     }).then(() => setIsSuccess(true));
   };
 
-  const minBookingDate = useMemo(() => addDays(startOfDay(new Date()), appSettings?.minAdvanceBookingDays ?? 1), [appSettings]);
-
   if (isUserLoading || (authUser && loadingProfile)) return <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   if (isSuccess) return (
     <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">
       <Card className="max-w-md w-full shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95">
         <div className="bg-primary p-10 text-center text-white"><CheckCircle2 className="w-20 h-20 mx-auto mb-4" /><h2 className="text-3xl font-bold">Agendado!</h2></div>
-        <CardContent className="p-8 space-y-4"><Button onClick={() => window.location.reload()} className="w-full h-12">Nova reserva</Button><Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full h-12">Ir para o Painel</Button></CardContent>
+        <CardContent className="p-8 space-y-4"><Button onClick={() => window.location.reload()} className="w-full h-12 rounded-xl">Nova reserva</Button><Button variant="ghost" onClick={() => router.push('/dashboard')} className="w-full h-12 rounded-xl">Ir para o Painel</Button></CardContent>
       </Card>
     </div>
   );
@@ -211,109 +174,38 @@ export default function PublicBookingPage() {
     <div className="min-h-screen bg-[#ECF1FA] py-12 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => router.push(authUser ? '/dashboard' : '/')} className="rounded-xl h-11 px-6 bg-white shadow-sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
-          </Button>
+          <Button variant="ghost" onClick={() => router.push(authUser ? '/dashboard' : '/')} className="rounded-xl h-11 px-6 bg-white shadow-sm"><ArrowLeft className="w-4 h-4 mr-2" /> Voltar</Button>
           <span className="font-bold text-xl text-primary flex items-center gap-2"><Camera className="w-6 h-6" /> SchoolLens</span>
         </div>
 
         {!isIdentified ? (
           <Card className="max-w-md mx-auto shadow-2xl rounded-3xl overflow-hidden border-none bg-white">
             <CardHeader className="bg-primary text-white text-center py-8">
-              <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
-              <CardTitle className="text-2xl">Identificação</CardTitle>
-              <CardDescription className="text-white/70">Digite seu e-mail funcional cadastrado.</CardDescription>
+              <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" /><CardTitle className="text-2xl">Identificação</CardTitle><CardDescription className="text-white/70">Digite seu e-mail funcional cadastrado.</CardDescription>
             </CardHeader>
             <CardContent className="p-10 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="guest-email-input" className="text-xs font-bold uppercase text-slate-500">E-mail Institucional</Label>
-                <Input id="guest-email-input" name="guestEmail" type="email" placeholder="professor@escola.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="rounded-xl h-12" />
-              </div>
-              <Button onClick={handleVerifyGuestEmail} disabled={isVerifyingEmail || !guestEmail} className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg">
-                {isVerifyingEmail ? <Loader2 className="animate-spin" /> : "Verificar Cadastro"}
-              </Button>
+              <div className="space-y-2"><Label htmlFor="guest-email-input">E-mail Institucional</Label><Input id="guest-email-input" name="guestEmail" type="email" placeholder="professor@escola.com" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="rounded-xl h-12" /></div>
+              <Button onClick={handleVerifyGuestEmail} disabled={isVerifyingEmail || !guestEmail} className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg">{isVerifyingEmail ? <Loader2 className="animate-spin" /> : "Verificar Cadastro"}</Button>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="md:col-span-2 shadow-xl rounded-3xl overflow-hidden border-none bg-white">
-              <CardHeader className="bg-primary text-white p-8">
-                <CardTitle className="text-2xl">Reserva de Sessão</CardTitle>
-                <CardDescription className="text-white/70">Olá, {teacherName}. Defina os detalhes da sua sessão.</CardDescription>
-              </CardHeader>
+              <CardHeader className="bg-primary text-white p-8"><CardTitle className="text-2xl">Reserva de Sessão</CardTitle><CardDescription className="text-white/70">Olá, {teacherName}.</CardDescription></CardHeader>
               <CardContent className="p-10 space-y-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                    <Label htmlFor="class-select-trigger" className="text-xs font-bold uppercase text-slate-500">Turma</Label>
-                    <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-                      <SelectTrigger id="class-select-trigger" name="class" className="rounded-xl h-12">
-                        <SelectValue placeholder="Selecione a turma" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="loc-select-trigger" className="text-xs font-bold uppercase text-slate-500">Local</Label>
-                    <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId}>
-                      <SelectTrigger id="loc-select-trigger" name="location" className="rounded-xl h-12">
-                        <SelectValue placeholder="Escolha o local" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredLocs.map(l => <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="space-y-3"><Label htmlFor="class-select">Turma</Label><Select value={selectedClassId} onValueChange={setSelectedClassId}><SelectTrigger id="class-select" className="rounded-xl h-12"><SelectValue placeholder="Selecione a turma" /></SelectTrigger><SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-3"><Label htmlFor="loc-select">Local</Label><Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId}><SelectTrigger id="loc-select" className="rounded-xl h-12"><SelectValue placeholder="Escolha o local" /></SelectTrigger><SelectContent>{rawLocations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>)}</SelectContent></Select></div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                    <Label htmlFor="date-trigger" className="text-xs font-bold uppercase text-slate-500">Data</Label>
-                    <Popover modal={false}>
-                      <PopoverTrigger asChild>
-                        <Button id="date-trigger" name="date" variant="outline" className="w-full h-12 justify-start rounded-xl">
-                          <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                          {date ? format(date, "dd/MM/yyyy") : "Escolha o dia"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100]" align="start">
-                        <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < minBookingDate} />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="slot-trigger" className="text-xs font-bold uppercase text-slate-500">Horário</Label>
-                    <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId}>
-                      <SelectTrigger id="slot-trigger" name="slot" className="rounded-xl h-12">
-                        <SelectValue placeholder="Escolha o horário" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {avSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="space-y-3"><Label htmlFor="date-trigger">Data</Label><Popover modal={false}><PopoverTrigger asChild><Button id="date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{date ? format(date, "dd/MM/yyyy") : "Escolha o dia"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 z-[100]" align="start"><Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceBookingDays ?? 1)} /></PopoverContent></Popover></div>
+                  <div className="space-y-3"><Label htmlFor="slot-select">Horário</Label><Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId}><SelectTrigger id="slot-select" className="rounded-xl h-12"><SelectValue placeholder="Escolha o horário" /></SelectTrigger><SelectContent>{avSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}</SelectContent></Select></div>
                 </div>
-                <div className="space-y-3">
-                  <Label htmlFor="notes-area" className="text-xs font-bold uppercase text-slate-500">Observações</Label>
-                  <Textarea id="notes-area" name="notes" placeholder="Descreva atividades ou solicitações..." className="rounded-2xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                </div>
+                <div className="space-y-3"><Label htmlFor="notes-area">Observações</Label><Textarea id="notes-area" name="notes" placeholder="Descreva atividades ou solicitações..." className="rounded-2xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
               </CardContent>
-              <CardFooter className="bg-slate-50 p-10 flex justify-center">
-                <Button onClick={handleSchedule} className="w-full max-w-sm h-16 bg-primary text-xl font-bold rounded-2xl shadow-xl" disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}>
-                  CONCLUIR RESERVA
-                </Button>
-              </CardFooter>
+              <CardFooter className="bg-slate-50 p-10 flex justify-center"><Button onClick={handleSchedule} className="w-full max-w-sm h-16 bg-primary text-xl font-bold rounded-2xl shadow-xl" disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}>CONCLUIR RESERVA</Button></CardFooter>
             </Card>
-            <div className="space-y-6">
-              <Card className="bg-primary text-white rounded-3xl p-8 border-none shadow-xl">
-                <ShieldAlert className="w-8 h-8 mb-4 opacity-50" />
-                <h3 className="font-bold mb-4">Regras da Unidade</h3>
-                <ul className="space-y-3 text-sm opacity-90">
-                  <li>• Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h</li>
-                  <li>• Confirme os preparativos com a coordenação.</li>
-                </ul>
-              </Card>
-            </div>
+            <div className="space-y-6"><Card className="bg-primary text-white rounded-3xl p-8 border-none shadow-xl"><ShieldAlert className="w-8 h-8 mb-4 opacity-50" /><h3 className="font-bold mb-4">Regras da Unidade</h3><ul className="space-y-3 text-sm opacity-90"><li>• Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h</li><li>• Verifique a disponibilidade do local.</li></ul></Card></div>
           </div>
         )}
       </div>

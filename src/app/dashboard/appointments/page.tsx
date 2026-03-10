@@ -29,32 +29,38 @@ const STATUS_CONFIG = {
   PENDING: {
     label: 'Aguardando confirmação',
     color: 'bg-orange-500 text-white',
-    icon: Clock
+    icon: Clock,
+    permKey: 'canStatusPending'
   },
   CONFIRMED: {
     label: 'Confirmado',
     color: 'bg-green-600 text-white',
-    icon: CheckCircle2
+    icon: CheckCircle2,
+    permKey: 'canStatusConfirmed'
   },
   RESCHEDULED: {
     label: 'Reagendado',
     color: 'bg-blue-500 text-white',
-    icon: Edit3
+    icon: Edit3,
+    permKey: 'canStatusRescheduled'
   },
   CANCELLED: {
     label: 'Cancelado',
     color: 'bg-destructive text-white',
-    icon: XCircle
+    icon: XCircle,
+    permKey: 'canStatusCancelled'
   },
   RE_SCHEDULE_REQUEST: {
     label: 'Por favor reagendar',
     color: 'bg-yellow-500 text-black',
-    icon: AlertTriangle
+    icon: AlertTriangle,
+    permKey: 'canStatusReScheduleRequest'
   },
   COMPLETED: {
     label: 'Concluído',
     color: 'bg-slate-600 text-white',
-    icon: CheckCircle
+    icon: CheckCircle,
+    permKey: 'canStatusCompleted'
   }
 } as const;
 
@@ -150,15 +156,68 @@ export default function AppointmentsPage() {
     return map;
   }, [locations]);
 
+  const handleDelete = (id: string) => {
+    if (!db) return;
+    // Pequeno atraso para garantir que o menu radial fechou antes da confirmação
+    setTimeout(() => {
+      const confirmed = window.confirm("Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.");
+      if (confirmed) {
+        deleteDocumentNonBlocking(doc(db, 'appointments', id));
+        toast({ title: "Agendamento excluído." });
+      }
+    }, 100);
+  };
+
+  const handleUpdateStatus = useCallback(
+    (booking: Booking, newStatus: StatusKey) => {
+      if (!db || !profile) return;
+      const statusCfg = STATUS_CONFIG[newStatus];
+      const newHistoryEntry: HistoryEntry = {
+        timestamp: new Date().toISOString(),
+        userId: profile.id,
+        userName: profile.name,
+        action: 'ALTERACAO_DE_STATUS',
+        details: `Status alterado para ${statusCfg.label}.`
+      };
+      updateDocumentNonBlocking(doc(db, 'appointments', booking.id), {
+        status: newStatus,
+        history: [...(booking.history || []), newHistoryEntry]
+      });
+      toast({ title: "Status Atualizado" });
+    },
+    [db, profile]
+  );
+
+  const filtered = useMemo(() => {
+    if (!list || !userPerms || !profile) return [];
+    const isGlobalAdmin = isMaster || profile.roleId === 'ADMIN' || userPerms.canViewAllAppointments;
+    return list.filter(booking => {
+      if (isGlobalAdmin) return true;
+      const cls = classMap[booking.schoolClassId];
+      const belongsBySegment = userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '');
+      const belongsByClass = userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId);
+      const isOwner = booking.teacherId === profile.id;
+      return belongsBySegment || belongsByClass || isOwner;
+    })
+    .filter(b => {
+      if (!searchTerm) return true;
+      const term = searchTerm.toLowerCase();
+      return (
+        b.teacherName?.toLowerCase().includes(term) || 
+        b.appointmentDate.includes(term) ||
+        classMap[b.schoolClassId]?.name?.toLowerCase().includes(term)
+      );
+    })
+    .sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
+  }, [list, userPerms, profile, classMap, isMaster, searchTerm]);
+
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
     const dateStr = format(editDate, 'yyyy-MM-dd');
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classMap[editingBooking.schoolClassId];
     const now = new Date();
-    const minAdvanceDays = appSettings?.minAdvanceRescheduleDays ?? 1;
-    const minAdvanceHours = appSettings?.minAdvanceRescheduleHours ?? 0;
-    const minAdvanceLimit = addHours(addDays(now, minAdvanceDays), minAdvanceHours);
+    const minAdvanceLimit = addHours(addDays(now, appSettings?.minAdvanceRescheduleDays ?? 1), appSettings?.minAdvanceRescheduleHours ?? 0);
     
     return slots.filter(s => {
       if (s.dayOfWeek !== dayOfWeekStr) return false;
@@ -201,7 +260,7 @@ export default function AppointmentsPage() {
       userId: profile.id,
       userName: profile.name,
       action: 'REAGENDAMENTO',
-      details: `Reagendado de ${format(new Date(`${editingBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} ${editingBooking.startTime} para ${format(editDate, 'dd/MM/yyyy')} ${slot.startTime}.`
+      details: `Reagendado para ${format(editDate, 'dd/MM/yyyy')} às ${slot.startTime}.`
     };
     updateDocumentNonBlocking(doc(db, 'appointments', editingBooking.id), {
       appointmentDate: format(editDate, 'yyyy-MM-dd'),
@@ -218,72 +277,6 @@ export default function AppointmentsPage() {
     toast({ title: "Sessão Reagendada!" });
   };
 
-  const handleUpdateStatus = useCallback(
-    (booking: Booking, newStatus: StatusKey) => {
-      if (!db || !profile) return;
-
-      const statusCfg = STATUS_CONFIG[newStatus];
-
-      const newHistoryEntry: HistoryEntry = {
-        timestamp: new Date().toISOString(),
-        userId: profile.id,
-        userName: profile.name,
-        action: 'ALTERACAO_DE_STATUS',
-        details: `Status alterado para ${statusCfg.label}.`
-      };
-
-      updateDocumentNonBlocking(
-        doc(db, 'appointments', booking.id),
-        {
-          status: newStatus,
-          history: [...(booking.history || []), newHistoryEntry]
-        }
-      );
-
-      toast({ title: "Status Atualizado" });
-    },
-    [db, profile]
-  );
-
-  const handleDelete = (id: string) => {
-    if (!db) return;
-    // Usamos setTimeout para evitar conflitos de foco com o fechamento do DropdownMenu do Radix
-    setTimeout(() => {
-      if (window.confirm("Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.")) {
-        deleteDocumentNonBlocking(doc(db, 'appointments', id));
-        toast({ title: "Agendamento excluído." });
-      }
-    }, 100);
-  };
-
-  const filtered = useMemo(() => {
-    if (!list || !userPerms || !profile) return [];
-    
-    const isGlobalAdmin = isMaster || profile.roleId === 'ADMIN' || userPerms.canViewAllAppointments;
-    
-    return list.filter(booking => {
-      if (isGlobalAdmin) return true;
-
-      const cls = classMap[booking.schoolClassId];
-      
-      const belongsBySegment = userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '');
-      const belongsByClass = userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId);
-      const isOwner = booking.teacherId === profile.id;
-      
-      return belongsBySegment || belongsByClass || isOwner;
-    })
-    .filter(b => {
-      if (!searchTerm) return true;
-      const term = searchTerm.toLowerCase();
-      return (
-        b.teacherName?.toLowerCase().includes(term) || 
-        b.appointmentDate.includes(term) ||
-        classMap[b.schoolClassId]?.name?.toLowerCase().includes(term)
-      );
-    })
-    .sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
-  }, [list, userPerms, profile, classMap, isMaster, searchTerm]);
-
   const minResDate = useMemo(() => addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays ?? 1), [appSettings]);
 
   if (isLoading || !userPerms) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
@@ -298,14 +291,7 @@ export default function AppointmentsPage() {
         <div className="relative w-full md:w-80">
           <Label htmlFor="search-app-input" className="sr-only">Buscar agendamentos</Label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            id="search-app-input" 
-            name="search" 
-            placeholder="Buscar docente, turma ou data..." 
-            className="pl-9 rounded-xl h-11 bg-white" 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-          />
+          <Input id="search-app-input" name="search" placeholder="Buscar docente, turma ou data..." className="pl-9 rounded-xl h-11 bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
       </div>
 
@@ -348,21 +334,32 @@ export default function AppointmentsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger asChild>
-                        <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none shadow-sm", statusCfg.color)}>
-                          <StatusIcon className="w-3.5 h-3.5" />
-                          {statusCfg.label}
-                        </Badge>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="rounded-2xl p-2 shadow-2xl border-none">
-                        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                          <DropdownMenuItem key={key} onClick={() => handleUpdateStatus(b, key as StatusKey)} className="gap-2 rounded-lg cursor-pointer py-2 px-3">
-                            <cfg.icon className="w-4 h-4" />{cfg.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {userPerms?.canChangeStatus || isMaster ? (
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none shadow-sm", statusCfg.color)}>
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {statusCfg.label}
+                          </Badge>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="rounded-2xl p-2 shadow-2xl border-none">
+                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                            const hasPerm = isMaster || (userPerms && (userPerms as any)[cfg.permKey]);
+                            if (!hasPerm) return null;
+                            return (
+                              <DropdownMenuItem key={key} onSelect={() => handleUpdateStatus(b, key as StatusKey)} className="gap-2 rounded-lg cursor-pointer py-2 px-3">
+                                <cfg.icon className="w-4 h-4" />{cfg.label}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Badge className={cn("rounded-lg flex items-center gap-1.5 h-8 px-3 border-none shadow-sm opacity-80 cursor-default", statusCfg.color)}>
+                        <StatusIcon className="w-3.5 h-3.5" />
+                        {statusCfg.label}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -375,11 +372,6 @@ export default function AppointmentsPage() {
                           {userPerms?.canEditAppointments && (
                             <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer rounded-lg py-2">
                               <Edit3 className="w-4 h-4 text-blue-600" /> Reagendar / Editar
-                            </DropdownMenuItem>
-                          )}
-                          {userPerms?.canCancelAppointments && b.status !== 'CANCELLED' && (
-                            <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer rounded-lg py-2">
-                              <XCircle className="w-4 h-4" /> Cancelar Sessão
                             </DropdownMenuItem>
                           )}
                           {userPerms?.canDeleteAppointments && (
@@ -395,16 +387,13 @@ export default function AppointmentsPage() {
               );
             }) : (
               <TableRow>
-                <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">
-                  Nenhum agendamento encontrado para o seu acesso.
-                </TableCell>
+                <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">Nenhum agendamento encontrado.</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </Card>
 
-      {/* DIÁLOGO DE DETALHES */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-8 text-white">
@@ -419,7 +408,7 @@ export default function AppointmentsPage() {
                   <p className="text-sm font-medium text-primary">{classMap[selectedBooking.schoolClassId]?.name || '---'}</p>
                 </div>
                 <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-3">Observações da Reserva</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-3">Observações</p>
                   <p className="text-sm italic text-slate-700">{selectedBooking.observations || "Sem notas."}</p>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -453,7 +442,6 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DIÁLOGO DE REAGENDAMENTO */}
       <Dialog open={!!editingBooking} onOpenChange={() => !isSaving && setEditingBooking(null)}>
         <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-8 text-white">
@@ -477,12 +465,10 @@ export default function AppointmentsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <Label htmlFor="reschedule-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600">
-                    <CalendarIcon className="w-4 h-4" /> Nova Data
-                  </Label>
+                  <Label htmlFor="reschedule-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600"><CalendarIcon className="w-4 h-4" /> Nova Data</Label>
                   <Popover modal={false}>
                     <PopoverTrigger asChild>
-                      <Button id="reschedule-new-date-trigger" name="newDate" variant="outline" className="w-full h-12 justify-start rounded-xl">
+                      <Button id="reschedule-new-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl">
                         <CalendarIcon className="mr-3 h-5 w-5 text-orange-500" />
                         {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Escolha o dia...</span>}
                       </Button>
@@ -493,46 +479,22 @@ export default function AppointmentsPage() {
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reschedule-new-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-600">
-                    <Clock className="w-4 h-4" /> Novo Horário
-                  </Label>
+                  <Label htmlFor="reschedule-new-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-600"><Clock className="w-4 h-4" /> Novo Horário</Label>
                   <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
-                    <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-12">
+                    <SelectTrigger id="reschedule-new-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                     </SelectTrigger>
                     <SelectContent className="z-[100] border-none shadow-2xl">
                       {availableSlots.length > 0 ? availableSlots.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>
-                      )) : (
-                        <div className="p-4 text-xs text-center text-muted-foreground italic">Sem horários livres.</div>
-                      )}
+                        <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>
+                      )) : <div className="p-4 text-xs text-center text-muted-foreground italic">Sem horários livres.</div>}
                     </SelectContent>
                   </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule-loc-select" className="text-sm font-bold text-slate-600">Local da Foto</Label>
-                  <Select value={editLocationId} onValueChange={setEditLocationId}>
-                    <SelectTrigger id="reschedule-loc-select" name="location" className="rounded-xl h-12">
-                      <SelectValue placeholder="Selecione o local" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[100] border-none shadow-2xl">
-                      {locations?.filter(l => l.isActive).map(l => (
-                        <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule-id-input" className="text-sm font-bold text-slate-600">Identificador (Sala/Lab)</Label>
-                  <Input id="reschedule-id-input" name="locationIdentifier" value={editIdentifier} onChange={(e) => setEditIdentifier(e.target.value)} className="rounded-xl h-12" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas</Label>
+                <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
                 <Textarea id="reschedule-notes-textarea" name="notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-2xl min-h-[100px]" />
               </div>
 
@@ -540,7 +502,7 @@ export default function AppointmentsPage() {
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-8" disabled={isSaving}>Cancelar</Button>
                 <Button onClick={handleSaveEdit} className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl font-bold" disabled={isSaving || !editSlotId || !editDate}>
                   {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                  Confirmar Reagendamento
+                  Salvar Reagendamento
                 </Button>
               </DialogFooter>
             </div>
