@@ -251,7 +251,7 @@ export default function AppointmentsPage() {
     }).sort((a, b) => {
       const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
       if (dateCompare !== 0) return dateCompare;
-      return a.startTime.localeCompare(b.startTime) || 0;
+      return a.startTime.startTime.localeCompare(b.startTime) || 0;
     });
   }, [list, userPerms, profile, classes, isMaster, searchTerm]);
 

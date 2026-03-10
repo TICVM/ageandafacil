@@ -167,7 +167,7 @@ export default function LocationsAdminPage() {
               id="search-locations-input"
               name="search"
               placeholder="Buscar local ou unidade..." 
-              className="pl-9 rounded-xl bg-white border-none shadow-inner"
+              className="pl-9 rounded-xl h-11 bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

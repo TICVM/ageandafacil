@@ -272,7 +272,7 @@ export default function ClassesAdminPage() {
       </Tabs>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="rounded-2xl" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="rounded-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Editar {editingItem?.type === 'class' ? 'Turma' : 'Segmento'}</DialogTitle>
             <DialogDescription>Atualize as informações de cadastro e ordenação desta unidade escolar.</DialogDescription>

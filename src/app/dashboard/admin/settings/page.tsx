@@ -68,11 +68,12 @@ export default function SettingsAdminPage() {
           </CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="space-y-3">
-              <Label htmlFor="school-name" className="text-sm font-bold uppercase tracking-wider text-slate-500">Nome da Unidade / Escola</Label>
+              <Label htmlFor="school-name-input" className="text-sm font-bold uppercase tracking-wider text-slate-500">Nome da Unidade / Escola</Label>
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input 
-                  id="school-name"
+                  id="school-name-input"
+                  name="schoolName"
                   placeholder="Ex: Unidade Colégio VMS" 
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
