@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { UserCog, Plus, Trash2, Search, Loader2, User as UserIcon, Eye, EyeOff, Layers, Edit2, ShieldCheck, GraduationCap } from 'lucide-react';
+import { UserCog, Plus, Trash2, Search, Loader2, User as UserIcon, Eye, EyeOff, Layers, Edit2, ShieldCheck, GraduationCap, CheckSquare, Square } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -50,6 +50,40 @@ export default function UsersAdminPage() {
   }>({ name: '', email: '', password: '', roleId: '', classIds: [], segmentIds: [] });
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  const handleSelectAllSegments = (isEditing = false) => {
+    const allIds = segments?.map(s => s.id) || [];
+    if (isEditing && editingUser) {
+      setEditingUser(prev => prev ? { ...prev, segmentIds: allIds } : null);
+    } else {
+      setNewUser(prev => ({ ...prev, segmentIds: allIds }));
+    }
+  };
+
+  const handleClearSegments = (isEditing = false) => {
+    if (isEditing && editingUser) {
+      setEditingUser(prev => prev ? { ...prev, segmentIds: [] } : null);
+    } else {
+      setNewUser(prev => ({ ...prev, segmentIds: [] }));
+    }
+  };
+
+  const handleSelectAllClasses = (isEditing = false) => {
+    const allIds = schoolClasses?.map(c => c.id) || [];
+    if (isEditing && editingUser) {
+      setEditingUser(prev => prev ? { ...prev, classIds: allIds } : null);
+    } else {
+      setNewUser(prev => ({ ...prev, classIds: allIds }));
+    }
+  };
+
+  const handleClearClasses = (isEditing = false) => {
+    if (isEditing && editingUser) {
+      setEditingUser(prev => prev ? { ...prev, classIds: [] } : null);
+    } else {
+      setNewUser(prev => ({ ...prev, classIds: [] }));
+    }
+  };
 
   const handleAdd = async () => {
     if (!newUser.name || !newUser.email || !newUser.password || !newUser.roleId || !db) {
@@ -250,10 +284,16 @@ export default function UsersAdminPage() {
               {newUser.roleId !== 'ADMIN' ? (
                 <div className="space-y-4 border-l pl-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                      <GraduationCap className="w-4 h-4 text-primary" />
-                      Vincular Segmentos
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
+                        <GraduationCap className="w-4 h-4 text-primary" />
+                        Vincular Segmentos
+                      </Label>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleSelectAllSegments(false)} className="h-6 text-[10px] px-2 rounded-lg text-primary font-bold">Todos</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleClearSegments(false)} className="h-6 text-[10px] px-2 rounded-lg text-muted-foreground">Limpar</Button>
+                      </div>
+                    </div>
                     <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                       <div className="space-y-3">
                         {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
@@ -274,10 +314,16 @@ export default function UsersAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                      <Layers className="w-4 h-4 text-primary" />
-                      Vincular Turmas
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
+                        <Layers className="w-4 h-4 text-primary" />
+                        Vincular Turmas
+                      </Label>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleSelectAllClasses(false)} className="h-6 text-[10px] px-2 rounded-lg text-primary font-bold">Todas</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleClearClasses(false)} className="h-6 text-[10px] px-2 rounded-lg text-muted-foreground">Limpar</Button>
+                      </div>
+                    </div>
                     <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                       <div className="space-y-3">
                         {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
@@ -430,10 +476,16 @@ export default function UsersAdminPage() {
             {editingUser?.roleId !== 'ADMIN' ? (
               <div className="space-y-4 border-l pl-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                    <GraduationCap className="w-4 h-4 text-primary" />
-                    Vincular Segmentos
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
+                      <GraduationCap className="w-4 h-4 text-primary" />
+                      Vincular Segmentos
+                    </Label>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleSelectAllSegments(true)} className="h-6 text-[10px] px-2 rounded-lg text-primary font-bold">Todos</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleClearSegments(true)} className="h-6 text-[10px] px-2 rounded-lg text-muted-foreground">Limpar</Button>
+                    </div>
+                  </div>
                   <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
@@ -453,10 +505,16 @@ export default function UsersAdminPage() {
                   </ScrollArea>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                    <Layers className="w-4 h-4 text-primary" />
-                    Turmas do Docente
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold flex items-center gap-2 text-slate-700">
+                      <Layers className="w-4 h-4 text-primary" />
+                      Turmas do Docente
+                    </Label>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleSelectAllClasses(true)} className="h-6 text-[10px] px-2 rounded-lg text-primary font-bold">Todas</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleClearClasses(true)} className="h-6 text-[10px] px-2 rounded-lg text-muted-foreground">Limpar</Button>
+                    </div>
+                  </div>
                   <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
