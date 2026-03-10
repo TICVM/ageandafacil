@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -468,7 +467,7 @@ export default function SlotAdminPage() {
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader>
             <DialogTitle>Importar Lista de Datas</DialogTitle>
-            <DialogDescription>Cole datas separadas por linha para bloquear em massa.</DialogDescription>
+            <DialogDescription>Cole datas separadas por linha para bloquear em massa no sistema.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Label htmlFor="bulk-dates-input">Lista de Datas</Label>

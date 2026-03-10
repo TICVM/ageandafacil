@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -73,14 +72,26 @@ export default function UsersAdminPage() {
       secApp = initializeApp(firebaseConfig, `Admin-${Date.now()}`);
       const cred = await createUserWithEmailAndPassword(getAuth(secApp), newUser.email.toLowerCase(), newUser.password);
       await setDoc(doc(db, 'users', cred.user.uid), { name: newUser.name, email: newUser.email.toLowerCase(), roleId: newUser.roleId, classIds: newUser.roleId === 'ADMIN' ? [] : newUser.classIds, segmentIds: newUser.roleId === 'ADMIN' ? [] : newUser.segmentIds, isActive: true, createdAt: new Date().toISOString() }, { merge: true });
-      setIsDialogOpen(false); toast({ title: "Usuário Criado!" });
-    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); } finally { if (secApp) await deleteApp(secApp); setIsCreating(false); }
+      setIsDialogOpen(false); 
+      toast({ title: "Usuário Criado!" });
+    } catch (e: any) { 
+      toast({ title: "Erro", description: e.message, variant: "destructive" }); 
+    } finally { 
+      if (secApp) await deleteApp(secApp); 
+      setIsCreating(false); 
+    }
   };
 
   const handleUpdate = () => {
     if (!editingUser || !db) return;
-    updateDocumentNonBlocking(doc(db, 'users', editingUser.id), { name: editingUser.name, roleId: editingUser.roleId, classIds: editingUser.roleId === 'ADMIN' ? [] : editingUser.classIds, segmentIds: editingUser.roleId === 'ADMIN' ? [] : editingUser.segmentIds });
-    setIsEditDialogOpen(false); toast({ title: "Perfil Atualizado" });
+    updateDocumentNonBlocking(doc(db, 'users', editingUser.id), { 
+      name: editingUser.name, 
+      roleId: editingUser.roleId, 
+      classIds: editingUser.roleId === 'ADMIN' ? [] : (editingUser.classIds || []), 
+      segmentIds: editingUser.roleId === 'ADMIN' ? [] : (editingUser.segmentIds || []) 
+    });
+    setIsEditDialogOpen(false); 
+    toast({ title: "Perfil Atualizado" });
   };
 
   const filtered = users?.filter(u => u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase())) || [];
@@ -88,12 +99,21 @@ export default function UsersAdminPage() {
   return (
     <div className="space-y-8 animate-in fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div><h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Equipe</h1><p className="text-muted-foreground">Administre os perfis de acesso da unidade.</p></div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Gestão de Equipe</h1>
+          <p className="text-muted-foreground">Administre os perfis de acesso da unidade e seus vínculos.</p>
+        </div>
         <Button onClick={() => setIsDialogOpen(true)} className="rounded-xl h-11 gap-2 shadow-lg"><Plus className="w-4 h-4" /> Novo Usuário</Button>
       </div>
 
       <Card className="border-none shadow-md overflow-hidden bg-white rounded-2xl">
-        <div className="p-4 border-b bg-muted/10"><div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-9 rounded-xl h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div></div>
+        <div className="p-4 border-b bg-muted/10">
+          <div className="relative max-w-sm">
+            <Label htmlFor="search-users-input" className="sr-only">Buscar membros</Label>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input id="search-users-input" placeholder="Buscar por nome ou e-mail..." className="pl-9 rounded-xl h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+        </div>
         {isLoading ? <div className="p-24 flex justify-center"><Loader2 className="animate-spin text-primary" /></div> : (
           <Table>
             <TableHeader className="bg-muted/5"><TableRow><TableHead className="font-bold">Nome</TableHead><TableHead className="font-bold">E-mail</TableHead><TableHead className="font-bold">Papel</TableHead><TableHead className="text-right font-bold">Ações</TableHead></TableRow></TableHeader>
@@ -113,28 +133,40 @@ export default function UsersAdminPage() {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl rounded-2xl">
-          <DialogHeader><DialogTitle>Novo Membro</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Novo Membro</DialogTitle>
+            <DialogDescription>Cadastre um novo usuário e defina suas permissões de acesso.</DialogDescription>
+          </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
             <div className="space-y-4">
               <div className="space-y-2"><Label htmlFor="name-new">Nome Completo</Label><Input id="name-new" value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} className="rounded-xl" /></div>
               <div className="space-y-2"><Label htmlFor="email-new">E-mail</Label><Input id="email-new" type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="rounded-xl" /></div>
-              <div className="space-y-2"><Label htmlFor="pass-new">Senha</Label><div className="relative"><Input id="pass-new" type={showPassword ? "text" : "password"} value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="rounded-xl" /><button onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
+              <div className="space-y-2"><Label htmlFor="pass-new">Senha</Label><div className="relative"><Input id="pass-new" type={showPassword ? "text" : "password"} value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="rounded-xl" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
               <div className="space-y-2"><Label htmlFor="role-new">Papel</Label><Select value={newUser.roleId} onValueChange={(v) => setNewUser({...newUser, roleId: v})}><SelectTrigger id="role-new" className="rounded-xl"><SelectValue placeholder="Papel" /></SelectTrigger><SelectContent><SelectItem value="ADMIN">Administrador</SelectItem>{availableRoles?.filter(r => r.id !== 'ADMIN').map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             {newUser.roleId !== 'ADMIN' && (
               <div className="space-y-4 border-l pl-6">
-                <div className="space-y-2"><div className="flex justify-between items-center"><Label className="text-sm font-bold">Segmentos</Label><div className="flex gap-2"><Button variant="ghost" size="sm" onClick={() => handleSelectAllSegments()} className="h-6 text-[10px] text-primary">Todos</Button><Button variant="ghost" size="sm" onClick={() => handleClearSegments()} className="h-6 text-[10px]">Limpar</Button></div></div><ScrollArea className="h-24 border rounded-xl p-2">{segments?.map(s => <div key={s.id} className="flex items-center gap-2 text-xs"><Checkbox checked={newUser.segmentIds.includes(s.id)} onCheckedChange={(c) => setNewUser(p => ({...p, segmentIds: c ? [...p.segmentIds, s.id] : p.segmentIds.filter(id => id !== s.id)}))} />{s.name}</div>)}</ScrollArea></div>
-                <div className="space-y-2"><div className="flex justify-between items-center"><Label className="text-sm font-bold">Turmas</Label><div className="flex gap-2"><Button variant="ghost" size="sm" onClick={() => handleSelectAllClasses()} className="h-6 text-[10px] text-primary">Todas</Button><Button variant="ghost" size="sm" onClick={() => handleClearClasses()} className="h-6 text-[10px]">Limpar</Button></div></div><ScrollArea className="h-24 border rounded-xl p-2">{schoolClasses?.map(c => <div key={c.id} className="flex items-center gap-2 text-xs"><Checkbox checked={newUser.classIds.includes(c.id)} onCheckedChange={(ch) => setNewUser(p => ({...p, classIds: ch ? [...p.classIds, c.id] : p.classIds.filter(id => id !== c.id)}))} />{c.name}</div>)}</ScrollArea></div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center"><Label className="text-sm font-bold">Segmentos</Label><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => handleSelectAllSegments()} className="h-6 text-[10px] text-primary">Todos</Button><Button type="button" variant="ghost" size="sm" onClick={() => handleClearSegments()} className="h-6 text-[10px]">Limpar</Button></div></div>
+                  <ScrollArea className="h-24 border rounded-xl p-2">{segments?.map(s => <div key={s.id} className="flex items-center gap-2 text-xs mb-1"><Checkbox id={`seg-new-${s.id}`} checked={newUser.segmentIds.includes(s.id)} onCheckedChange={(c) => setNewUser(p => ({...p, segmentIds: c ? [...p.segmentIds, s.id] : p.segmentIds.filter(id => id !== s.id)}))} /><Label htmlFor={`seg-new-${s.id}`} className="cursor-pointer">{s.name}</Label></div>)}</ScrollArea>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center"><Label className="text-sm font-bold">Turmas</Label><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => handleSelectAllClasses()} className="h-6 text-[10px] text-primary">Todas</Button><Button type="button" variant="ghost" size="sm" onClick={() => handleClearClasses()} className="h-6 text-[10px]">Limpar</Button></div></div>
+                  <ScrollArea className="h-24 border rounded-xl p-2">{schoolClasses?.map(c => <div key={c.id} className="flex items-center gap-2 text-xs mb-1"><Checkbox id={`cls-new-${c.id}`} checked={newUser.classIds.includes(c.id)} onCheckedChange={(ch) => setNewUser(p => ({...p, classIds: ch ? [...p.classIds, c.id] : p.classIds.filter(id => id !== c.id)}))} /><Label htmlFor={`cls-new-${c.id}`} className="cursor-pointer">{c.name}</Label></div>)}</ScrollArea>
+                </div>
               </div>
             )}
           </div>
-          <DialogFooter><Button onClick={handleAdd} disabled={isCreating} className="rounded-xl px-10">{isCreating ? <Loader2 className="animate-spin" /> : "Salvar"}</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleAdd} disabled={isCreating} className="rounded-xl px-10">{isCreating ? <Loader2 className="animate-spin" /> : "Salvar Usuário"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl rounded-2xl">
-          <DialogHeader><DialogTitle>Editar Perfil</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar Perfil</DialogTitle>
+            <DialogDescription>Atualize as permissões e vínculos deste membro da equipe.</DialogDescription>
+          </DialogHeader>
           {editingUser && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
               <div className="space-y-4">
@@ -143,8 +175,14 @@ export default function UsersAdminPage() {
               </div>
               {editingUser.roleId !== 'ADMIN' && (
                 <div className="space-y-4 border-l pl-6">
-                  <div className="space-y-2"><div className="flex justify-between items-center"><Label className="text-sm font-bold">Segmentos</Label><div className="flex gap-2"><Button variant="ghost" size="sm" onClick={() => handleSelectAllSegments(true)} className="h-6 text-[10px] text-primary">Todos</Button><Button variant="ghost" size="sm" onClick={() => handleClearSegments(true)} className="h-6 text-[10px]">Limpar</Button></div></div><ScrollArea className="h-24 border rounded-xl p-2">{segments?.map(s => <div key={s.id} className="flex items-center gap-2 text-xs"><Checkbox checked={editingUser.segmentIds?.includes(s.id)} onCheckedChange={(c) => setEditingUser(p => p ? ({...p, segmentIds: c ? [...(p.segmentIds || []), s.id] : (p.segmentIds || []).filter(id => id !== s.id)}) : null)} />{s.name}</div>)}</ScrollArea></div>
-                  <div className="space-y-2"><div className="flex justify-between items-center"><Label className="text-sm font-bold">Turmas</Label><div className="flex gap-2"><Button variant="ghost" size="sm" onClick={() => handleSelectAllClasses(true)} className="h-6 text-[10px] text-primary">Todas</Button><Button variant="ghost" size="sm" onClick={() => handleClearClasses(true)} className="h-6 text-[10px]">Limpar</Button></div></div><ScrollArea className="h-24 border rounded-xl p-2">{schoolClasses?.map(c => <div key={c.id} className="flex items-center gap-2 text-xs"><Checkbox checked={editingUser.classIds?.includes(c.id)} onCheckedChange={(ch) => setEditingUser(p => p ? ({...p, classIds: ch ? [...(p.classIds || []), c.id] : (p.classIds || []).filter(id => id !== c.id)}) : null)} />{c.name}</div>)}</ScrollArea></div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center"><Label className="text-sm font-bold">Segmentos</Label><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => handleSelectAllSegments(true)} className="h-6 text-[10px] text-primary">Todos</Button><Button type="button" variant="ghost" size="sm" onClick={() => handleClearSegments(true)} className="h-6 text-[10px]">Limpar</Button></div></div>
+                    <ScrollArea className="h-24 border rounded-xl p-2">{segments?.map(s => <div key={s.id} className="flex items-center gap-2 text-xs mb-1"><Checkbox id={`seg-edit-${s.id}`} checked={editingUser.segmentIds?.includes(s.id)} onCheckedChange={(c) => setEditingUser(p => p ? ({...p, segmentIds: c ? [...(p.segmentIds || []), s.id] : (p.segmentIds || []).filter(id => id !== s.id)}) : null)} /><Label htmlFor={`seg-edit-${s.id}`} className="cursor-pointer">{s.name}</Label></div>)}</ScrollArea>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center"><Label className="text-sm font-bold">Turmas</Label><div className="flex gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => handleSelectAllClasses(true)} className="h-6 text-[10px] text-primary">Todas</Button><Button type="button" variant="ghost" size="sm" onClick={() => handleClearClasses(true)} className="h-6 text-[10px]">Limpar</Button></div></div>
+                    <ScrollArea className="h-24 border rounded-xl p-2">{schoolClasses?.map(c => <div key={c.id} className="flex items-center gap-2 text-xs mb-1"><Checkbox id={`cls-edit-${c.id}`} checked={editingUser.classIds?.includes(c.id)} onCheckedChange={(ch) => setEditingUser(p => p ? ({...p, classIds: ch ? [...(p.classIds || []), c.id] : (p.classIds || []).filter(id => id !== c.id)}) : null)} /><Label htmlFor={`cls-edit-${c.id}`} className="cursor-pointer">{c.name}</Label></div>)}</ScrollArea>
+                  </div>
                 </div>
               )}
             </div>

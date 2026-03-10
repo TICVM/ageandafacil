@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -158,7 +157,7 @@ export default function AppointmentsPage() {
 
   const handleDelete = (id: string) => {
     if (!db) return;
-    // Pequeno atraso para garantir que o menu radial fechou antes da confirmação
+    // Pequeno atraso para evitar conflitos de foco com o menu do Radix
     setTimeout(() => {
       const confirmed = window.confirm("Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.");
       if (confirmed) {
@@ -398,6 +397,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
+            <DialogDescription className="text-white/70">Visualize as informações completas e o histórico desta reserva.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
@@ -446,6 +446,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
+            <DialogDescription className="text-white/70">Ajuste a data e o horário da sessão de fotos. Verifique a disponibilidade do local.</DialogDescription>
           </DialogHeader>
           {editingBooking && (
             <div className="p-10 space-y-8 bg-white">
