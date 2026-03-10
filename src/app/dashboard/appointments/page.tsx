@@ -66,6 +66,15 @@ const timeToMin = (t: string) => {
   return (h * 60) + m;
 };
 
+const ADMIN_PERMS: AppPermissions = {
+  canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
+  canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
+  canViewSegmentAppointments: true, canViewClassAppointments: true,
+  canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+  canCreateBookings: true, canChangeStatus: true,
+  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
+};
+
 export default function AppointmentsPage() {
   const db = useFirestore();
   const { user: authUser } = useUser();
@@ -92,15 +101,7 @@ export default function AppointmentsPage() {
       if (!db || !authUser) return;
       try {
         if (isMaster) {
-          const masterPerms: AppPermissions = {
-            canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-            canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-            canViewSegmentAppointments: true, canViewClassAppointments: true,
-            canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-            canCreateBookings: true, canChangeStatus: true,
-            canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
-          };
-          setUserPerms(masterPerms);
+          setUserPerms(ADMIN_PERMS);
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: authUser.email || '', roleId: 'ADMIN' });
           return;
         }
@@ -110,14 +111,7 @@ export default function AppointmentsPage() {
           const userData = userDoc.data() as User;
           setProfile({ ...userData, id: authUser.uid });
           if (userData.roleId === 'ADMIN') {
-            setUserPerms({
-              canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
-              canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
-              canViewSegmentAppointments: true, canViewClassAppointments: true,
-              canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
-              canCreateBookings: true, canChangeStatus: true,
-              canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
-            });
+            setUserPerms(ADMIN_PERMS);
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
             if (roleDoc.exists()) setUserPerms(roleDoc.data() as RoleConfig);
@@ -144,7 +138,6 @@ export default function AppointmentsPage() {
   const { data: blocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
-  // Mapas para performance
   const classMap = useMemo(() => {
     const map: Record<string, Class> = {};
     classes?.forEach(c => { map[c.id] = c; });
@@ -262,12 +255,21 @@ export default function AppointmentsPage() {
 
   const filtered = useMemo(() => {
     if (!list || !userPerms || !profile) return [];
+    
+    // Filtro para Administradores
+    if (isMaster || profile.roleId === 'ADMIN' || userPerms.canViewAllAppointments) {
+      return list.filter(b => !searchTerm || b.teacherName?.toLowerCase().includes(searchTerm.toLowerCase()) || b.appointmentDate.includes(searchTerm)).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
+    }
+
+    // Filtro para perfis com vínculo
     return list.filter(booking => {
-      if (isMaster || userPerms.canViewAllAppointments) return true;
       const cls = classMap[booking.schoolClassId];
-      if (userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '')) return true;
-      if (userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId)) return true;
-      return booking.teacherId === profile.id;
+      
+      const belongsBySegment = userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '');
+      const belongsByClass = userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId);
+      const belongsByTeacher = booking.teacherId === profile.id;
+      
+      return belongsBySegment || belongsByClass || belongsByTeacher;
     }).filter(b => !searchTerm || b.teacherName?.toLowerCase().includes(searchTerm.toLowerCase()) || b.appointmentDate.includes(searchTerm)).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
   }, [list, userPerms, profile, classMap, isMaster, searchTerm]);
 
@@ -346,7 +348,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl">
+        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-8 text-white"><DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle></DialogHeader>
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
@@ -377,10 +379,7 @@ export default function AppointmentsPage() {
       <Dialog open={!!editingBooking} onOpenChange={() => !isSaving && setEditingBooking(null)}>
         <DialogContent 
           className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl"
-          onInteractOutside={(e) => {
-            const isPortal = (e.target as HTMLElement).closest('[data-radix-portal]');
-            if (isPortal) e.preventDefault();
-          }}
+          onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-orange-500 p-8 text-white"><DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle></DialogHeader>
           {editingBooking && (
@@ -439,7 +438,14 @@ export default function AppointmentsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
-                <Textarea id="reschedule-notes-textarea" name="notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-2xl min-h-[100px]" placeholder="Instruções para a equipe..." />
+                <Textarea 
+                  id="reschedule-notes-textarea" 
+                  name="notes" 
+                  value={editNotes} 
+                  onChange={(e) => setEditNotes(e.target.value)} 
+                  className="rounded-2xl min-h-[100px]" 
+                  placeholder="Instruções para a equipe..." 
+                />
               </div>
 
               <DialogFooter className="gap-3 border-t pt-8">
