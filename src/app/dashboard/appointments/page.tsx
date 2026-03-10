@@ -501,7 +501,7 @@ export default function AppointmentsPage() {
                           </div>
                           <p className="text-sm font-semibold text-slate-700 leading-snug">{entry.details}</p>
                           <div className="flex items-center gap-1.5 mt-2 text-[10px] text-muted-foreground">
-                            <UserIcon className="w-3 h-3" />
+                            <UserIcon className="w-3  h-3" />
                             <span className="font-medium">{entry.userName}</span>
                           </div>
                         </div>
@@ -520,10 +520,8 @@ export default function AppointmentsPage() {
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent 
-          id="reschedule-dialog-main-content"
           className="max-w-2xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl" 
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
             if (target?.closest('[data-radix-popper-content-wrapper]')) {
