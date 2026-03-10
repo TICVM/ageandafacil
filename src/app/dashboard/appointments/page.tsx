@@ -50,6 +50,7 @@ export default function AppointmentsPage() {
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Estados para reagendamento (Nova Estrutura)
   const [editDate, setEditDate] = useState<Date | undefined>(undefined);
   const [editSlotId, setEditSlotId] = useState<string>('');
   const [editLocationId, setEditLocationId] = useState<string>('');
@@ -102,7 +103,7 @@ export default function AppointmentsPage() {
           }
         }
       } catch (err) {
-        console.error("Erro ao carregar permissões:", err);
+        console.error("Erro ao carregar permissões na agenda:", err);
       }
     }
     fetchPermissions();
@@ -175,7 +176,7 @@ export default function AppointmentsPage() {
 
   const handleSaveEdit = () => {
     if (!db || !editingBooking || !editDate || !editSlotId || !editLocationId || !profile) {
-      toast({ title: "Dados Incompletos", description: "Verifique a nova data e o novo horário selecionado.", variant: "destructive" });
+      toast({ title: "Dados Incompletos", description: "Verifique se a nova data e o novo horário foram selecionados.", variant: "destructive" });
       return;
     }
 
@@ -266,7 +267,12 @@ export default function AppointmentsPage() {
   };
 
   if (isLoading || !userPerms) {
-    return <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#ECF1FA]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">Sincronizando agenda...</p>
+      </div>
+    );
   }
 
   const hasAnyStatusPermission = userPerms.canChangeStatus || 
@@ -281,24 +287,24 @@ export default function AppointmentsPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Agenda</h1>
           <p className="text-muted-foreground">Visualize e valide as sessões de fotos escolares.</p>
         </div>
         <div className="relative w-full md:w-80">
-          <Label htmlFor="search-appointments-input" className="sr-only">Buscar agendamentos</Label>
+          <Label htmlFor="search-appointments-list-input" className="sr-only">Buscar agendamentos</Label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            id="search-appointments-input"
-            name="search-appointments"
+            id="search-appointments-list-input"
+            name="search"
             placeholder="Buscar docente ou data..." 
-            className="pl-9 rounded-xl h-11 bg-white"
+            className="pl-9 rounded-xl h-11 bg-white border-slate-200"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      <Card className="border-none shadow-md overflow-hidden bg-white">
+      <Card className="border-none shadow-md overflow-hidden bg-white rounded-3xl">
         <Table>
           <TableHeader className="bg-muted/20">
             <TableRow>
@@ -323,14 +329,14 @@ export default function AppointmentsPage() {
                       <div className="flex items-center gap-3">
                         <div className="bg-primary/10 p-2 rounded-lg text-primary"><CalendarDays className="w-4 h-4" /></div>
                         <div className="flex flex-col">
-                          <span className="font-bold">{format(new Date(b.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</span>
-                          <span className="text-xs text-muted-foreground">{b.startTime} - {b.endTime}</span>
+                          <span className="font-bold text-slate-700">{format(new Date(b.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{b.startTime} - {b.endTime}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-bold">{b.teacherName}</span>
+                        <span className="font-bold text-slate-800">{b.teacherName}</span>
                         <span className="text-xs text-muted-foreground">{cls?.name || '---'}</span>
                         {creationTime && (
                           <span className="text-[10px] text-muted-foreground/50 mt-1 italic">
@@ -339,72 +345,83 @@ export default function AppointmentsPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3 text-primary" />
+                        <span className="text-sm font-medium">{loc?.name || '---'}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
-                              <status.icon className="w-3 h-3" />
+                            <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none", status.color)}>
+                              <status.icon className="w-3.5 h-3.5" />
                               {status.label}
                             </Badge>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="rounded-xl p-2">
+                          <DropdownMenuContent align="start" className="rounded-2xl p-2 shadow-2xl border-none">
                             {(userPerms.canChangeStatus || userPerms.canStatusPending) && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'PENDING')} className="gap-2"><Clock className="w-3.5 h-3.5" /> Aguardando confirmação</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'PENDING')} className="gap-2 rounded-lg cursor-pointer"><Clock className="w-4 h-4" /> Aguardando confirmação</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusConfirmed) && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CONFIRMED')} className="gap-2 text-green-600 font-bold rounded-lg cursor-pointer"><CheckCircle2 className="w-4 h-4" /> Confirmar</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusCompleted) && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'COMPLETED')} className="gap-2 text-slate-700 font-bold"><CheckCircle className="w-3.5 h-3.5" /> Concluir Sessão</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'COMPLETED')} className="gap-2 text-slate-700 font-bold rounded-lg cursor-pointer"><CheckCircle className="w-4 h-4" /> Concluir Sessão</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusRescheduled) && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600"><Edit3 className="w-3.5 h-3.5" /> Reagendado</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'RESCHEDULED')} className="gap-2 text-blue-600 rounded-lg cursor-pointer"><Edit3 className="w-4 h-4" /> Reagendado</DropdownMenuItem>
                             )}
                             {(userPerms.canChangeStatus || userPerms.canStatusReScheduleRequest) && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600"><AlertTriangle className="w-3.5 h-3.5" /> Por favor reagendar</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'RE_SCHEDULE_REQUEST')} className="gap-2 text-yellow-600 rounded-lg cursor-pointer"><AlertTriangle className="w-4 h-4" /> Por favor reagendar</DropdownMenuItem>
                             )}
-                            <DropdownMenuSeparator />
+                            <DropdownMenuSeparator className="bg-slate-100" />
                             {(userPerms.canChangeStatus || userPerms.canStatusCancelled) && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-destructive"><XCircle className="w-3.5 h-3.5" /> Cancelar</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-destructive rounded-lg cursor-pointer"><XCircle className="w-4 h-4" /> Cancelar</DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <Badge className={cn("rounded-lg flex items-center gap-1.5", status.color)}>
-                          <status.icon className="w-3 h-3" />
+                        <Badge className={cn("rounded-lg flex items-center gap-1.5 px-3 h-8 border-none", status.color)}>
+                          <status.icon className="w-3.5 h-3.5" />
                           {status.label}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)} aria-label="Ver detalhes">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="rounded-full text-primary hover:bg-primary/10" 
+                          onClick={() => setSelectedBooking(b)} 
+                          aria-label="Ver detalhes"
+                        >
                           <Info className="w-4 h-4" />
                         </Button>
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full" aria-label="Mais opções">
+                            <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" aria-label="Mais opções">
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl p-2">
+                          <DropdownMenuContent align="end" className="rounded-2xl p-2 shadow-2xl border-none">
                             {userPerms.canEditAppointments && (
-                              <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer">
-                                <Edit3 className="w-3.5 h-3.5" /> Reagendar / Editar
+                              <DropdownMenuItem onSelect={() => handleOpenEdit(b)} className="gap-2 cursor-pointer rounded-lg">
+                                <Edit3 className="w-4 h-4 text-blue-600" /> Reagendar / Editar
                               </DropdownMenuItem>
                             )}
                             {userPerms.canCancelAppointments && b.status !== 'CANCELLED' && (
-                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer">
-                                <XCircle className="w-3.5 h-3.5" /> Cancelar Sessão
+                              <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer rounded-lg">
+                                <XCircle className="w-4 h-4" /> Cancelar Sessão
                               </DropdownMenuItem>
                             )}
                             {userPerms.canDeleteAppointments && (
                               <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => deleteDocumentNonBlocking(doc(db, 'appointments', b.id))} className="gap-2 text-destructive cursor-pointer">
-                                  <Trash2 className="w-3.5 h-3.5" /> Excluir Registro
+                                <DropdownMenuSeparator className="bg-slate-100" />
+                                <DropdownMenuItem onSelect={() => deleteDocumentNonBlocking(doc(db, 'appointments', b.id))} className="gap-2 text-destructive cursor-pointer rounded-lg">
+                                  <Trash2 className="w-4 h-4" /> Excluir Registro
                                 </DropdownMenuItem>
                               </>
                             )}
@@ -416,7 +433,14 @@ export default function AppointmentsPage() {
                 );
               })
             ) : (
-              <TableRow><TableCell colSpan={5} className="h-64 text-center text-muted-foreground">Nenhum registro encontrado.</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="h-64 text-center text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2 opacity-50">
+                    <CalendarIcon className="w-10 h-10" />
+                    <p>Nenhum registro encontrado.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
@@ -424,11 +448,12 @@ export default function AppointmentsPage() {
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent 
-          className="max-w-3xl rounded-3xl overflow-hidden p-0"
+          className="max-w-3xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl"
+          onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <DialogHeader className="bg-primary p-6 text-primary-foreground">
+          <DialogHeader className="bg-primary p-8 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
-              <FileText className="w-6 h-6" /> Detalhes da Sessão
+              <FileText className="w-7 h-7" /> Detalhes da Sessão
             </DialogTitle>
             <DialogDescription className="text-primary-foreground/80">Confira abaixo o histórico completo e os detalhes registrados.</DialogDescription>
           </DialogHeader>
@@ -437,44 +462,48 @@ export default function AppointmentsPage() {
               <div className="p-8 space-y-6 border-r">
                 <div className="grid grid-cols-1 gap-6">
                   <div>
-                    <p className="text-xs font-bold uppercase text-muted-foreground">Docente / Turma</p>
-                    <p className="text-lg font-bold">{selectedBooking.teacherName}</p>
-                    <p className="text-sm text-muted-foreground">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Docente / Turma</p>
+                    <p className="text-xl font-bold text-slate-800">{selectedBooking.teacherName}</p>
+                    <p className="text-sm font-medium text-primary">{classes?.find(c => c.id === selectedBooking.schoolClassId)?.name}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase text-muted-foreground">Status Atual</p>
-                    <Badge className={cn("rounded-lg mt-1", STATUS_CONFIG[selectedBooking.status]?.color)}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Status Atual</p>
+                    <Badge className={cn("rounded-lg px-3 py-1 text-xs border-none", STATUS_CONFIG[selectedBooking.status]?.color)}>
                       {STATUS_CONFIG[selectedBooking.status]?.label}
                     </Badge>
                   </div>
                 </div>
-                <div className="bg-muted/30 p-5 rounded-2xl border border-dashed">
-                  <p className="text-xs font-bold uppercase text-muted-foreground mb-2">Notas do Professor</p>
-                  <p className="text-sm italic whitespace-pre-wrap">{selectedBooking.observations || "Sem observações."}</p>
+                <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5" /> Notas do Professor
+                  </p>
+                  <p className="text-sm italic text-slate-600 whitespace-pre-wrap leading-relaxed">
+                    {selectedBooking.observations || "Nenhuma observação registrada para esta sessão."}
+                  </p>
                 </div>
               </div>
 
               <div className="p-8 space-y-4 bg-slate-50">
-                <div className="flex items-center gap-2 text-primary mb-4">
-                  <History className="w-5 h-5" />
+                <div className="flex items-center gap-2 text-primary mb-6">
+                  <History className="w-6 h-6" />
                   <h3 className="font-bold text-lg">Linha do Tempo</h3>
                 </div>
-                <ScrollArea className="h-[300px] pr-4">
-                  <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
+                <ScrollArea className="h-[320px] pr-4">
+                  <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-primary/20">
                     {selectedBooking.history?.slice().reverse().map((entry, idx) => (
-                      <div key={idx} className="relative pl-8">
-                        <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white border-2 border-primary flex items-center justify-center z-10">
+                      <div key={idx} className="relative pl-10 animate-in fade-in slide-in-from-left-2" style={{ animationDelay: `${idx * 100}ms` }}>
+                        <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white border-2 border-primary flex items-center justify-center z-10 shadow-sm">
                           <Clock className="w-3 h-3 text-primary" />
                         </div>
                         <div className="flex flex-col">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">{entry.action}</span>
-                            <span className="text-[10px] text-muted-foreground">{format(new Date(entry.timestamp), "dd/MM HH:mm")}</span>
+                            <span className="text-[9px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded-full">{entry.action}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">{format(new Date(entry.timestamp), "dd/MM HH:mm")}</span>
                           </div>
-                          <p className="text-sm font-medium leading-tight">{entry.details}</p>
-                          <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                            <UserIcon className="w-2.5 h-2.5" />
-                            <span>{entry.userName}</span>
+                          <p className="text-sm font-semibold text-slate-700 leading-snug">{entry.details}</p>
+                          <div className="flex items-center gap-1.5 mt-2 text-[10px] text-muted-foreground">
+                            <UserIcon className="w-3 h-3" />
+                            <span className="font-medium">{entry.userName}</span>
                           </div>
                         </div>
                       </div>
@@ -484,69 +513,87 @@ export default function AppointmentsPage() {
               </div>
             </div>
           )}
-          <DialogFooter className="p-4 bg-white border-t">
-            <Button onClick={() => setSelectedBooking(null)} className="rounded-xl">Fechar</Button>
+          <DialogFooter className="p-6 bg-white border-t">
+            <Button onClick={() => setSelectedBooking(null)} className="rounded-xl px-8 h-12 shadow-lg">Fechar Detalhes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
         <DialogContent 
-          id="reschedule-dialog-content"
-          className="max-w-2xl rounded-3xl overflow-hidden p-0" 
+          id="reschedule-dialog-main-content"
+          className="max-w-2xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl" 
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            // Permite interação com calendários e selects portais
+            const target = e.target as HTMLElement;
+            if (target?.closest('[data-radix-popper-content-wrapper]')) {
+              e.preventDefault();
+            }
+          }}
         >
-          <DialogHeader className="bg-orange-500 p-6 text-white">
+          <DialogHeader className="bg-orange-500 p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
-              <Edit3 className="w-6 h-6" /> Reagendar Sessão
+              <Edit3 className="w-7 h-7" /> Reagendar Sessão
             </DialogTitle>
-            <DialogDescription className="text-orange-50/80">Confira o agendamento atual e defina a nova data e horário.</DialogDescription>
+            <DialogDescription className="text-orange-50/80">Confira o agendamento atual e defina a nova data e horário para a sessão.</DialogDescription>
           </DialogHeader>
+          
           {editingBooking && (
-            <div className="p-8 space-y-8 bg-white">
-              <div className="bg-muted/30 p-5 rounded-2xl border border-dashed border-slate-300">
-                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3 flex items-center gap-2">
-                    <Clock className="w-3 h-3" /> Agendamento Atual
+            <div className="p-10 space-y-10 bg-white">
+              {/* Seção Fixa: Agendamento Atual */}
+              <div className="bg-muted/30 p-6 rounded-3xl border border-dashed border-slate-300 relative overflow-hidden">
+                 <div className="absolute right-0 top-0 p-4 opacity-5">
+                    <Clock className="w-20 h-20" />
+                 </div>
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-4 flex items-center gap-2 tracking-widest">
+                    <Clock className="w-4 h-4" /> Dados do Agendamento Atual
                  </p>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase">Data Atual</p>
-                      <p className="font-bold text-slate-700">{format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                 <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Data Atual</Label>
+                      <p className="text-xl font-bold text-slate-800">{format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase">Horário Atual</p>
-                      <p className="font-bold text-slate-700">{editingBooking.startTime} ({editingBooking.endTime})</p>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Horário Atual</Label>
+                      <p className="text-xl font-bold text-slate-800">{editingBooking.startTime} <span className="text-sm font-normal text-muted-foreground">({editingBooking.endTime})</span></p>
                     </div>
                  </div>
               </div>
 
               <div className="flex items-center justify-center">
                  <div className="h-px bg-slate-200 flex-1"></div>
-                 <Badge variant="secondary" className="mx-4 gap-1 text-[10px] py-1 bg-orange-50 text-orange-600 border-orange-100">
-                    <ArrowRight className="w-3 h-3" /> NOVO REAGENDAMENTO
+                 <Badge variant="secondary" className="mx-6 gap-2 text-[10px] font-bold py-1.5 px-4 bg-orange-50 text-orange-600 border-orange-200 uppercase tracking-widest">
+                    <ArrowRight className="w-3.5 h-3.5" /> NOVO REAGENDAMENTO
                  </Badge>
                  <div className="h-px bg-slate-200 flex-1"></div>
               </div>
 
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Seção de Edição: Novos Dados */}
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <Label htmlFor="reschedule-new-date-button" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <Label htmlFor="reschedule-new-date-popover-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600">
                       <CalendarIcon className="w-4 h-4" /> Nova Data
                     </Label>
                     <Popover modal={false} open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
                         <Button 
-                          id="reschedule-new-date-button" 
+                          id="reschedule-new-date-popover-trigger" 
                           name="newDate"
                           variant="outline" 
-                          className="w-full h-11 justify-start rounded-xl bg-white border-orange-200"
+                          className="w-full h-12 justify-start rounded-xl bg-[#FFFBF9] border-orange-200 shadow-sm hover:border-orange-400 transition-colors"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione a nova data</span>}
+                          <CalendarIcon className="mr-3 h-5 w-5 text-orange-500" />
+                          {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione o novo dia...</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                      <PopoverContent 
+                        className="w-auto p-0 z-[100] rounded-2xl shadow-2xl border-none" 
+                        align="start"
+                        onInteractOutside={(e) => e.preventDefault()}
+                      >
                         <Calendar 
                           mode="single" 
                           selected={editDate} 
@@ -559,84 +606,95 @@ export default function AppointmentsPage() {
                           }} 
                           locale={ptBR} 
                           disabled={(d) => d < startOfDay(new Date())} 
+                          className="p-4"
                         />
                       </PopoverContent>
                     </Popover>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reschedule-new-slot-select" className="text-sm font-bold flex items-center gap-2 text-orange-500">
+                    <Label htmlFor="reschedule-new-slot-id-select" className="text-sm font-bold flex items-center gap-2 text-orange-600">
                       <Clock className="w-4 h-4" /> Novo Horário
                     </Label>
                     <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate} modal={false}>
-                      <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-11 bg-white border-orange-200">
+                      <SelectTrigger id="reschedule-new-slot-id-select" name="newSlot" className="rounded-xl h-12 bg-[#FFFBF9] border-orange-200 shadow-sm hover:border-orange-400 transition-colors">
                         <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
-                      <SelectContent className="z-[100]">
+                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none">
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.startTime} ({s.durationMinutes} min)
+                            <SelectItem key={s.id} value={s.id} className="rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold">{s.startTime}</span>
+                                <span className="text-[10px] text-muted-foreground">({s.durationMinutes} min)</span>
+                              </div>
                             </SelectItem>
                           ))
                         ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível.</div>
+                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível para o dia selecionado.</div>
                         )}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <Label htmlFor="reschedule-location-select" className="text-sm font-bold flex items-center gap-2 text-slate-600">
+                    <Label htmlFor="reschedule-location-id-select" className="text-sm font-bold flex items-center gap-2 text-slate-600">
                       <MapPin className="w-4 h-4" /> Local da Foto
                     </Label>
                     <Select value={editLocationId} onValueChange={setEditLocationId} modal={false}>
-                      <SelectTrigger id="reschedule-location-select" name="location" className="rounded-xl h-11 bg-white">
+                      <SelectTrigger id="reschedule-location-id-select" name="location" className="rounded-xl h-12 bg-white border-slate-200 shadow-sm">
                         <SelectValue placeholder="Selecione o local" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100]">
-                        {locations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none">
+                        {locations?.filter(l => l.isActive).map(l => (
+                          <SelectItem key={l.id} value={l.id} className="rounded-lg">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{l.name}</span>
+                              {l.unit && <span className="text-[10px] text-muted-foreground opacity-70">{l.unit}</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reschedule-identifier-input" className="text-sm font-bold flex items-center gap-2 text-slate-600">
+                    <Label htmlFor="reschedule-location-identifier-input" className="text-sm font-bold flex items-center gap-2 text-slate-600">
                       <Hash className="w-4 h-4" /> Identificador Específico
                     </Label>
                     <Input 
-                      id="reschedule-identifier-input" 
+                      id="reschedule-location-identifier-input" 
                       name="locationIdentifier" 
                       value={editIdentifier} 
                       onChange={(e) => setEditIdentifier(e.target.value)} 
-                      className="rounded-xl h-11" 
+                      className="rounded-xl h-12 border-slate-200 shadow-sm" 
                       placeholder="Ex: Sala 12, Pátio Sul..."
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="reschedule-notes-input" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
-                  <Input 
-                    id="reschedule-notes-input" 
+                  <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
+                  <Textarea 
+                    id="reschedule-notes-textarea" 
                     name="notes" 
                     value={editNotes} 
                     onChange={(e) => setEditNotes(e.target.value)} 
-                    className="rounded-xl h-11" 
-                    placeholder="Instruções para a equipe de fotos"
+                    className="rounded-2xl min-h-[100px] border-slate-200 shadow-sm" 
+                    placeholder="Instruções adicionais para a equipe de fotografia ou coordenação..."
                   />
                 </div>
               </div>
 
-              <DialogFooter className="gap-2 border-t pt-6">
-                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-6" disabled={isSaving}>Cancelar</Button>
+              <DialogFooter className="gap-3 border-t pt-8">
+                <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-8 font-medium border-slate-200" disabled={isSaving}>Cancelar</Button>
                 <Button 
                   onClick={handleSaveEdit} 
-                  className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-8 shadow-lg" 
+                  className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl shadow-orange-500/20 font-bold transition-transform hover:scale-105" 
                   disabled={isSaving || !editSlotId || !editDate}
                 >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Salvar Reagendamento
+                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  Confirmar Reagendamento
                 </Button>
               </DialogFooter>
             </div>
