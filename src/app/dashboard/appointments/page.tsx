@@ -342,7 +342,7 @@ export default function AppointmentsPage() {
                     <TableCell><span className="text-sm font-medium">{loc?.name || '---'}</span></TableCell>
                     <TableCell>
                       {hasAnyStatusPermission ? (
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-7", status.color)}>
                               <status.icon className="w-3 h-3" />
@@ -383,7 +383,7 @@ export default function AppointmentsPage() {
                         <Button variant="ghost" size="icon" className="rounded-full text-primary" onClick={() => setSelectedBooking(b)} aria-label="Ver detalhes">
                           <Info className="w-4 h-4" />
                         </Button>
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full" aria-label="Mais opções">
                               <MoreHorizontal className="w-4 h-4" />
@@ -493,10 +493,11 @@ export default function AppointmentsPage() {
           className="max-w-2xl rounded-3xl overflow-hidden p-0" 
           onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
-             const target = e.target as HTMLElement;
-             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
-               e.preventDefault();
-             }
+            // Permite interação com portais do Radix (como Popover e Select)
+            const target = e.target as HTMLElement;
+            if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
+              e.preventDefault();
+            }
           }}
         >
           <DialogHeader className="bg-orange-500 p-6 text-white">
@@ -549,7 +550,7 @@ export default function AppointmentsPage() {
                           {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione a nova data</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                      <PopoverContent className="w-auto p-0 z-[100]" align="start">
                         <Calendar 
                           mode="single" 
                           selected={editDate} 

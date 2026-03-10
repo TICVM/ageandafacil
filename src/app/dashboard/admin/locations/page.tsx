@@ -90,15 +90,12 @@ export default function LocationsAdminPage() {
               Novo Local
             </Button>
           </DialogTrigger>
-          <DialogContent 
-            className="rounded-2xl" 
-            onInteractOutside={(e) => {
-              const target = e.target as HTMLElement;
-              if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
-                e.preventDefault();
-              }
-            }}
-          >
+          <DialogContent className="rounded-2xl" onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
+              e.preventDefault();
+            }
+          }}>
             <DialogHeader>
               <DialogTitle>Adicionar Local</DialogTitle>
             </DialogHeader>
@@ -256,15 +253,12 @@ export default function LocationsAdminPage() {
       </Card>
 
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent 
-          className="rounded-2xl" 
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
-              e.preventDefault();
-            }
-          }}
-        >
+        <DialogContent className="rounded-2xl" onInteractOutside={(e) => {
+          const target = e.target as HTMLElement;
+          if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
+            e.preventDefault();
+          }
+        }}>
           <DialogHeader>
             <DialogTitle>Editar Local</DialogTitle>
           </DialogHeader>

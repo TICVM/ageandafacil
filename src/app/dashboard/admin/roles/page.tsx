@@ -216,7 +216,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
         <ScrollArea className="max-h-[75vh] bg-[#F8FAFC]">
           <div className="p-8 space-y-10">
             <div className="space-y-3">
-              <Label htmlFor={`role-name-input-${role.id || 'new'}`} className="text-sm font-bold text-slate-700 uppercase tracking-wider text-slate-500">Identificação do Perfil</Label>
+              <Label htmlFor={`role-name-input-${role.id || 'new'}`} className="text-sm font-bold text-slate-700 uppercase tracking-wider">Identificação do Perfil</Label>
               <Input 
                 id={`role-name-input-${role.id || 'new'}`}
                 name="name"
