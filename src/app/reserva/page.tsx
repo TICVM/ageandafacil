@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,7 +35,6 @@ export default function PublicBookingPage() {
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [aiBrief, setAiBrief] = useState<AISessionBriefAssistantOutput | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   
   const [profile, setProfile] = useState<User | null>(null);
@@ -190,6 +190,17 @@ export default function PublicBookingPage() {
       createdAt: serverTimestamp(),
     }).then(() => setIsSuccess(true));
   };
+
+  if (isUserLoading || (authUser && loadingProfile)) {
+    return (
+      <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isSuccess) return (
     <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center p-4">

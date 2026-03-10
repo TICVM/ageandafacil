@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -174,7 +175,7 @@ export default function UsersAdminPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="rounded-xl h-11 gap-2 shadow-lg">
+            <Button id="add-user-trigger" name="addUser" className="rounded-xl h-11 gap-2 shadow-lg">
               <Plus className="w-4 h-4" />
               Novo Usuário
             </Button>
@@ -354,7 +355,10 @@ export default function UsersAdminPage() {
             {editingUser?.roleId !== 'ADMIN' ? (
               <div className="space-y-4 border-l pl-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Vincular Segmentos</Label>
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-primary" />
+                    Vincular Segmentos
+                  </Label>
                   <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
@@ -367,7 +371,10 @@ export default function UsersAdminPage() {
                   </ScrollArea>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Turmas do Docente</Label>
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    Turmas do Docente
+                  </Label>
                   <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (

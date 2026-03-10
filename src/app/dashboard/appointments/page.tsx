@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -164,7 +165,6 @@ export default function AppointmentsPage() {
   }, [slots, editDate, editingBooking, classes, list, blocks]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
-    // Garante que o estado de edição comece limpo ao abrir o diálogo
     setEditDate(undefined);
     setEditSlotId('');
     setEditLocationId(booking.photoLocationId);
@@ -425,7 +425,6 @@ export default function AppointmentsPage() {
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <DialogContent 
           className="max-w-3xl rounded-3xl overflow-hidden p-0"
-          onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
@@ -496,13 +495,6 @@ export default function AppointmentsPage() {
           id="reschedule-dialog-content"
           className="max-w-2xl rounded-3xl overflow-hidden p-0" 
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            // Impede o fechamento do diálogo ao interagir com portais de calendário/select
-            if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
-              e.preventDefault();
-            }
-          }}
         >
           <DialogHeader className="bg-orange-500 p-6 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
@@ -542,7 +534,7 @@ export default function AppointmentsPage() {
                     <Label htmlFor="reschedule-new-date-button" className="text-sm font-bold flex items-center gap-2 text-orange-500">
                       <CalendarIcon className="w-4 h-4" /> Nova Data
                     </Label>
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen} modal={false}>
+                    <Popover modal={false} open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
                         <Button 
                           id="reschedule-new-date-button" 
