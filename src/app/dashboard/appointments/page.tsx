@@ -205,17 +205,19 @@ export default function AppointmentsPage() {
         action: 'ALTERACAO_DE_STATUS',
         details: `Status alterado para ${statusCfg.label}.`
       };
+      
       updateDocumentNonBlocking(doc(db, 'appointments', booking.id), {
         status: newStatus,
         history: [...(booking.history || []), newHistoryEntry]
       });
       
+      // Atualiza o estado local para que o diálogo aberto reflita a mudança imediatamente
       if (selectedBooking?.id === booking.id) {
-        setSelectedBooking({
-          ...selectedBooking,
+        setSelectedBooking(prev => prev ? {
+          ...prev,
           status: newStatus,
-          history: [...(selectedBooking.history || []), newHistoryEntry]
-        });
+          history: [...(prev.history || []), newHistoryEntry]
+        } : null);
       }
       
       toast({ title: "Status Atualizado" });
@@ -382,7 +384,7 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell>
                       {userPerms?.canChangeStatus || isMaster ? (
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Badge className={cn("rounded-lg cursor-pointer flex items-center gap-1.5 h-8 px-3 border-none shadow-sm", statusCfg.color)}>
                               <StatusIcon className="w-3.5 h-3.5" />
@@ -411,7 +413,7 @@ export default function AppointmentsPage() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10" onClick={() => setSelectedBooking(b)} aria-label="Ver detalhes"><Info className="w-4 h-4" /></Button>
-                        <DropdownMenu modal={false}>
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
@@ -596,16 +598,16 @@ export default function AppointmentsPage() {
                       {STATUS_CONFIG[selectedBooking.status as StatusKey]?.label}
                     </Badge>
                     {(userPerms?.canChangeStatus || isMaster) && (
-                      <DropdownMenu modal={false}>
+                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary"><MoreHorizontal className="w-4 h-4" /> Alterar</Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl">
+                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px] z-[110]">
                           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
                             const hasPerm = isMaster || (userPerms && (userPerms as any)[cfg.permKey]);
                             if (!hasPerm) return null;
                             return (
-                              <DropdownMenuItem key={key} onSelect={() => handleUpdateStatus(selectedBooking, key as StatusKey)} className="gap-2 rounded-lg py-2">
+                              <DropdownMenuItem key={key} onSelect={() => handleUpdateStatus(selectedBooking, key as StatusKey)} className="gap-2 rounded-lg py-2 cursor-pointer">
                                 <cfg.icon className="w-4 h-4" />{cfg.label}
                               </DropdownMenuItem>
                             );
