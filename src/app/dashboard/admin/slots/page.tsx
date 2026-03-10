@@ -71,7 +71,6 @@ export default function SlotAdminPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
 
-  // Advance Rules State
   const [bookingDays, setBookingDays] = useState(1);
   const [bookingHours, setBookingHours] = useState(0);
 

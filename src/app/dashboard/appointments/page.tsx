@@ -14,6 +14,7 @@ import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, HistoryEntry } from '@/lib/types';
 import { format } from 'date-fns';
@@ -63,6 +64,7 @@ export default function AppointmentsPage() {
   const { user: authUser } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
@@ -118,17 +120,6 @@ export default function AppointmentsPage() {
     locations?.forEach(l => { map[l.id] = l; });
     return map;
   }, [locations]);
-
-  const handleDelete = (id: string) => {
-    if (!db) return;
-    setTimeout(() => {
-      const confirmed = window.confirm("Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.");
-      if (confirmed) {
-        deleteDocumentNonBlocking(doc(db, 'appointments', id));
-        toast({ title: "Agendamento excluído." });
-      }
-    }, 100);
-  };
 
   const handleUpdateStatus = useCallback(
     (booking: Booking, newStatus: StatusKey) => {
@@ -264,7 +255,7 @@ export default function AppointmentsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
                           {userPerms?.canDeleteAppointments && (
-                            <DropdownMenuItem onSelect={() => handleDelete(b.id)} className="gap-2 text-destructive cursor-pointer rounded-lg py-2">
+                            <DropdownMenuItem onSelect={() => setDeletingId(b.id)} className="gap-2 text-destructive cursor-pointer rounded-lg py-2">
                               <Trash2 className="w-4 h-4" /> Excluir Registro
                             </DropdownMenuItem>
                           )}
@@ -331,6 +322,32 @@ export default function AppointmentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Agendamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (deletingId && db) {
+                  deleteDocumentNonBlocking(doc(db, 'appointments', deletingId));
+                  setDeletingId(null);
+                  toast({ title: "Agendamento excluído." });
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl"
+            >
+              Excluir Registro
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
