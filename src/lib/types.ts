@@ -35,7 +35,6 @@ export interface User {
   classIds?: string[];
   isActive?: boolean;
   createdAt?: string;
-  role?: string; 
 }
 
 export interface Segment {

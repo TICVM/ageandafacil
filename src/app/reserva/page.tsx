@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -30,9 +31,9 @@ const ADMIN_PERMS: AppPermissions = {
   canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
   canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
   canViewSegmentAppointments: true, canViewClassAppointments: true,
-  canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
+  canCancelAppointments: true, canDeleteAppointments: true,
   canCreateBookings: true, canChangeStatus: true,
-  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
+  canStatusPending: true, canStatusConfirmed: true, canStatusCompleted: true
 };
 
 export default function PublicBookingPage() {
@@ -150,6 +151,27 @@ export default function PublicBookingPage() {
     return rawClasses.filter(c => uClassIds.includes(c.id) || uSegIds.includes(c.schoolSegmentId)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [rawClasses, profile, isMaster, userPerms]);
 
+  // FILTRAGEM DE LOCAIS PELO SEGMENTO/UNIDADE DA TURMA
+  const filteredLocations = useMemo(() => {
+    if (!rawLocations) return [];
+    if (!selectedClassId) return rawLocations.filter(l => l.isActive);
+    
+    const selClass = rawClasses?.find(c => c.id === selectedClassId);
+    if (!selClass) return rawLocations.filter(l => l.isActive);
+    
+    const selSeg = rawSegments?.find(s => s.id === selClass.schoolSegmentId);
+    
+    return rawLocations.filter(l => {
+      if (!l.isActive) return false;
+      // Se não houver segmento ou unidade no segmento, mostra todos (global)
+      if (!selSeg || !selSeg.unit) return true;
+      // Se o local não tiver unidade, é considerado global
+      if (!l.unit) return true;
+      // Compara a unidade do local com a unidade do segmento da turma
+      return l.unit.toLowerCase().trim() === selSeg.unit.toLowerCase().trim();
+    });
+  }, [rawLocations, rawClasses, rawSegments, selectedClassId]);
+
   const avSlots = useMemo(() => {
     if (!slots || !date || !selectedClassId) return [];
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -250,7 +272,7 @@ export default function PublicBookingPage() {
                         <SelectValue placeholder="Escolha o local" />
                       </SelectTrigger>
                       <SelectContent>
-                        {rawLocations?.filter(l => l.isActive).map(l => <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>)}
+                        {filteredLocations.map(l => <SelectItem key={l.id} value={l.id}>{l.name} {l.unit ? `(${l.unit})` : ''}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
