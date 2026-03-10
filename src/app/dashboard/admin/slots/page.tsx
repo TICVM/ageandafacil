@@ -1,17 +1,18 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy, ShieldAlert, CalendarIcon, ListPlus } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { Clock, Plus, Trash2, CalendarDays, Loader2, Users, Layers, Globe, Copy, ShieldAlert, CalendarIcon, ListPlus, Save, Timer } from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, doc, writeBatch, serverTimestamp, setDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { TimeSlot, Class, Segment, ScheduleBlock } from '@/lib/types';
+import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, parse } from 'date-fns';
@@ -40,11 +41,13 @@ export default function SlotAdminPage() {
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
   const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
+  const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
 
   const { data: slots, isLoading: loadingSlots } = useCollection<TimeSlot>(slotsRef);
   const { data: rawClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments } = useCollection<Segment>(segmentsRef);
   const { data: blocks, isLoading: loadingBlocks } = useCollection<ScheduleBlock>(blocksRef);
+  const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
@@ -65,6 +68,40 @@ export default function SlotAdminPage() {
   const [bulkDatesText, setBulkDatesText] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingRules, setIsSavingRules] = useState(false);
+
+  // States for Advance Rules
+  const [bookingDays, setBookingDays] = useState(1);
+  const [bookingHours, setBookingHours] = useState(0);
+  const [rescheduleDays, setRescheduleDays] = useState(1);
+  const [rescheduleHours, setRescheduleHours] = useState(0);
+
+  useEffect(() => {
+    if (appSettings) {
+      setBookingDays(appSettings.minAdvanceBookingDays ?? 1);
+      setBookingHours(appSettings.minAdvanceBookingHours ?? 0);
+      setRescheduleDays(appSettings.minAdvanceRescheduleDays ?? 1);
+      setRescheduleHours(appSettings.minAdvanceRescheduleHours ?? 0);
+    }
+  }, [appSettings]);
+
+  const handleSaveRules = async () => {
+    if (!db || !settingsRef) return;
+    setIsSavingRules(true);
+    try {
+      await setDoc(settingsRef, {
+        minAdvanceBookingDays: bookingDays,
+        minAdvanceBookingHours: bookingHours,
+        minAdvanceRescheduleDays: rescheduleDays,
+        minAdvanceRescheduleHours: rescheduleHours
+      }, { merge: true });
+      toast({ title: "Regras Atualizadas", description: "As antecedências mínimas foram salvas." });
+    } catch (e) {
+      toast({ title: "Erro ao salvar regras", variant: "destructive" });
+    } finally {
+      setIsSavingRules(false);
+    }
+  };
 
   const handleToggleDay = (dayId: string) => {
     setSelectedDays(prev => 
@@ -212,7 +249,7 @@ export default function SlotAdminPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Grade e Bloqueios</h1>
-          <p className="text-muted-foreground">Gerencie a estrutura de horários e eventos que impedem fotos.</p>
+          <p className="text-muted-foreground">Gerencie a estrutura de horários e regras de antecedência.</p>
         </div>
       </div>
 
@@ -401,33 +438,45 @@ export default function SlotAdminPage() {
           </Tabs>
 
           <Card className="shadow-md border-none overflow-hidden bg-white">
-            <CardHeader className="bg-destructive/5 py-4">
+            <CardHeader className="bg-primary/5 py-4">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-destructive" />
-                Bloqueios Ativos
+                <Timer className="w-4 h-4 text-primary" />
+                Regras de Antecedência
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              {loadingBlocks ? (
-                <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-destructive" /></div>
-              ) : blocks && blocks.length > 0 ? (
-                <div className="divide-y max-h-[400px] overflow-auto">
-                  {blocks.sort((a,b) => a.date.localeCompare(b.date)).map(b => (
-                    <div key={b.id} className="p-4 flex justify-between items-center hover:bg-muted/10 transition-colors">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">{format(new Date(b.date + 'T00:00:00'), 'dd/MM/yy')}</span>
-                        <span className="text-[10px] text-muted-foreground">{b.startTime} - {b.endTime}</span>
-                        <span className="text-xs font-medium text-destructive mt-1">{b.reason}</span>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveBlock(b.id)} className="text-destructive rounded-full hover:bg-destructive/10">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest border-b pb-1">Novas Reservas</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="booking-days-input" className="text-[10px] font-bold">Dias</Label>
+                    <Input id="booking-days-input" name="bookingDays" type="number" min="0" value={bookingDays} onChange={(e) => setBookingDays(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="booking-hours-input" className="text-[10px] font-bold">Horas</Label>
+                    <Input id="booking-hours-input" name="bookingHours" type="number" min="0" max="23" value={bookingHours} onChange={(e) => setBookingHours(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
+                  </div>
                 </div>
-              ) : (
-                <div className="p-10 text-center text-xs text-muted-foreground">Nenhum bloqueio cadastrado.</div>
-              )}
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest border-b pb-1">Reagendamentos</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="reschedule-days-input" className="text-[10px] font-bold">Dias</Label>
+                    <Input id="reschedule-days-input" name="rescheduleDays" type="number" min="0" value={rescheduleDays} onChange={(e) => setRescheduleDays(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="reschedule-hours-input" className="text-[10px] font-bold">Horas</Label>
+                    <Input id="reschedule-hours-input" name="rescheduleHours" type="number" min="0" max="23" value={rescheduleHours} onChange={(e) => setRescheduleHours(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={handleSaveRules} className="w-full rounded-xl gap-2 shadow-md h-11" disabled={isSavingRules}>
+                {isSavingRules ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
+                Salvar Regras
+              </Button>
             </CardContent>
           </Card>
         </div>

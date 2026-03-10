@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon, CheckCircle, ArrowRight } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -18,8 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
-import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, TimeSlot, ScheduleBlock, HistoryEntry } from '@/lib/types';
-import { format, startOfDay } from 'date-fns';
+import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, TimeSlot, ScheduleBlock, HistoryEntry, AppSettings } from '@/lib/types';
+import { format, startOfDay, addDays, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -113,12 +114,14 @@ export default function AppointmentsPage() {
   const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
   const slotsRef = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
   const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
+  const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
 
   const { data: list, isLoading } = useCollection<Booking>(appointmentsRef);
   const { data: classes } = useCollection<Class>(classesRef);
   const { data: locations } = useCollection<PhotoLocation>(locationsRef);
   const { data: slots } = useCollection<TimeSlot>(slotsRef);
   const { data: blocks } = useCollection<ScheduleBlock>(blocksRef);
+  const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
   const availableSlots = useMemo(() => {
     if (!slots || !editDate || !editingBooking || !classes) return [];
@@ -126,6 +129,12 @@ export default function AppointmentsPage() {
     const dateStr = format(editDate, 'yyyy-MM-dd');
     const dayOfWeekStr = editDate.getDay().toString();
     const cls = classes.find(c => c.id === editingBooking.schoolClassId);
+
+    // Regra de Antecedência para Reagendamento
+    const now = new Date();
+    const minAdvanceDays = appSettings?.minAdvanceRescheduleDays ?? 1;
+    const minAdvanceHours = appSettings?.minAdvanceRescheduleHours ?? 0;
+    const minAdvanceLimit = addHours(addDays(now, minAdvanceDays), minAdvanceHours);
     
     const takenStartTimes = list?.filter(app => 
       app.id !== editingBooking.id &&
@@ -135,6 +144,12 @@ export default function AppointmentsPage() {
 
     return slots.filter(s => {
       if (s.dayOfWeek !== dayOfWeekStr) return false;
+
+      // Validar antecedência por horário
+      const [h, m] = s.startTime.split(':').map(Number);
+      const slotDateTime = new Date(editDate);
+      slotDateTime.setHours(h, m, 0, 0);
+      if (slotDateTime < minAdvanceLimit) return false;
 
       const targetMatches = s.schoolClassId 
         ? s.schoolClassId === editingBooking.schoolClassId
@@ -162,7 +177,7 @@ export default function AppointmentsPage() {
 
       return !isBlocked;
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [slots, editDate, editingBooking, classes, list, blocks]);
+  }, [slots, editDate, editingBooking, classes, list, blocks, appSettings]);
 
   const handleOpenEdit = useCallback((booking: Booking) => {
     setEditDate(undefined);
@@ -255,15 +270,10 @@ export default function AppointmentsPage() {
     });
   }, [list, userPerms, profile, classes, isMaster, searchTerm]);
 
-  const formatCreatedAt = (createdAt: any) => {
-    if (!createdAt) return null;
-    try {
-      const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-      return format(date, "dd/MM HH:mm", { locale: ptBR });
-    } catch (e) {
-      return null;
-    }
-  };
+  const minRescheduleDate = useMemo(() => {
+    const days = appSettings?.minAdvanceRescheduleDays ?? 1;
+    return addDays(startOfDay(new Date()), days);
+  }, [appSettings]);
 
   if (isLoading || !userPerms) {
     return (
@@ -319,7 +329,6 @@ export default function AppointmentsPage() {
               filtered.map((b) => {
                 const cls = classes?.find(c => c.id === b.schoolClassId);
                 const loc = locations?.find(l => l.id === b.photoLocationId);
-                const creationTime = formatCreatedAt(b.createdAt);
                 const status = STATUS_CONFIG[b.status] || STATUS_CONFIG.PENDING;
 
                 return (
@@ -337,11 +346,6 @@ export default function AppointmentsPage() {
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-800">{b.teacherName}</span>
                         <span className="text-xs text-muted-foreground">{cls?.name || '---'}</span>
-                        {creationTime && (
-                          <span className="text-[10px] text-muted-foreground/50 mt-1 italic">
-                            Agendado em: {creationTime}
-                          </span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -446,10 +450,7 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent 
-          className="max-w-3xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl"
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
+        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-primary p-8 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
               <FileText className="w-7 h-7" /> Detalhes da Sessão
@@ -490,7 +491,7 @@ export default function AppointmentsPage() {
                 <ScrollArea className="h-[320px] pr-4">
                   <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-primary/20">
                     {selectedBooking.history?.slice().reverse().map((entry, idx) => (
-                      <div key={idx} className="relative pl-10 animate-in fade-in slide-in-from-left-2" style={{ animationDelay: `${idx * 100}ms` }}>
+                      <div key={idx} className="relative pl-10">
                         <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white border-2 border-primary flex items-center justify-center z-10 shadow-sm">
                           <Clock className="w-3 h-3 text-primary" />
                         </div>
@@ -519,16 +520,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={!!editingBooking} onOpenChange={(open) => !open && !isSaving && setEditingBooking(null)}>
-        <DialogContent 
-          className="max-w-2xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl" 
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement;
-            if (target?.closest('[data-radix-popper-content-wrapper]')) {
-              e.preventDefault();
-            }
-          }}
-        >
+        <DialogContent className="max-w-2xl rounded-3xl overflow-hidden p-0 border-none shadow-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-white">
               <Edit3 className="w-7 h-7" /> Reagendar Sessão
@@ -583,11 +575,7 @@ export default function AppointmentsPage() {
                           {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione o novo dia...</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent 
-                        className="w-auto p-0 z-[100] rounded-2xl shadow-2xl border-none" 
-                        align="start"
-                        onInteractOutside={(e) => e.preventDefault()}
-                      >
+                      <PopoverContent className="w-auto p-0 z-[100] rounded-2xl shadow-2xl border-none" align="start" onInteractOutside={(e) => e.preventDefault()}>
                         <Calendar 
                           mode="single" 
                           selected={editDate} 
@@ -599,7 +587,7 @@ export default function AppointmentsPage() {
                             }
                           }} 
                           locale={ptBR} 
-                          disabled={(d) => d < startOfDay(new Date())} 
+                          disabled={(d) => d < minRescheduleDate} 
                           className="p-4"
                         />
                       </PopoverContent>
@@ -624,7 +612,7 @@ export default function AppointmentsPage() {
                             </SelectItem>
                           ))
                         ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível para o dia selecionado.</div>
+                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível ou prazo esgotado.</div>
                         )}
                       </SelectContent>
                     </Select>

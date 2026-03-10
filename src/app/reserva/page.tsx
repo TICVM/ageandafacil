@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -11,13 +12,13 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, addDays, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, MapPin, Sparkles, Loader2, CheckCircle2, Camera, User as UserIcon, Building2, Hash, ShieldAlert, ArrowLeft, Mail, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
-import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, HistoryEntry } from '@/lib/types';
+import { AISessionBriefAssistantOutput, TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, HistoryEntry, AppSettings } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 
 export default function PublicBookingPage() {
@@ -52,6 +53,7 @@ export default function PublicBookingPage() {
   const segmentsQuery = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
   const appointmentsQuery = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
   const blocksQuery = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
+  const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
 
   const { data: rawClasses } = useCollection<Class>(classesQuery);
   const { data: rawLocations } = useCollection<PhotoLocation>(locationsQuery);
@@ -59,6 +61,7 @@ export default function PublicBookingPage() {
   const { data: rawSegments } = useCollection<Segment>(segmentsQuery);
   const { data: allAppointments } = useCollection<Booking>(appointmentsQuery);
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksQuery);
+  const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -163,24 +166,13 @@ export default function PublicBookingPage() {
   const filteredClasses = useMemo(() => {
     if (!rawClasses) return [];
     
-    // Filtro de permissões estrito
     return rawClasses.filter(c => {
-      // Admin e Master vêm tudo
       if (isMaster || profile?.roleId === 'ADMIN' || userPerms?.canViewAllAppointments) return true;
-      
-      // Se não tem perfil carregado mas está identificado, precisamos das permissões
       if (!profile) return false;
-
       const userClassIds = profile.classIds || [];
       const userSegmentIds = profile.segmentIds || [];
-
-      // Permissão por Segmento
       if (userPerms?.canViewSegmentAppointments && userSegmentIds.includes(c.schoolSegmentId)) return true;
-      
-      // Permissão por Turma
       if (userPerms?.canViewClassAppointments && userClassIds.includes(c.id)) return true;
-
-      // Fallback: se o usuário está explicitamente vinculado à turma ou segmento
       return userClassIds.includes(c.id) || userSegmentIds.includes(c.schoolSegmentId);
     }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [rawClasses, profile, userPerms, isMaster]);
@@ -201,6 +193,12 @@ export default function PublicBookingPage() {
     const dateStr = format(date, 'yyyy-MM-dd');
     const dayOfWeekStr = date.getDay().toString();
 
+    // Regra de Antecedência
+    const now = new Date();
+    const minAdvanceDays = appSettings?.minAdvanceBookingDays ?? 1;
+    const minAdvanceHours = appSettings?.minAdvanceBookingHours ?? 0;
+    const minAdvanceLimit = addHours(addDays(now, minAdvanceDays), minAdvanceHours);
+
     return slots.filter(s => {
       if (s.dayOfWeek !== dayOfWeekStr) return false;
       
@@ -211,6 +209,12 @@ export default function PublicBookingPage() {
           : !s.schoolClassId && !s.schoolSegmentId;
           
       if (!targetMatches) return false;
+
+      // Validar antecedência por horário
+      const [h, m] = s.startTime.split(':').map(Number);
+      const slotDateTime = new Date(date);
+      slotDateTime.setHours(h, m, 0, 0);
+      if (slotDateTime < minAdvanceLimit) return false;
       
       if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
       
@@ -224,7 +228,7 @@ export default function PublicBookingPage() {
         return slotStart < blockEnd && slotEnd > blockStart;
       });
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [slots, date, selectedClassId, selectedClass, allAppointments, allBlocks]);
+  }, [slots, date, selectedClassId, selectedClass, allAppointments, allBlocks, appSettings]);
 
   const handleSchedule = () => {
     if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
@@ -261,6 +265,11 @@ export default function PublicBookingPage() {
       createdAt: serverTimestamp(),
     }).then(() => setIsSuccess(true));
   };
+
+  const minBookingDate = useMemo(() => {
+    const days = appSettings?.minAdvanceBookingDays ?? 1;
+    return addDays(startOfDay(new Date()), days);
+  }, [appSettings]);
 
   if (isUserLoading || (authUser && loadingProfile)) {
     return (
@@ -423,7 +432,7 @@ export default function PublicBookingPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 rounded-2xl shadow-2xl border-none" align="start" onInteractOutside={(e) => e.preventDefault()}>
-                        <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < startOfDay(new Date())} className="p-4" />
+                        <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < minBookingDate} className="p-4" />
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -437,7 +446,7 @@ export default function PublicBookingPage() {
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => <SelectItem key={s.id} value={s.id} className="rounded-lg">{s.startTime}</SelectItem>)
                         ) : (
-                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível para este dia.</div>
+                          <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário disponível ou prazo esgotado.</div>
                         )}
                       </SelectContent>
                     </Select>
@@ -480,7 +489,7 @@ export default function PublicBookingPage() {
                 <CardContent className="space-y-4 text-sm opacity-90">
                   <div className="flex gap-3">
                     <CheckCircle2 className="w-5 h-5 shrink-0" />
-                    <p>Agende com pelo menos 24h de antecedência.</p>
+                    <p>Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h.</p>
                   </div>
                   <div className="flex gap-3">
                     <CheckCircle2 className="w-5 h-5 shrink-0" />
@@ -488,7 +497,7 @@ export default function PublicBookingPage() {
                   </div>
                   <div className="flex gap-3">
                     <CheckCircle2 className="w-5 h-5 shrink-0" />
-                    <p>O status 'Confirmado' será atualizado em breve pela marketing.</p>
+                    <p>O status 'Confirmado' será atualizado pela equipe de marketing.</p>
                   </div>
                 </CardContent>
               </Card>

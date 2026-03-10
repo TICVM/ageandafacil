@@ -122,4 +122,8 @@ export interface ScheduleBlock {
 export interface AppSettings {
   id: string;
   schoolName: string;
+  minAdvanceBookingDays: number;
+  minAdvanceBookingHours: number;
+  minAdvanceRescheduleDays: number;
+  minAdvanceRescheduleHours: number;
 }
