@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -265,7 +264,7 @@ export default function AppointmentsPage() {
     const dateStr = format(newDate, 'yyyy-MM-dd');
     const day = newDate.getDay().toString();
     const now = new Date();
-    const minLimit = addHours(addDays(now, appSettings?.minAdvanceRescheduleDays ?? 1), appSettings?.minAdvanceRescheduleHours ?? 0);
+    const minLimit = addHours(addDays(now, appSettings?.minAdvanceRescheduleDays || 1), appSettings?.minAdvanceRescheduleHours || 0);
     const cls = classMap[rescheduleBooking.schoolClassId];
     
     return slots.filter(s => {
@@ -520,7 +519,7 @@ export default function AppointmentsPage() {
 
       {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleBooking} onOpenChange={() => setRescheduleBooking(null)}>
-        <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
             <DialogDescription className="text-white/70">Escolha um novo horário para a sua sessão de fotos.</DialogDescription>
@@ -543,7 +542,7 @@ export default function AppointmentsPage() {
                   <Label htmlFor="reschedule-date-trigger">Nova Data</Label>
                   <Popover modal={false}>
                     <PopoverTrigger asChild>
-                      <Button id="reschedule-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl">
+                      <Button id="reschedule-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl text-left">
                         <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
@@ -554,14 +553,14 @@ export default function AppointmentsPage() {
                         selected={newDate} 
                         onSelect={setNewDate} 
                         locale={ptBR} 
-                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays ?? 1)} 
+                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays || 1)} 
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -582,7 +581,7 @@ export default function AppointmentsPage() {
 
       {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-white/70">Informações completas e histórico da reserva selecionada.</DialogDescription>
