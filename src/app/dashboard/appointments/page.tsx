@@ -56,7 +56,6 @@ export default function AppointmentsPage() {
   const [editLocationId, setEditLocationId] = useState<string>('');
   const [editIdentifier, setEditIdentifier] = useState('');
   const [editNotes, setEditNotes] = useState('');
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -563,7 +562,7 @@ export default function AppointmentsPage() {
                     <Label htmlFor="reschedule-new-date-popover-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600">
                       <CalendarIcon className="w-4 h-4" /> Nova Data
                     </Label>
-                    <Popover modal={false} open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                    <Popover modal={false}>
                       <PopoverTrigger asChild>
                         <Button 
                           id="reschedule-new-date-popover-trigger" 
@@ -575,17 +574,11 @@ export default function AppointmentsPage() {
                           {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Selecione o novo dia...</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100] rounded-2xl shadow-2xl border-none" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                      <PopoverContent className="w-auto p-0 z-[100] rounded-2xl shadow-2xl border-none" align="start">
                         <Calendar 
                           mode="single" 
                           selected={editDate} 
-                          onSelect={(d) => {
-                            if (d) {
-                              setEditDate(d);
-                              setEditSlotId('');
-                              setIsCalendarOpen(false);
-                            }
-                          }} 
+                          onSelect={setEditDate} 
                           locale={ptBR} 
                           disabled={(d) => d < minRescheduleDate} 
                           className="p-4"
@@ -601,7 +594,7 @@ export default function AppointmentsPage() {
                       <SelectTrigger id="reschedule-new-slot-id-select" name="newSlot" className="rounded-xl h-12 bg-[#FFFBF9] border-orange-200 shadow-sm hover:border-orange-400 transition-colors">
                         <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
-                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none" onInteractOutside={(e) => e.preventDefault()}>
+                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none">
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => (
                             <SelectItem key={s.id} value={s.id} className="rounded-lg">
@@ -628,7 +621,7 @@ export default function AppointmentsPage() {
                       <SelectTrigger id="reschedule-location-id-select" name="location" className="rounded-xl h-12 bg-white border-slate-200 shadow-sm">
                         <SelectValue placeholder="Selecione o local" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none" onInteractOutside={(e) => e.preventDefault()}>
+                      <SelectContent className="z-[100] rounded-xl shadow-2xl border-none">
                         {locations?.filter(l => l.isActive).map(l => (
                           <SelectItem key={l.id} value={l.id} className="rounded-lg">
                             <div className="flex flex-col">

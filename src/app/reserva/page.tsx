@@ -379,7 +379,7 @@ export default function PublicBookingPage() {
                       <SelectTrigger id="reserva-class-select-trigger" name="class" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder="Selecione a turma" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl" onInteractOutside={(e) => e.preventDefault()}>
+                      <SelectContent className="rounded-xl shadow-2xl">
                         {filteredClasses.map(c => <SelectItem key={c.id} value={c.id} className="rounded-lg">{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -390,7 +390,7 @@ export default function PublicBookingPage() {
                       <SelectTrigger id="reserva-location-select-trigger" name="location" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder={!selectedClassId ? "Aguardando turma..." : "Escolha o local"} />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl" onInteractOutside={(e) => e.preventDefault()}>
+                      <SelectContent className="rounded-xl shadow-2xl">
                         {filteredLocations.map(l => (
                           <SelectItem key={l.id} value={l.id} className="rounded-lg">
                             <div className="flex flex-col">
@@ -431,7 +431,7 @@ export default function PublicBookingPage() {
                           {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : <span className="text-muted-foreground">Escolha o dia</span>}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-2xl shadow-2xl border-none" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                      <PopoverContent className="w-auto p-0 rounded-2xl shadow-2xl border-none" align="start">
                         <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < minBookingDate} className="p-4" />
                       </PopoverContent>
                     </Popover>
@@ -442,7 +442,7 @@ export default function PublicBookingPage() {
                       <SelectTrigger id="reserva-slot-select-trigger" name="slot" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder={!date ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl" onInteractOutside={(e) => e.preventDefault()}>
+                      <SelectContent className="rounded-xl shadow-2xl">
                         {availableSlots.length > 0 ? (
                           availableSlots.map(s => <SelectItem key={s.id} value={s.id} className="rounded-lg">{s.startTime}</SelectItem>)
                         ) : (
