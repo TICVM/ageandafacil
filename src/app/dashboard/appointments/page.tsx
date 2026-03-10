@@ -247,10 +247,13 @@ export default function AppointmentsPage() {
 
   const handleDelete = (id: string) => {
     if (!db) return;
-    if (window.confirm("Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.")) {
-      deleteDocumentNonBlocking(doc(db, 'appointments', id));
-      toast({ title: "Agendamento excluído do sistema." });
-    }
+    // Usamos setTimeout para evitar conflitos de foco com o fechamento do DropdownMenu do Radix
+    setTimeout(() => {
+      if (window.confirm("Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.")) {
+        deleteDocumentNonBlocking(doc(db, 'appointments', id));
+        toast({ title: "Agendamento excluído." });
+      }
+    }, 100);
   };
 
   const filtered = useMemo(() => {
@@ -259,15 +262,11 @@ export default function AppointmentsPage() {
     const isGlobalAdmin = isMaster || profile.roleId === 'ADMIN' || userPerms.canViewAllAppointments;
     
     return list.filter(booking => {
-      // 1. Administradores Master ou Admin Global veem tudo
       if (isGlobalAdmin) return true;
 
       const cls = classMap[booking.schoolClassId];
       
-      // 2. Coordenadores: Veem por Segmento (se houver vínculo)
       const belongsBySegment = userPerms.canViewSegmentAppointments && profile.segmentIds?.includes(cls?.schoolSegmentId || '');
-      
-      // 3. Professores: Veem por Turma (se houver vínculo) ou se for o próprio professor da sessão
       const belongsByClass = userPerms.canViewClassAppointments && profile.classIds?.includes(booking.schoolClassId);
       const isOwner = booking.teacherId === profile.id;
       
@@ -294,7 +293,7 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Agenda</h1>
-          <p className="text-muted-foreground">Visualize e valide as sessões de fotos escolares conforme seu nível de acesso.</p>
+          <p className="text-muted-foreground">Visualize e valide as sessões de fotos escolares.</p>
         </div>
         <div className="relative w-full md:w-80">
           <Label htmlFor="search-app-input" className="sr-only">Buscar agendamentos</Label>
@@ -397,7 +396,7 @@ export default function AppointmentsPage() {
             }) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">
-                  Nenhum agendamento encontrado para os critérios de busca ou nível de acesso.
+                  Nenhum agendamento encontrado para o seu acesso.
                 </TableCell>
               </TableRow>
             )}
@@ -417,11 +416,11 @@ export default function AppointmentsPage() {
                 <div>
                   <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Docente / Turma</p>
                   <p className="text-xl font-bold">{selectedBooking.teacherName}</p>
-                  <p className="text-sm font-medium text-primary">{classMap[selectedBooking.schoolClassId]?.name || 'Turma não identificada'}</p>
+                  <p className="text-sm font-medium text-primary">{classMap[selectedBooking.schoolClassId]?.name || '---'}</p>
                 </div>
                 <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
                   <p className="text-[10px] font-bold uppercase text-muted-foreground mb-3">Observações da Reserva</p>
-                  <p className="text-sm italic text-slate-700">{selectedBooking.observations || "Nenhuma nota registrada pelo docente."}</p>
+                  <p className="text-sm italic text-slate-700">{selectedBooking.observations || "Sem notas."}</p>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   <MapPin className="w-4 h-4 text-primary" />
@@ -429,7 +428,7 @@ export default function AppointmentsPage() {
                 </div>
               </div>
               <div className="p-8 bg-slate-50">
-                <div className="flex items-center gap-2 text-primary mb-6"><History className="w-6 h-6" /><h3 className="font-bold text-lg">Histórico de Alterações</h3></div>
+                <div className="flex items-center gap-2 text-primary mb-6"><History className="w-6 h-6" /><h3 className="font-bold text-lg">Histórico</h3></div>
                 <ScrollArea className="h-[320px] pr-4">
                   <div className="space-y-6 relative border-l-2 border-primary/20 pl-6 ml-2">
                     {selectedBooking.history?.slice().reverse().map((e, idx) => (
@@ -440,7 +439,7 @@ export default function AppointmentsPage() {
                           <span className="text-[10px] text-muted-foreground">{format(new Date(e.timestamp), "dd/MM HH:mm")}</span>
                         </div>
                         <p className="text-sm font-medium text-slate-700 leading-relaxed">{e.details}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><UserIcon className="w-2.5 h-2.5" /> Realizado por: {e.userName}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><UserIcon className="w-2.5 h-2.5" /> {e.userName}</p>
                       </div>
                     ))}
                   </div>
@@ -449,24 +448,21 @@ export default function AppointmentsPage() {
             </div>
           )}
           <DialogFooter className="p-6 border-t bg-white">
-            <Button onClick={() => setSelectedBooking(null)} className="rounded-xl px-10 h-11 font-bold">Fechar Detalhes</Button>
+            <Button onClick={() => setSelectedBooking(null)} className="rounded-xl px-10 h-11 font-bold">Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* DIÁLOGO DE REAGENDAMENTO */}
       <Dialog open={!!editingBooking} onOpenChange={() => !isSaving && setEditingBooking(null)}>
-        <DialogContent 
-          className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
+        <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="bg-orange-500 p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
           </DialogHeader>
           {editingBooking && (
             <div className="p-10 space-y-8 bg-white">
-              <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300 relative">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-4 flex items-center gap-2"><Clock className="w-4 h-4" /> AGENDAMENTO ATUAL (REFERÊNCIA)</p>
+              <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-4 flex items-center gap-2"><Clock className="w-4 h-4" /> AGENDAMENTO ATUAL</p>
                 <div className="grid grid-cols-2 gap-8">
                   <div>
                     <Label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Data Atual</Label>
@@ -479,12 +475,6 @@ export default function AppointmentsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-4">
-                <div className="h-px bg-slate-200 flex-1" />
-                <Badge className="bg-orange-50 text-orange-600 border-orange-200 text-[10px] font-bold py-1 px-4 uppercase tracking-widest">Novo Reagendamento</Badge>
-                <div className="h-px bg-slate-200 flex-1" />
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                   <Label htmlFor="reschedule-new-date-trigger" className="text-sm font-bold flex items-center gap-2 text-orange-600">
@@ -492,19 +482,13 @@ export default function AppointmentsPage() {
                   </Label>
                   <Popover modal={false}>
                     <PopoverTrigger asChild>
-                      <Button id="reschedule-new-date-trigger" name="newDate" variant="outline" className="w-full h-12 justify-start rounded-xl bg-[#FFFBF9] border-orange-200">
+                      <Button id="reschedule-new-date-trigger" name="newDate" variant="outline" className="w-full h-12 justify-start rounded-xl">
                         <CalendarIcon className="mr-3 h-5 w-5 text-orange-500" />
-                        {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Escolha o novo dia...</span>}
+                        {editDate ? format(editDate, "PPP", { locale: ptBR }) : <span className="text-muted-foreground italic">Escolha o dia...</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 z-[100] shadow-2xl border-none" align="start">
-                      <Calendar 
-                        mode="single" 
-                        selected={editDate} 
-                        onSelect={setEditDate} 
-                        locale={ptBR} 
-                        disabled={(d) => d < minResDate} 
-                      />
+                      <Calendar mode="single" selected={editDate} onSelect={setEditDate} locale={ptBR} disabled={(d) => d < minResDate} />
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -513,14 +497,14 @@ export default function AppointmentsPage() {
                     <Clock className="w-4 h-4" /> Novo Horário
                   </Label>
                   <Select value={editSlotId} onValueChange={setEditSlotId} disabled={!editDate}>
-                    <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-12 bg-[#FFFBF9] border-orange-200">
+                    <SelectTrigger id="reschedule-new-slot-select" name="newSlot" className="rounded-xl h-12">
                       <SelectValue placeholder={!editDate ? "Aguardando data..." : "Escolha o horário"} />
                     </SelectTrigger>
                     <SelectContent className="z-[100] border-none shadow-2xl">
                       {availableSlots.length > 0 ? availableSlots.map(s => (
-                        <SelectItem key={s.id} value={s.id} className="rounded-lg">{s.startTime} ({s.durationMinutes} min)</SelectItem>
+                        <SelectItem key={s.id} value={s.id}>{s.startTime} ({s.durationMinutes} min)</SelectItem>
                       )) : (
-                        <div className="p-4 text-xs text-center text-muted-foreground italic">Nenhum horário livre para este dia.</div>
+                        <div className="p-4 text-xs text-center text-muted-foreground italic">Sem horários livres.</div>
                       )}
                     </SelectContent>
                   </Select>
@@ -543,38 +527,18 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reschedule-id-input" className="text-sm font-bold text-slate-600">Identificador (Sala/Lab)</Label>
-                  <Input 
-                    id="reschedule-id-input" 
-                    name="locationIdentifier" 
-                    value={editIdentifier} 
-                    onChange={(e) => setEditIdentifier(e.target.value)} 
-                    className="rounded-xl h-12" 
-                    placeholder="Ex: Sala 12, Pátio 1..." 
-                  />
+                  <Input id="reschedule-id-input" name="locationIdentifier" value={editIdentifier} onChange={(e) => setEditIdentifier(e.target.value)} className="rounded-xl h-12" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas e Observações</Label>
-                <Textarea 
-                  id="reschedule-notes-textarea" 
-                  name="notes" 
-                  value={editNotes} 
-                  onChange={(e) => setEditNotes(e.target.value)} 
-                  className="rounded-2xl min-h-[100px] bg-slate-50 border-slate-200" 
-                  placeholder="Descreva atividades, tipos de fotos ou instruções para a equipe de marketing..." 
-                />
+                <Label htmlFor="reschedule-notes-textarea" className="text-sm font-bold text-slate-600">Notas</Label>
+                <Textarea id="reschedule-notes-textarea" name="notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="rounded-2xl min-h-[100px]" />
               </div>
 
               <DialogFooter className="gap-3 border-t pt-8 bg-white">
                 <Button variant="outline" onClick={() => setEditingBooking(null)} className="rounded-xl h-12 px-8" disabled={isSaving}>Cancelar</Button>
-                <Button 
-                  id="reschedule-confirm-btn" 
-                  name="confirmReschedule" 
-                  onClick={handleSaveEdit} 
-                  className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl font-bold transition-transform active:scale-95" 
-                  disabled={isSaving || !editSlotId || !editDate}
-                >
+                <Button onClick={handleSaveEdit} className="rounded-xl h-12 bg-orange-500 hover:bg-orange-600 text-white gap-2 px-10 shadow-xl font-bold" disabled={isSaving || !editSlotId || !editDate}>
                   {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   Confirmar Reagendamento
                 </Button>
