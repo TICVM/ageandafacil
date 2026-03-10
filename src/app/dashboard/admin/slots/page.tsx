@@ -235,12 +235,12 @@ export default function SlotAdminPage() {
                     {DAYS_OF_WEEK.map((day) => (
                       <div key={day.id} className="flex flex-col items-center p-2 rounded-lg border bg-muted/10">
                         <Checkbox 
-                          id={`day-${day.id}`} 
+                          id={`day-checkbox-${day.id}`} 
                           name={`day-${day.id}`}
                           checked={selectedDays.includes(day.id)}
                           onCheckedChange={() => handleToggleDay(day.id)}
                         />
-                        <Label htmlFor={`day-${day.id}`} className="text-[9px] mt-1 font-bold cursor-pointer">{day.label.slice(0,3)}</Label>
+                        <Label htmlFor={`day-checkbox-${day.id}`} className="text-[9px] mt-1 font-bold cursor-pointer">{day.label.slice(0,3)}</Label>
                       </div>
                     ))}
                   </div>
@@ -257,7 +257,7 @@ export default function SlotAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold">Alvo</Label>
+                    <Label htmlFor="target-select-trigger" className="text-xs font-bold">Alvo</Label>
                     <div className="flex gap-1 mb-2">
                       <Button variant={targetType === 'global' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('global'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Global</Button>
                       <Button variant={targetType === 'segment' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('segment'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Segmento</Button>
@@ -265,7 +265,7 @@ export default function SlotAdminPage() {
                     </div>
                     {targetType !== 'global' && (
                       <Select onValueChange={setTargetId} value={targetId} modal={false}>
-                        <SelectTrigger id="target-select" name="target" className="rounded-xl h-10">
+                        <SelectTrigger id="target-select-trigger" name="target" className="rounded-xl h-10">
                           <SelectValue placeholder={targetType === 'segment' ? "Escolha o Segmento" : "Escolha a Turma"} />
                         </SelectTrigger>
                         <SelectContent>
@@ -322,11 +322,11 @@ export default function SlotAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="block-date-trigger" className="text-xs font-bold">Data(s) do Evento</Label>
+                    <Label htmlFor="block-date-popover-trigger" className="text-xs font-bold">Data(s) do Evento</Label>
                     <Popover modal={false}>
                       <PopoverTrigger asChild>
                         <Button
-                          id="block-date-trigger"
+                          id="block-date-popover-trigger"
                           name="blockDate"
                           variant={"outline"}
                           className={cn(
@@ -510,7 +510,7 @@ export default function SlotAdminPage() {
       </div>
 
       <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
+        <DialogContent className="rounded-2xl max-w-md" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Importar Lista de Datas</DialogTitle>
             <DialogDescription>
@@ -519,12 +519,12 @@ export default function SlotAdminPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="bulk-dates-textarea" className="sr-only">Lista de datas</Label>
+            <Label htmlFor="bulk-dates-textarea">Lista de datas para bloqueio</Label>
             <Textarea 
               id="bulk-dates-textarea"
               name="bulkDates"
               placeholder="01/05/2025&#10;07/09/2025&#10;12/10/2025" 
-              className="rounded-xl min-h-[200px] font-mono text-sm"
+              className="rounded-xl min-h-[200px] font-mono text-sm mt-2"
               value={bulkDatesText}
               onChange={(e) => setBulkDatesText(e.target.value)}
             />

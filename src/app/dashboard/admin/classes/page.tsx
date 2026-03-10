@@ -206,8 +206,8 @@ export default function ClassesAdminPage() {
                         <TableCell>{seg?.name || '---'} {seg?.unit ? `(${seg.unit})` : ''}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: c.id, name: c.name, order: c.order || 0, type: 'class', schoolSegmentId: c.schoolSegmentId })}><Edit2 className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_classes', c.id))}><Trash2 className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: c.id, name: c.name, order: c.order || 0, type: 'class', schoolSegmentId: c.schoolSegmentId })} aria-label="Editar turma"><Edit2 className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_classes', c.id))} aria-label="Remover turma"><Trash2 className="w-4 h-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -258,8 +258,8 @@ export default function ClassesAdminPage() {
                       <TableCell>{s.unit || '---'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })}><Edit2 className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_segments', s.id))}><Trash2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => setEditingItem({ id: s.id, name: s.name, unit: s.unit || '', order: s.order || 0, type: 'segment' })} aria-label="Editar segmento"><Edit2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'school_segments', s.id))} aria-label="Remover segmento"><Trash2 className="w-4 h-4" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>

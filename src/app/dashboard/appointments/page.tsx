@@ -423,7 +423,11 @@ export default function AppointmentsPage() {
       </Card>
 
       <Dialog open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl overflow-hidden p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent 
+          className="max-w-3xl rounded-3xl overflow-hidden p-0"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader className="bg-primary p-6 text-primary-foreground">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary-foreground">
               <FileText className="w-6 h-6" /> Detalhes da Sessão
@@ -492,6 +496,7 @@ export default function AppointmentsPage() {
         <DialogContent 
           className="max-w-2xl rounded-3xl overflow-hidden p-0" 
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             const target = e.target as HTMLElement;
             if (target?.closest('[data-radix-popper-content-wrapper]') || target?.closest('[data-radix-select-content]')) {
@@ -513,11 +518,11 @@ export default function AppointmentsPage() {
                  </p>
                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-[10px] text-slate-500 font-bold uppercase">Data Atual</Label>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Data Atual</p>
                       <p className="font-bold text-slate-700">{format(new Date(editingBooking.appointmentDate + 'T00:00:00'), 'dd/MM/yyyy')}</p>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-slate-500 font-bold uppercase">Horário Atual</Label>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Horário Atual</p>
                       <p className="font-bold text-slate-700">{editingBooking.startTime} ({editingBooking.endTime})</p>
                     </div>
                  </div>

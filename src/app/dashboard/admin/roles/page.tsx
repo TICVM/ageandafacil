@@ -180,7 +180,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
 
   const renderPermissionToggle = (label: string, field: keyof AppPermissions, icon?: any, colorClass?: string) => {
     const Icon = icon;
-    const switchId = `perm-${field}-${role.id || 'new'}`;
+    const switchId = `perm-switch-${field}-${role.id || 'new'}`;
     return (
       <div className={`flex items-center justify-between p-3 bg-muted/10 rounded-xl border border-transparent hover:border-primary/20 transition-all ${colorClass}`}>
         <div className="flex items-center gap-2">

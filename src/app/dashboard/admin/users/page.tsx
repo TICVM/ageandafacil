@@ -199,7 +199,7 @@ export default function UsersAdminPage() {
                   <Label htmlFor="new-user-password-input" className="text-sm font-semibold">Senha Inicial</Label>
                   <div className="relative">
                     <Input id="new-user-password-input" name="password" type={showPassword ? "text" : "password"} value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="rounded-xl pr-10" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -355,8 +355,8 @@ export default function UsersAdminPage() {
             {editingUser?.roleId !== 'ADMIN' ? (
               <div className="space-y-4 border-l pl-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Vincular Segmentos</Label>
-                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                  <Label htmlFor="edit-seg-scroll-area" className="text-sm font-semibold">Vincular Segmentos</Label>
+                  <ScrollArea id="edit-seg-scroll-area" className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {segments?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(seg => (
                         <div key={seg.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">
@@ -368,8 +368,8 @@ export default function UsersAdminPage() {
                   </ScrollArea>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Turmas do Docente</Label>
-                  <ScrollArea className="h-[120px] rounded-xl border p-4 bg-muted/20">
+                  <Label htmlFor="edit-cls-scroll-area" className="text-sm font-semibold">Turmas do Docente</Label>
+                  <ScrollArea id="edit-cls-scroll-area" className="h-[120px] rounded-xl border p-4 bg-muted/20">
                     <div className="space-y-3">
                       {schoolClasses?.sort((a,b) => (a.order || 0) - (b.order || 0)).map(cls => (
                         <div key={cls.id} className="flex items-center space-x-3 bg-white p-2 rounded-lg border">

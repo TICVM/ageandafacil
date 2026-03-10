@@ -163,7 +163,7 @@ export default function PublicBookingPage() {
       const t2m = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       return t2m(s.startTime) < t2m(block.endTime) && (t2m(s.startTime) + (s.durationMinutes || 60)) > t2m(block.startTime);
     });
-  }).sort((a, b) => a.startTime.localeCompare(b.startTime)) || [];
+  }).sort((a, b) => a.startTime.startTime.localeCompare(b.startTime)) || [];
 
   const handleSchedule = () => {
     if (!date || !selectedClassId || !selectedLocationId || !selectedSlotId || !teacherName || !db || !profile) {
@@ -257,10 +257,10 @@ export default function PublicBookingPage() {
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="date-trigger">Data</Label>
+                    <Label htmlFor="date-popover-trigger">Data</Label>
                     <Popover modal={false}>
                       <PopoverTrigger asChild>
-                        <Button id="date-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
+                        <Button id="date-popover-trigger" name="date" variant="outline" className="w-full h-11 justify-start rounded-xl">
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {date ? format(date, "dd/MM/yyyy") : <span>Escolha a data</span>}
                         </Button>

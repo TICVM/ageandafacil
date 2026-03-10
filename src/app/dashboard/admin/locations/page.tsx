@@ -95,7 +95,7 @@ export default function LocationsAdminPage() {
             if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
               e.preventDefault();
             }
-          }}>
+          }} onOpenAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Adicionar Local</DialogTitle>
             </DialogHeader>
@@ -127,13 +127,13 @@ export default function LocationsAdminPage() {
 
               <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
                 <Switch 
-                  id="requires-id-new" 
+                  id="requires-id-switch-new" 
                   name="requiresIdentifier"
                   checked={newLoc.requiresIdentifier}
                   onCheckedChange={(checked) => setNewLoc({...newLoc, requiresIdentifier: checked})}
                 />
                 <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="requires-id-new" className="font-bold cursor-pointer">Exige identificação específica?</Label>
+                  <Label htmlFor="requires-id-switch-new" className="font-bold cursor-pointer">Exige identificação específica?</Label>
                   <p className="text-xs text-muted-foreground">Habilite se for necessário pedir o número da sala ou nome do laboratório.</p>
                 </div>
               </div>
@@ -258,7 +258,7 @@ export default function LocationsAdminPage() {
           if (target?.closest('[data-radix-select-content]') || target?.closest('[data-radix-popper-content-wrapper]')) {
             e.preventDefault();
           }
-        }}>
+        }} onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Editar Local</DialogTitle>
           </DialogHeader>
@@ -288,13 +288,13 @@ export default function LocationsAdminPage() {
 
             <div className="flex items-center space-x-2 bg-muted/30 p-4 rounded-xl">
               <Switch 
-                id="requires-id-edit" 
+                id="requires-id-switch-edit" 
                 name="requiresIdentifier"
                 checked={editingItem?.requiresIdentifier || false}
                 onCheckedChange={(checked) => setEditingItem(prev => prev ? {...prev, requiresIdentifier: checked} : null)}
               />
               <div className="grid gap-1.5 leading-none">
-                <Label htmlFor="requires-id-edit" className="font-bold cursor-pointer">Exige identificação específica?</Label>
+                <Label htmlFor="requires-id-switch-edit" className="font-bold cursor-pointer">Exige identificação específica?</Label>
               </div>
             </div>
 
