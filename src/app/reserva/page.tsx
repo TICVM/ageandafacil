@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -45,7 +44,6 @@ export default function PublicBookingPage() {
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [isIdentified, setIsIdentified] = useState(false);
 
-  // Queries
   const classesQuery = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const locationsQuery = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
   const slotsQuery = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
@@ -60,7 +58,6 @@ export default function PublicBookingPage() {
   const { data: allAppointments } = useCollection<Booking>(appointmentsQuery);
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksQuery);
 
-  // Identificação Automática se logado
   useEffect(() => {
     async function fetchProfile() {
       if (isUserLoading) return;
@@ -74,7 +71,6 @@ export default function PublicBookingPage() {
       try {
         const userEmail = authUser.email?.toLowerCase().trim();
         
-        // Verificação Master Admin por E-mail
         if (userEmail === 'herbertpacheco@cvmsp.com.br') {
           const masterProfile: User = { id: authUser.uid, name: 'Herbert Pacheco', email: userEmail, roleId: 'ADMIN' };
           setProfile(masterProfile);
@@ -105,6 +101,15 @@ export default function PublicBookingPage() {
           } else {
             const roleDoc = await getDoc(doc(db, 'roles_config', profileData.roleId));
             if (roleDoc.exists()) setUserPerms(roleDoc.data() as RoleConfig);
+          }
+        } else if (userEmail) {
+          const q = query(collection(db, 'users'), where('email', '==', userEmail), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const userData = snap.docs[0].data() as User;
+            setProfile({ ...userData, id: snap.docs[0].id });
+            setTeacherName(userData.name || '');
+            setIsIdentified(true);
           }
         }
       } catch (err) {
@@ -157,12 +162,12 @@ export default function PublicBookingPage() {
   const locations = rawLocations || [];
   
   const filteredClasses = rawClasses?.filter(c => {
-    if (!profile) return true; // Para visitantes antes da identificação final
+    if (!profile) return true;
     if (profile.roleId === 'ADMIN') return true;
     if (userPerms?.canViewAllAppointments) return true;
     if (userPerms?.canViewSegmentAppointments && profile.segmentIds?.includes(c.schoolSegmentId)) return true;
     if (userPerms?.canViewClassAppointments && profile.classIds?.includes(c.id)) return true;
-    return true; // Fallback permitindo ver turmas para agendar
+    return true;
   }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) || [];
 
   const selectedClass = filteredClasses?.find(c => c.id === selectedClassId);
@@ -241,7 +246,7 @@ export default function PublicBookingPage() {
       <div className="min-h-screen bg-[#ECF1FA] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p>
+          <p className="text-sm font-medium text-muted-foreground">Identificando usuário...</p>
         </div>
       </div>
     );
@@ -339,9 +344,9 @@ export default function PublicBookingPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                   <div className="space-y-3">
-                    <Label htmlFor="reserva-class-trigger" className="text-xs font-bold uppercase text-slate-500">Qual a Turma?</Label>
+                    <Label htmlFor="reserva-class-select-trigger" className="text-xs font-bold uppercase text-slate-500">Qual a Turma?</Label>
                     <Select value={selectedClassId} onValueChange={(val) => { setSelectedClassId(val); setSelectedLocationId(''); }} modal={false}>
-                      <SelectTrigger id="reserva-class-trigger" name="class" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
+                      <SelectTrigger id="reserva-class-select-trigger" name="class" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder="Selecione a turma" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl shadow-2xl">
@@ -350,9 +355,9 @@ export default function PublicBookingPage() {
                     </Select>
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="reserva-location-trigger" className="text-xs font-bold uppercase text-slate-500">Local da Foto</Label>
+                    <Label htmlFor="reserva-location-select-trigger" className="text-xs font-bold uppercase text-slate-500">Local da Foto</Label>
                     <Select value={selectedLocationId} onValueChange={setSelectedLocationId} disabled={!selectedClassId} modal={false}>
-                      <SelectTrigger id="reserva-location-trigger" name="location" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
+                      <SelectTrigger id="reserva-location-select-trigger" name="location" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder={!selectedClassId ? "Aguardando turma..." : "Escolha o local"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl shadow-2xl">
@@ -402,9 +407,9 @@ export default function PublicBookingPage() {
                     </Popover>
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="reserva-slot-trigger" className="text-xs font-bold uppercase text-slate-500">Horário Disponível</Label>
+                    <Label htmlFor="reserva-slot-select-trigger" className="text-xs font-bold uppercase text-slate-500">Horário Disponível</Label>
                     <Select value={selectedSlotId} onValueChange={setSelectedSlotId} disabled={!date || !selectedClassId} modal={false}>
-                      <SelectTrigger id="reserva-slot-trigger" name="slot" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
+                      <SelectTrigger id="reserva-slot-select-trigger" name="slot" className="rounded-xl h-12 bg-[#F8FAFC] border-slate-200 shadow-sm">
                         <SelectValue placeholder={!date ? "Aguardando data..." : "Escolha o horário"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl shadow-2xl">
@@ -419,9 +424,9 @@ export default function PublicBookingPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label htmlFor="reserva-notes-input" className="text-xs font-bold uppercase text-slate-500">Observações para o Fotógrafo</Label>
+                  <Label htmlFor="reserva-notes-textarea" className="text-xs font-bold uppercase text-slate-500">Observações para o Fotógrafo</Label>
                   <Textarea 
-                    id="reserva-notes-input" 
+                    id="reserva-notes-textarea" 
                     name="notes" 
                     placeholder="Ex: Alunos virão fantasiados, trazer acessórios específicos..." 
                     className="rounded-2xl min-h-[120px] bg-[#F8FAFC] border-slate-200 shadow-sm p-4" 

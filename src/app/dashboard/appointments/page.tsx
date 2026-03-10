@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { CalendarDays, MapPin, Search, MoreHorizontal, Loader2, Trash2, Info, FileText, Edit3, XCircle, CalendarIcon, Clock, Hash, Save, CheckCircle2, AlertTriangle, History, User as UserIcon, CheckCircle, ArrowRight } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -50,7 +50,6 @@ export default function AppointmentsPage() {
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Estados para reagendamento (Nova Estrutura)
   const [editDate, setEditDate] = useState<Date | undefined>(undefined);
   const [editSlotId, setEditSlotId] = useState<string>('');
   const [editLocationId, setEditLocationId] = useState<string>('');
@@ -526,7 +525,6 @@ export default function AppointmentsPage() {
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
-            // Permite interação com calendários e selects portais
             const target = e.target as HTMLElement;
             if (target?.closest('[data-radix-popper-content-wrapper]')) {
               e.preventDefault();
@@ -542,7 +540,6 @@ export default function AppointmentsPage() {
           
           {editingBooking && (
             <div className="p-10 space-y-10 bg-white">
-              {/* Seção Fixa: Agendamento Atual */}
               <div className="bg-muted/30 p-6 rounded-3xl border border-dashed border-slate-300 relative overflow-hidden">
                  <div className="absolute right-0 top-0 p-4 opacity-5">
                     <Clock className="w-20 h-20" />
@@ -570,7 +567,6 @@ export default function AppointmentsPage() {
                  <div className="h-px bg-slate-200 flex-1"></div>
               </div>
 
-              {/* Seção de Edição: Novos Dados */}
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
