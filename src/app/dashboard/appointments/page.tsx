@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   CalendarDays, 
   MapPin, 
@@ -27,16 +29,19 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutList,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Edit3,
+  AlertTriangle,
+  Building2
 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, HistoryEntry } from '@/lib/types';
+import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, HistoryEntry, TimeSlot, ScheduleBlock, AppSettings } from '@/lib/types';
 import { 
   format, 
   startOfMonth, 
@@ -48,11 +53,16 @@ import {
   addMonths, 
   subMonths,
   isToday,
-  parseISO
+  parseISO,
+  addDays,
+  addHours,
+  startOfDay
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -67,11 +77,23 @@ const STATUS_CONFIG = {
     icon: CheckCircle2,
     permKey: 'canStatusConfirmed'
   },
+  RESCHEDULED: {
+    label: 'Reagendado',
+    color: 'bg-blue-500 text-white',
+    icon: Edit3,
+    permKey: 'canStatusRescheduled'
+  },
   CANCELLED: {
     label: 'Cancelado',
     color: 'bg-destructive text-white',
     icon: XCircle,
     permKey: 'canCancelAppointments'
+  },
+  RE_SCHEDULE_REQUEST: {
+    label: 'Por favor reagendar',
+    color: 'bg-yellow-500 text-black',
+    icon: AlertTriangle,
+    permKey: 'canStatusReScheduleRequest'
   },
   COMPLETED: {
     label: 'Concluído',
@@ -87,9 +109,15 @@ const ADMIN_PERMS: AppPermissions = {
   canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
   canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
   canViewSegmentAppointments: true, canViewClassAppointments: true,
-  canCancelAppointments: true, canDeleteAppointments: true,
+  canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
   canCreateBookings: true, canChangeStatus: true,
-  canStatusPending: true, canStatusConfirmed: true, canStatusCompleted: true
+  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
+};
+
+const timeToMin = (t: string) => {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return (h * 60) + m;
 };
 
 export default function AppointmentsPage() {
@@ -97,12 +125,17 @@ export default function AppointmentsPage() {
   const { user: authUser } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
+
+  // Reschedule state
+  const [newDate, setNewDate] = useState<Date>();
+  const [newSlotId, setNewSlotId] = useState<string>('');
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -139,10 +172,16 @@ export default function AppointmentsPage() {
   const appointmentsRef = useMemoFirebase(() => db ? collection(db, 'appointments') : null, [db]);
   const classesRef = useMemoFirebase(() => db ? collection(db, 'school_classes') : null, [db]);
   const locationsRef = useMemoFirebase(() => db ? collection(db, 'photo_locations') : null, [db]);
+  const slotsRef = useMemoFirebase(() => db ? collection(db, 'available_time_slots') : null, [db]);
+  const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
+  const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
 
   const { data: list, isLoading } = useCollection<Booking>(appointmentsRef);
   const { data: classes } = useCollection<Class>(classesRef);
   const { data: locations } = useCollection<PhotoLocation>(locationsRef);
+  const { data: slots } = useCollection<TimeSlot>(slotsRef);
+  const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
+  const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
   const classMap = useMemo(() => {
     const map: Record<string, Class> = {};
@@ -172,7 +211,6 @@ export default function AppointmentsPage() {
         history: [...(booking.history || []), newHistoryEntry]
       });
       
-      // Update local selection if open
       if (selectedBooking?.id === booking.id) {
         setSelectedBooking({
           ...selectedBooking,
@@ -220,6 +258,56 @@ export default function AppointmentsPage() {
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToday = () => setCurrentMonth(new Date());
+
+  // Reschedule Logic
+  const avRescheduleSlots = useMemo(() => {
+    if (!slots || !newDate || !rescheduleBooking) return [];
+    const dateStr = format(newDate, 'yyyy-MM-dd');
+    const day = newDate.getDay().toString();
+    const now = new Date();
+    const minLimit = addHours(addDays(now, appSettings?.minAdvanceRescheduleDays ?? 1), appSettings?.minAdvanceRescheduleHours ?? 0);
+    const cls = classMap[rescheduleBooking.schoolClassId];
+    
+    return slots.filter(s => {
+      if (s.dayOfWeek !== day) return false;
+      const targetMatches = s.schoolClassId ? s.schoolClassId === rescheduleBooking.schoolClassId : s.schoolSegmentId ? s.schoolSegmentId === cls?.schoolSegmentId : !s.schoolClassId && !s.schoolSegmentId;
+      if (!targetMatches) return false;
+      const [h, m] = s.startTime.split(':').map(Number);
+      const sDT = new Date(newDate); sDT.setHours(h, m, 0, 0);
+      if (sDT < minLimit) return false;
+      if (list?.some(app => app.id !== rescheduleBooking.id && app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
+      return !allBlocks?.some(b => b.date === dateStr && timeToMin(s.startTime) < timeToMin(b.endTime) && (timeToMin(s.startTime) + (s.durationMinutes || 60)) > timeToMin(b.startTime));
+    }).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
+
+  const handleReschedule = () => {
+    if (!newDate || !newSlotId || !db || !profile || !rescheduleBooking) return;
+    const slot = slots?.find(s => s.id === newSlotId); if (!slot) return;
+    const [h, m] = slot.startTime.split(':').map(Number);
+    const endT = h * 60 + m + (slot.durationMinutes || 60);
+    
+    const formattedDate = format(newDate, 'yyyy-MM-dd');
+    const newHistoryEntry: HistoryEntry = {
+      timestamp: new Date().toISOString(),
+      userId: profile.id,
+      userName: profile.name,
+      action: 'REAGENDAMENTO',
+      details: `Sessão reagendada de ${format(parseISO(`${rescheduleBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} ${rescheduleBooking.startTime} para ${format(newDate, 'dd/MM/yyyy')} ${slot.startTime}.`
+    };
+
+    updateDocumentNonBlocking(doc(db, 'appointments', rescheduleBooking.id), {
+      appointmentDate: formattedDate,
+      startTime: slot.startTime,
+      endTime: `${Math.floor(endT/60).toString().padStart(2,'0')}:${(endT%60).toString().padStart(2,'0')}`,
+      status: 'RESCHEDULED',
+      history: [...(rescheduleBooking.history || []), newHistoryEntry]
+    });
+
+    setRescheduleBooking(null);
+    setNewDate(undefined);
+    setNewSlotId('');
+    toast({ title: "Sessão Reagendada!" });
+  };
 
   if (isLoading || !userPerms) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
@@ -329,6 +417,11 @@ export default function AppointmentsPage() {
                             <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
+                            {userPerms?.canEditAppointments && (
+                              <DropdownMenuItem onSelect={() => setRescheduleBooking(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
+                                <Edit3 className="w-4 h-4" /> Reagendar Sessão
+                              </DropdownMenuItem>
+                            )}
                             {userPerms?.canCancelAppointments && b.status !== 'CANCELLED' && (
                               <DropdownMenuItem onSelect={() => handleUpdateStatus(b, 'CANCELLED')} className="gap-2 text-orange-600 cursor-pointer rounded-lg py-2">
                                 <XCircle className="w-4 h-4" /> Cancelar Sessão
@@ -425,6 +518,68 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
+      {/* Reschedule Dialog */}
+      <Dialog open={!!rescheduleBooking} onOpenChange={() => setRescheduleBooking(null)}>
+        <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader className="bg-primary p-8 text-white">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
+            <DialogDescription className="text-white/70">Escolha um novo horário para a sua sessão de fotos.</DialogDescription>
+          </DialogHeader>
+          {rescheduleBooking && (
+            <div className="p-8 space-y-8">
+              <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Agendamento Atual</p>
+                <div className="flex flex-col gap-1">
+                  <p className="font-bold text-slate-800">{rescheduleBooking.teacherName} - {classMap[rescheduleBooking.schoolClassId]?.name}</p>
+                  <p className="text-sm text-slate-600 flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-primary" />
+                    {format(parseISO(`${rescheduleBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} às {rescheduleBooking.startTime}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label htmlFor="reschedule-date-trigger">Nova Data</Label>
+                  <Popover modal={false}>
+                    <PopoverTrigger asChild>
+                      <Button id="reschedule-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl">
+                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                        {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                      <Calendar 
+                        mode="single" 
+                        selected={newDate} 
+                        onSelect={setNewDate} 
+                        locale={ptBR} 
+                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays ?? 1)} 
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
+                    <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
+                      <SelectValue placeholder="Escolha o horário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="p-8 bg-slate-50 border-t flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setRescheduleBooking(null)} className="rounded-xl h-12 px-8">Cancelar</Button>
+            <Button onClick={handleReschedule} disabled={!newDate || !newSlotId} className="rounded-xl h-12 px-10 font-bold shadow-lg">Confirmar Reagendamento</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none" onOpenAutoFocus={(e) => e.preventDefault()}>
@@ -507,6 +662,11 @@ export default function AppointmentsPage() {
           )}
           <DialogFooter className="p-6 border-t bg-white flex justify-between">
             <div className="flex gap-2">
+              {userPerms?.canEditAppointments && (
+                <Button variant="outline" onClick={() => { setRescheduleBooking(selectedBooking); setSelectedBooking(null); }} className="rounded-xl border-primary text-primary hover:bg-primary/5">
+                  <Edit3 className="w-4 h-4 mr-2" /> Reagendar
+                </Button>
+              )}
               {userPerms?.canCancelAppointments && selectedBooking?.status !== 'CANCELLED' && (
                 <Button variant="outline" onClick={() => selectedBooking && handleUpdateStatus(selectedBooking, 'CANCELLED')} className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50">
                   <XCircle className="w-4 h-4 mr-2" /> Cancelar

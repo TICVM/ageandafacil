@@ -73,11 +73,15 @@ export default function SlotAdminPage() {
 
   const [bookingDays, setBookingDays] = useState(1);
   const [bookingHours, setBookingHours] = useState(0);
+  const [rescheduleDays, setRescheduleDays] = useState(1);
+  const [rescheduleHours, setRescheduleHours] = useState(0);
 
   useEffect(() => {
     if (appSettings) {
       setBookingDays(appSettings.minAdvanceBookingDays ?? 1);
       setBookingHours(appSettings.minAdvanceBookingHours ?? 0);
+      setRescheduleDays(appSettings.minAdvanceRescheduleDays ?? 1);
+      setRescheduleHours(appSettings.minAdvanceRescheduleHours ?? 0);
     }
   }, [appSettings]);
 
@@ -88,6 +92,8 @@ export default function SlotAdminPage() {
       await setDoc(settingsRef, {
         minAdvanceBookingDays: bookingDays,
         minAdvanceBookingHours: bookingHours,
+        minAdvanceRescheduleDays: rescheduleDays,
+        minAdvanceRescheduleHours: rescheduleHours,
       }, { merge: true });
       toast({ title: "Regras Atualizadas" });
     } catch (e) {
@@ -356,6 +362,21 @@ export default function SlotAdminPage() {
                   </div>
                 </div>
               </div>
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest border-b pb-1">Reagendamentos</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="reschedule-days-input" className="text-[10px] font-bold">Dias</Label>
+                    <Input id="reschedule-days-input" name="rescheduleDays" type="number" value={rescheduleDays} onChange={(e) => setRescheduleDays(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="reschedule-hours-input" className="text-[10px] font-bold">Horas</Label>
+                    <Input id="reschedule-hours-input" name="rescheduleHours" type="number" value={rescheduleHours} onChange={(e) => setRescheduleHours(parseInt(e.target.value) || 0)} className="h-9 rounded-lg" />
+                  </div>
+                </div>
+              </div>
+
               <Button onClick={handleSaveRules} className="w-full rounded-xl gap-2 h-11" disabled={isSavingRules}>
                 {isSavingRules ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
                 Salvar Regras

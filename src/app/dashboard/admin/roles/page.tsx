@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, XCircle, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, Save, Eye, XCircle, MapPin, Users, Clock, Camera, FileBarChart, UserCog, CheckCircle2, CheckCircle, Edit3, AlertTriangle } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -28,12 +28,15 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canViewAllAppointments: false,
   canViewSegmentAppointments: false,
   canViewClassAppointments: false,
+  canEditAppointments: false,
   canCancelAppointments: false,
   canDeleteAppointments: false,
   canCreateBookings: true,
   canChangeStatus: false,
   canStatusPending: false,
   canStatusConfirmed: false,
+  canStatusRescheduled: false,
+  canStatusReScheduleRequest: false,
   canStatusCompleted: false,
 };
 
@@ -287,6 +290,7 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                     <h3 className="font-bold text-xs uppercase tracking-widest">Ações em Reservas</h3>
                   </div>
                   <div className="bg-destructive/5 p-6 rounded-3xl border border-destructive/10 space-y-3">
+                    {renderPermissionToggle("Reagendar Sessões", "canEditAppointments", Edit3)}
                     {renderPermissionToggle("Cancelar Sessões", "canCancelAppointments", XCircle)}
                     {renderPermissionToggle("Excluir Registro", "canDeleteAppointments", Trash2)}
                   </div>
@@ -306,6 +310,8 @@ function RoleDialog({ isOpen, onClose, role, setRole, onSave, title }: any) {
                     <div className="space-y-2">
                        {renderPermissionToggle("Aguard. Confirmação", "canStatusPending", Clock)}
                        {renderPermissionToggle("Confirmar Sessão", "canStatusConfirmed", CheckCircle2)}
+                       {renderPermissionToggle("Reagendado", "canStatusRescheduled", Edit3)}
+                       {renderPermissionToggle("Solicitar Reagend.", "canStatusReScheduleRequest", AlertTriangle)}
                        {renderPermissionToggle("Concluir Sessão", "canStatusCompleted", CheckCircle)}
                     </div>
                   </div>
