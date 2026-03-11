@@ -69,8 +69,10 @@ SelectScrollDownButton.displayName =
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    onInteractOutside?: (event: any) => void
+  }
+>(({ className, children, position = "popper", onInteractOutside, ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
@@ -81,6 +83,7 @@ const SelectContent = React.forwardRef<
         className
       )}
       position={position}
+      // Note: We're not passing onInteractOutside here as SelectPrimitive.Content might not support it directly or causes console errors
       {...props}
     >
       <SelectScrollUpButton />

@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
 import { initializeFirebase } from '@/firebase';
+import { Loader2 } from 'lucide-react';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
@@ -11,7 +12,6 @@ interface FirebaseClientProviderProps {
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
   const [mounted, setMounted] = useState(false);
 
-  // Use useEffect to ensure Firebase only initializes on the client side
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -21,11 +21,14 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, []);
 
-  // Avoid rendering until mounted to prevent hydration mismatches
+  // Use a loading state that is identical on server and client before mounting
   if (!mounted || !firebaseServices) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Iniciando sistema...</p>
+        </div>
       </div>
     );
   }

@@ -309,7 +309,7 @@ export default function AppointmentsPage() {
     toast({ title: "Sessão Reagendada!" });
   };
 
-  if (isLoading || !userPerms) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
+  if (isLoading || !userPerms) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><div className="flex flex-col items-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-primary" /><p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p></div></div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -548,7 +548,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
