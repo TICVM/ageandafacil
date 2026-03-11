@@ -565,7 +565,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start">
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -710,7 +710,11 @@ export default function AppointmentsPage() {
           <DialogFooter className="p-6 border-t bg-white flex justify-between">
             <div className="flex gap-2">
               {userPerms?.canEditAppointments && (
-                <Button variant="outline" onClick={() => { setRescheduleBooking(selectedBooking); setSelectedBooking(null); }} className="rounded-xl border-primary text-primary hover:bg-primary/5">
+                <Button variant="outline" onClick={() => { 
+                  const b = selectedBooking;
+                  setSelectedBooking(null);
+                  setTimeout(() => setRescheduleBooking(b), 150);
+                }} className="rounded-xl border-primary text-primary hover:bg-primary/5">
                   <Edit3 className="w-4 h-4 mr-2" /> Reagendar
                 </Button>
               )}

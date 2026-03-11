@@ -72,7 +72,9 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // We extract and ignore any custom event handlers that shouldn't go to the DOM
+  // Destructure onInteractOutside to prevent it from reaching the DOM
+  const { onInteractOutside, ...restProps } = props as any;
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -84,7 +86,7 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
-        {...props}
+        {...restProps}
       >
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
