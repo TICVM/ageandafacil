@@ -31,9 +31,9 @@ const ADMIN_PERMS: AppPermissions = {
   canManageUsers: true, canConfigureSlots: true, canManageLocations: true,
   canManageClasses: true, canViewReports: true, canViewAllAppointments: true,
   canViewSegmentAppointments: true, canViewClassAppointments: true,
-  canCancelAppointments: true, canDeleteAppointments: true,
+  canEditAppointments: true, canCancelAppointments: true, canDeleteAppointments: true,
   canCreateBookings: true, canChangeStatus: true,
-  canStatusPending: true, canStatusConfirmed: true, canStatusCompleted: true
+  canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
 };
 
 export default function PublicBookingPage() {
@@ -151,26 +151,26 @@ export default function PublicBookingPage() {
     return rawClasses.filter(c => uClassIds.includes(c.id) || uSegIds.includes(c.schoolSegmentId)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [rawClasses, profile, isMaster, userPerms]);
 
-  // FILTRAGEM DE LOCAIS PELO SEGMENTO/UNIDADE DA TURMA
   const filteredLocations = useMemo(() => {
     if (!rawLocations) return [];
     if (!selectedClassId) return rawLocations.filter(l => l.isActive);
     
     const selClass = rawClasses?.find(c => c.id === selectedClassId);
     if (!selClass) return rawLocations.filter(l => l.isActive);
-    
     const selSeg = rawSegments?.find(s => s.id === selClass.schoolSegmentId);
     
     return rawLocations.filter(l => {
       if (!l.isActive) return false;
-      // Se não houver segmento ou unidade no segmento, mostra todos (global)
       if (!selSeg || !selSeg.unit) return true;
-      // Se o local não tiver unidade, é considerado global
       if (!l.unit) return true;
-      // Compara a unidade do local com a unidade do segmento da turma
       return l.unit.toLowerCase().trim() === selSeg.unit.toLowerCase().trim();
     });
   }, [rawLocations, rawClasses, rawSegments, selectedClassId]);
+
+  const selectedLocation = useMemo(() => 
+    rawLocations?.find(l => l.id === selectedLocationId),
+    [rawLocations, selectedLocationId]
+  );
 
   const avSlots = useMemo(() => {
     if (!slots || !date || !selectedClassId) return [];
@@ -277,6 +277,25 @@ export default function PublicBookingPage() {
                     </Select>
                   </div>
                 </div>
+
+                {selectedLocation?.requiresIdentifier && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                    <Label htmlFor="loc-id-input" className="flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-primary" />
+                      Identificação do Local (Ex: Sala 10, Lab B)
+                    </Label>
+                    <Input 
+                      id="loc-id-input"
+                      name="locationIdentifier"
+                      placeholder="Especifique o número ou nome da sala..."
+                      value={locationIdentifier}
+                      onChange={(e) => setLocationIdentifier(e.target.value)}
+                      className="rounded-xl h-12 border-primary/30"
+                      required
+                    />
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                   <div className="space-y-3">
                     <Label htmlFor="date-trigger">Data</Label>
@@ -310,7 +329,7 @@ export default function PublicBookingPage() {
                 </div>
               </CardContent>
               <CardFooter className="bg-slate-50 p-10 flex justify-center">
-                <Button onClick={handleSchedule} className="w-full max-w-sm h-16 bg-primary text-xl font-bold rounded-2xl shadow-xl" disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId}>
+                <Button onClick={handleSchedule} className="w-full max-w-sm h-16 bg-primary text-xl font-bold rounded-2xl shadow-xl" disabled={!date || !selectedSlotId || !selectedClassId || !selectedLocationId || (selectedLocation?.requiresIdentifier && !locationIdentifier)}>
                   CONCLUIR RESERVA
                 </Button>
               </CardFooter>

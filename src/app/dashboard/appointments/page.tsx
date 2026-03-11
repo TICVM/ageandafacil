@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -132,7 +133,6 @@ export default function AppointmentsPage() {
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
 
-  // Reschedule state
   const [newDate, setNewDate] = useState<Date>();
   const [newSlotId, setNewSlotId] = useState<string>('');
   const [isRescheduleConfirmOpen, setIsRescheduleConfirmOpen] = useState(false);
@@ -392,7 +392,7 @@ export default function AppointmentsPage() {
                     <TableCell>
                       <div className="flex items-center gap-1.5 text-sm">
                         <MapPin className="w-3 h-3 text-primary" />
-                        {locationMap[b.photoLocationId]?.name || 'Local não definido'}
+                        {locationMap[b.photoLocationId]?.name || 'Local não definido'} {b.locationIdentifier ? `(${b.locationIdentifier})` : ''}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -532,7 +532,6 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
-      {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
@@ -579,7 +578,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -598,7 +597,6 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Reschedule Confirmation Alert */}
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
         <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[120]">
           <AlertDialogHeader>
@@ -628,7 +626,6 @@ export default function AppointmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
@@ -733,7 +730,6 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
           <AlertDialogHeader>
