@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -464,7 +463,7 @@ export default function AppointmentsPage() {
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Informações detalhadas e histórico completo da sessão.</DialogDescription>
+            <DialogDescription className="text-white/70">Visualize o histórico e informações detalhadas desta reserva.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
@@ -570,13 +569,13 @@ export default function AppointmentsPage() {
             <div className="w-16 h-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-4 mx-auto">
               <Trash2 className="w-8 h-8" />
             </div>
-            <AlertDialogTitle className="text-2xl font-bold text-center">Excluir Agendamento?</AlertDialogTitle>
+            <AlertDialogTitle className="text-2xl font-bold text-center">Excluir Registro?</AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
-              Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.
+              Deseja realmente remover este agendamento do sistema?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
-            <AlertDialogCancel className="rounded-2xl h-12 px-8 border-slate-200 font-bold">Manter Reserva</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-2xl h-12 px-8 border-slate-200 font-bold">Voltar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => {
                 if (deletingId && db) {

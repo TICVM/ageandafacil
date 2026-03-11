@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -241,7 +240,7 @@ export default function PublicBookingPage() {
             <CardHeader className="bg-primary text-white text-center py-8">
               <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <CardTitle className="text-2xl">Identificação</CardTitle>
-              <CardDescription className="text-white/70">Digite seu e-mail institucional para continuar.</CardDescription>
+              <CardDescription className="text-white/70">Informe seu e-mail funcional para agendar.</CardDescription>
             </CardHeader>
             <CardContent className="p-10 space-y-6">
               <div className="space-y-2">
@@ -256,7 +255,7 @@ export default function PublicBookingPage() {
             <Card className="md:col-span-2 shadow-xl rounded-3xl overflow-hidden border-none bg-white">
               <CardHeader className="bg-primary text-white p-8">
                 <CardTitle className="text-2xl">Reserva de Sessão</CardTitle>
-                <CardDescription className="text-white/70">Olá, {teacherName}. Preencha os detalhes para agendar.</CardDescription>
+                <CardDescription className="text-white/70">Olá, {teacherName}. Selecione os detalhes da sessão.</CardDescription>
               </CardHeader>
               <CardContent className="p-10 space-y-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
@@ -328,7 +327,7 @@ export default function PublicBookingPage() {
                 </div>
                 <div className="space-y-3">
                   <Label>Observações</Label>
-                  <Textarea placeholder="Descreva atividades ou solicitações especiais..." className="rounded-2xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Textarea placeholder="Descreva solicitações especiais para a equipe..." className="rounded-2xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
               </CardContent>
               <CardFooter className="bg-slate-50 p-10 flex justify-center">
@@ -344,7 +343,7 @@ export default function PublicBookingPage() {
                 <ul className="space-y-3 text-sm opacity-90">
                   <li>• Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h</li>
                   <li>• Verifique a disponibilidade do local escolhido.</li>
-                  <li>• Mantenha as observações atualizadas para a equipe.</li>
+                  <li>• Comunique alterações com antecedência.</li>
                 </ul>
               </Card>
             </div>

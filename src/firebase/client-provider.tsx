@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
@@ -22,16 +21,18 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, []);
 
-  // Use a consistent loading UI to prevent hydration mismatch
-  if (!mounted || !firebaseServices) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Iniciando sistema...</p>
-        </div>
+  // Standard loading UI used for both server and initial client render to prevent hydration mismatch
+  const loadingUI = (
+    <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground">Iniciando sistema...</p>
       </div>
-    );
+    </div>
+  );
+
+  if (!mounted || !firebaseServices) {
+    return loadingUI;
   }
 
   return (

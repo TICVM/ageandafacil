@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -137,8 +136,8 @@ export function RescheduleDialog({
   const handleRescheduleAction = () => {
     if (!newDate || !newSlotId || !db || !profile || !booking) {
       toast({
-        title: 'Erro no processamento',
-        description: 'Verifique se a data e o horário foram selecionados.',
+        title: 'Dados insuficientes',
+        description: 'Selecione a data e o horário.',
         variant: 'destructive',
       });
       return;
@@ -177,7 +176,7 @@ export function RescheduleDialog({
     onClose();
     toast({
       title: 'Sessão Reagendada!',
-      description: 'Os novos horários já estão salvos na agenda.',
+      description: 'O novo horário foi salvo com sucesso.',
     });
   };
 
@@ -193,14 +192,14 @@ export function RescheduleDialog({
               <Edit3 className="w-7 h-7" /> Reagendar Sessão
             </DialogTitle>
             <DialogDescription className="text-white/70">
-              Escolha uma nova data e horário para o seu agendamento escolar.
+              Selecione os novos detalhes para o agendamento da turma.
             </DialogDescription>
           </DialogHeader>
           {booking && (
             <div className="p-8 space-y-8">
               <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">
-                  Agendamento Atual
+                  Registro Atual
                 </p>
                 <div className="flex flex-col gap-1">
                   <p className="font-bold text-slate-800">
@@ -268,7 +267,7 @@ export function RescheduleDialog({
               disabled={!newDate || !newSlotId}
               className="rounded-xl h-12 px-10 font-bold shadow-lg"
             >
-              Confirmar Reagendamento
+              Gravar Reagendamento
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -281,31 +280,25 @@ export function RescheduleDialog({
               <CalendarIcon className="w-8 h-8" />
             </div>
             <AlertDialogTitle className="text-2xl font-bold text-center">
-              Confirmar Novo Horário?
+              Confirmar Alteração?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
               {booking && newDate && newSlotId && (
                 <>
-                  Você está alterando a sessão de{' '}
-                  <strong>{classMap[booking.schoolClassId]?.name}</strong> para o dia{' '}
-                  <strong>{format(newDate, 'dd/MM/yyyy')}</strong> às{' '}
-                  <strong>{slots?.find((s) => s.id === newSlotId)?.startTime}</strong>.
-                  <br />
-                  <br />
-                  Deseja prosseguir com a alteração?
+                  Confirmar mudança de <strong>{format(parseISO(`${booking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')}</strong> às <strong>{booking.startTime}</strong> para <strong>{format(newDate, 'dd/MM/yyyy')}</strong> às <strong>{slots?.find((s) => s.id === newSlotId)?.startTime}</strong>?
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
             <AlertDialogCancel className="rounded-2xl h-12 px-8 border-slate-200 font-bold">
-              Cancelar
+              Voltar
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRescheduleAction}
               className="bg-primary text-white hover:bg-primary/90 rounded-2xl h-12 px-8 font-bold shadow-lg shadow-primary/20"
             >
-              Sim, Alterar Horário
+              Sim, Reagendar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
