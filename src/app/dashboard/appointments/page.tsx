@@ -517,12 +517,10 @@ export default function AppointmentsPage() {
 
       {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleBooking} onOpenChange={() => setRescheduleBooking(null)}>
-        <DialogContent 
-          className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-        >
+        <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Escolha uma nova data e horário para o seu agendamento.</DialogDescription>
+            <DialogDescription className="text-white/70">Escolha uma nova data e horário para o seu agendamento escolar.</DialogDescription>
           </DialogHeader>
           {rescheduleBooking && (
             <div className="p-8 space-y-8">
@@ -547,11 +545,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent 
-                      className="w-auto p-0 z-[110]" 
-                      align="start"
-                      onInteractOutside={(e) => e.preventDefault()}
-                    >
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -585,12 +579,10 @@ export default function AppointmentsPage() {
 
       {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent 
-          className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-        >
+        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Informações detalhadas e histórico completo da sessão.</DialogDescription>
+            <DialogDescription className="text-white/70">Veja as informações detalhadas e o histórico completo desta sessão de fotos.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
