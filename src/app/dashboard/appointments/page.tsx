@@ -279,6 +279,17 @@ export default function AppointmentsPage() {
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
 
+  const handleStartReschedule = (booking: Booking) => {
+    // Immediate closing of current modal to prevent Radix UI interaction lock issues
+    setSelectedBooking(null);
+    // Allow animation to finish before opening next modal
+    setTimeout(() => {
+      setRescheduleBooking(booking);
+      setNewDate(undefined);
+      setNewSlotId('');
+    }, 150);
+  };
+
   const handleReschedule = () => {
     if (!newDate || !newSlotId || !db || !profile || !rescheduleBooking) {
       toast({ title: "Erro no processamento", description: "Verifique se a data e o horário foram selecionados.", variant: "destructive" });
@@ -431,7 +442,7 @@ export default function AppointmentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
                             {userPerms?.canEditAppointments && (
-                              <DropdownMenuItem onSelect={() => setRescheduleBooking(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
+                              <DropdownMenuItem onSelect={() => handleStartReschedule(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
                                 <Edit3 className="w-4 h-4" /> Reagendar
                               </DropdownMenuItem>
                             )}
@@ -709,21 +720,17 @@ export default function AppointmentsPage() {
           <DialogFooter className="p-6 border-t bg-white flex justify-between">
             <div className="flex gap-2">
               {userPerms?.canEditAppointments && (
-                <Button variant="outline" onClick={() => { 
-                  const b = selectedBooking;
-                  setSelectedBooking(null);
-                  setTimeout(() => setRescheduleBooking(b), 200);
-                }} className="rounded-xl border-primary text-primary hover:bg-primary/5">
+                <Button type="button" variant="outline" onClick={() => selectedBooking && handleStartReschedule(selectedBooking)} className="rounded-xl border-primary text-primary hover:bg-primary/5">
                   <Edit3 className="w-4 h-4 mr-2" /> Reagendar
                 </Button>
               )}
               {userPerms?.canCancelAppointments && selectedBooking?.status !== 'CANCELLED' && (
-                <Button variant="outline" onClick={() => selectedBooking && handleUpdateStatus(selectedBooking, 'CANCELLED')} className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50">
+                <Button type="button" variant="outline" onClick={() => selectedBooking && handleUpdateStatus(selectedBooking, 'CANCELLED')} className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50">
                   <XCircle className="w-4 h-4 mr-2" /> Cancelar
                 </Button>
               )}
               {userPerms?.canDeleteAppointments && (
-                <Button variant="ghost" onClick={() => { setDeletingId(selectedBooking?.id || null); setSelectedBooking(null); }} className="rounded-xl text-destructive hover:bg-destructive/5">
+                <Button type="button" variant="ghost" onClick={() => { setDeletingId(selectedBooking?.id || null); setSelectedBooking(null); }} className="rounded-xl text-destructive hover:bg-destructive/5">
                   <Trash2 className="w-4 h-4 mr-2" /> Excluir
                 </Button>
               )}

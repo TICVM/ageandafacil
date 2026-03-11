@@ -71,8 +71,8 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure onInteractOutside to prevent it from reaching the DOM as an unknown attribute
-  const { onInteractOutside, ...restProps } = props as any;
+  // Destructure interaction handlers to prevent them from reaching the DOM as unknown attributes
+  const { onInteractOutside, onPointerDownOutside, ...restProps } = props as any;
 
   return (
     <SelectPrimitive.Portal>
