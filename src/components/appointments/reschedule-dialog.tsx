@@ -182,7 +182,7 @@ export function RescheduleDialog({
 
   return (
     <>
-      <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()}>
+      <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()} modal={false}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none z-[130]"
           onPointerDownOutside={(e) => e.preventDefault()}
