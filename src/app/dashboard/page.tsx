@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Camera, MapPin, CheckCircle2, Clock, AlertTriangle, Loader2, Building2 } from 'lucide-react';
+import { CalendarDays, Camera, MapPin, CheckCircle2, CheckCircle, Clock, AlertTriangle, Loader2, Building2, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, getDoc } from 'firebase/firestore';
@@ -99,18 +99,32 @@ export default function Dashboard() {
 
     return [
       {
-        title: isAdmin ? 'Total Confirmados' : 'Meus Agendamentos',
+        title: 'Confirmados',
         value: userBookings.filter(b => b.status === 'CONFIRMED').length,
         icon: CheckCircle2,
         color: 'text-green-600',
         bg: 'bg-green-100'
       },
       {
-        title: 'Aguardando Confirmação',
+        title: 'Aguardando',
         value: userBookings.filter(b => b.status === 'PENDING').length,
         icon: Clock,
         color: 'text-blue-600',
         bg: 'bg-blue-100'
+      },
+      {
+        title: 'Reagendados',
+        value: userBookings.filter(b => b.status === 'RESCHEDULED').length,
+        icon: Edit3,
+        color: 'text-orange-600',
+        bg: 'bg-orange-100'
+      },
+      {
+        title: 'Concluídos',
+        value: userBookings.filter(b => b.status === 'COMPLETED').length,
+        icon: CheckCircle,
+        color: 'text-slate-600',
+        bg: 'bg-slate-100'
       },
       {
         title: 'Próximos 7 Dias',
@@ -120,7 +134,7 @@ export default function Dashboard() {
         bg: 'bg-purple-100'
       }
     ];
-  }, [userBookings, isAdmin, now]);
+  }, [userBookings, now]);
 
   if (isLoadingBookings || loadingProfile || !now) {
     return (
@@ -144,13 +158,13 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat) => (
           <Card key={stat.title} className="border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow bg-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                  <p className="text-xs font-bold uppercase text-muted-foreground mb-1">{stat.title}</p>
                   <p className="text-3xl font-bold">{stat.value}</p>
                 </div>
                 <div className={`${stat.bg} ${stat.color} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
