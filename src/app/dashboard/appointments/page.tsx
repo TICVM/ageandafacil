@@ -566,14 +566,11 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent 
-                      onInteractOutside={(e) => e.preventDefault()}
-                      className="z-[110]"
-                    >
+                    <SelectContent className="z-[110]">
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
