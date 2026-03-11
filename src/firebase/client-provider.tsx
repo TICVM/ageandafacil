@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
@@ -21,11 +20,14 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, []);
 
-  // Consistency in HTML structure between SSR and first Client render
+  // Consistency in HTML structure between SSR and first Client render to avoid hydration mismatch
   if (!mounted || !firebaseServices) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-medium text-muted-foreground">Iniciando sistema...</p>
+        </div>
       </div>
     );
   }

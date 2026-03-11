@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -565,7 +564,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                    <PopoverContent className="w-auto p-0 z-[120]" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -582,7 +581,7 @@ export default function AppointmentsPage() {
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent className="z-[110]">
+                    <SelectContent>
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -598,7 +597,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[120]">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[130]">
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
               <CalendarIcon className="w-8 h-8" />
@@ -646,7 +645,7 @@ export default function AppointmentsPage() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary"><MoreHorizontal className="w-4 h-4" /> Alterar</Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px] z-[110]">
+                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px]">
                           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
                             const hasPerm = isMaster || (userPerms && (userPerms as any)[cfg.permKey]);
                             if (!hasPerm) return null;
@@ -713,7 +712,7 @@ export default function AppointmentsPage() {
                 <Button variant="outline" onClick={() => { 
                   const b = selectedBooking;
                   setSelectedBooking(null);
-                  setTimeout(() => setRescheduleBooking(b), 150);
+                  setTimeout(() => setRescheduleBooking(b), 200);
                 }} className="rounded-xl border-primary text-primary hover:bg-primary/5">
                   <Edit3 className="w-4 h-4 mr-2" /> Reagendar
                 </Button>
