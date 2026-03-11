@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { 
   CalendarDays, 
   MapPin, 
@@ -30,8 +29,7 @@ import {
   LayoutList,
   Calendar as CalendarIcon,
   Edit3,
-  AlertTriangle,
-  Save
+  AlertTriangle
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -544,6 +542,7 @@ export default function AppointmentsPage() {
       <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
+          onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
@@ -565,14 +564,14 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-date-trigger">Nova Data</Label>
-                  <Popover>
+                  <Popover modal={false}>
                     <PopoverTrigger asChild>
                       <Button id="reschedule-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl text-left">
                         <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 z-[120]" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -589,7 +588,7 @@ export default function AppointmentsPage() {
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[120]">
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
