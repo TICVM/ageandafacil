@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -31,8 +30,7 @@ import {
   LayoutList,
   Calendar as CalendarIcon,
   Edit3,
-  AlertTriangle,
-  Building2
+  AlertTriangle
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -41,7 +39,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Booking, Class, PhotoLocation, User, RoleConfig, AppPermissions, HistoryEntry, TimeSlot, ScheduleBlock, AppSettings } from '@/lib/types';
+import { Booking, Class, PhotoLocation, User, AppPermissions, HistoryEntry, TimeSlot, ScheduleBlock, AppSettings, RoleConfig } from '@/lib/types';
 import { 
   format, 
   startOfMonth, 
@@ -90,7 +88,7 @@ const STATUS_CONFIG = {
     permKey: 'canCancelAppointments'
   },
   RE_SCHEDULE_REQUEST: {
-    label: 'Por favor reagendar',
+    label: 'Solicitar Reagendamento',
     color: 'bg-yellow-500 text-black',
     icon: AlertTriangle,
     permKey: 'canStatusReScheduleRequest'
@@ -418,7 +416,7 @@ export default function AppointmentsPage() {
                           <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
                             {userPerms?.canEditAppointments && (
                               <DropdownMenuItem onSelect={() => setRescheduleBooking(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
-                                <Edit3 className="w-4 h-4" /> Reagendar Sessão
+                                <Edit3 className="w-4 h-4" /> Reagendar
                               </DropdownMenuItem>
                             )}
                             {userPerms?.canCancelAppointments && b.status !== 'CANCELLED' && (
@@ -524,7 +522,7 @@ export default function AppointmentsPage() {
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Escolha um novo horário para a sua sessão de fotos escolar.</DialogDescription>
+            <DialogDescription className="text-white/70">Escolha uma nova data e horário para o seu agendamento.</DialogDescription>
           </DialogHeader>
           {rescheduleBooking && (
             <div className="p-8 space-y-8">
@@ -592,7 +590,7 @@ export default function AppointmentsPage() {
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Informações completas e histórico da reserva selecionada.</DialogDescription>
+            <DialogDescription className="text-white/70">Informações detalhadas e histórico completo da sessão.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
