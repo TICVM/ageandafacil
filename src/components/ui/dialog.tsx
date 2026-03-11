@@ -33,7 +33,6 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // Destructure internal Radix props to avoid passing them to the DOM
   const { onInteractOutside, onPointerDownOutside, ...domProps } = props as any;
 
   return (
