@@ -122,7 +122,7 @@ export default function AppointmentsPage() {
       if (!db || !authUser) return;
       try {
         if (isMaster) {
-          setUserPerms(ADMIN_PERms);
+          setUserPerms(ADMIN_PERMS);
           setProfile({ id: authUser.uid, name: 'Herbert Pacheco', email: authUser.email || '', roleId: 'ADMIN' });
           return;
         }

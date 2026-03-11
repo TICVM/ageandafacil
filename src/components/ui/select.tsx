@@ -71,7 +71,6 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure Radix-specific props to prevent "Unknown event handler property" errors
   const { onInteractOutside, onPointerDownOutside, ...domProps } = props as any;
 
   return (
