@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   CalendarDays, 
   MapPin, 
@@ -29,7 +31,8 @@ import {
   LayoutList,
   Calendar as CalendarIcon,
   Edit3,
-  AlertTriangle
+  AlertTriangle,
+  Save
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -277,15 +280,6 @@ export default function AppointmentsPage() {
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
 
-  const handleStartReschedule = (booking: Booking) => {
-    setSelectedBooking(null);
-    setTimeout(() => {
-      setRescheduleBooking(booking);
-      setNewDate(undefined);
-      setNewSlotId('');
-    }, 150);
-  };
-
   const handleReschedule = () => {
     if (!newDate || !newSlotId || !db || !profile || !rescheduleBooking) {
       toast({ title: "Erro no processamento", description: "Verifique se a data e o horário foram selecionados.", variant: "destructive" });
@@ -323,6 +317,7 @@ export default function AppointmentsPage() {
     });
 
     setRescheduleBooking(null);
+    setSelectedBooking(null);
     setNewDate(undefined);
     setNewSlotId('');
     setIsRescheduleConfirmOpen(false);
@@ -438,7 +433,7 @@ export default function AppointmentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
                             {userPerms?.canEditAppointments && (
-                              <DropdownMenuItem onSelect={() => handleStartReschedule(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
+                              <DropdownMenuItem onSelect={() => setRescheduleBooking(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
                                 <Edit3 className="w-4 h-4" /> Reagendar
                               </DropdownMenuItem>
                             )}
@@ -538,11 +533,11 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
-      {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
           onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
@@ -571,7 +566,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[120]" align="start">
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -584,11 +579,11 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent className="z-[120]">
+                    <SelectContent className="z-[110]">
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -603,16 +598,21 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Alert */}
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[120]">
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
               <CalendarIcon className="w-8 h-8" />
             </div>
             <AlertDialogTitle className="text-2xl font-bold text-center">Confirmar Novo Horário?</AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
-              Você deseja realmente alterar o horário desta sessão de fotos para a nova data selecionada?
+              {rescheduleBooking && newDate && newSlotId && (
+                <>
+                  Você está alterando a sessão de <strong>{classMap[rescheduleBooking.schoolClassId]?.name}</strong> para o dia <strong>{format(newDate, 'dd/MM/yyyy')}</strong> às <strong>{slots?.find(s => s.id === newSlotId)?.startTime}</strong>.
+                  <br /><br />
+                  Deseja prosseguir com a alteração?
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
@@ -627,7 +627,6 @@ export default function AppointmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
@@ -643,6 +642,24 @@ export default function AppointmentsPage() {
                     <Badge className={cn("rounded-lg h-8 px-3 border-none", STATUS_CONFIG[selectedBooking.status as StatusKey]?.color)}>
                       {STATUS_CONFIG[selectedBooking.status as StatusKey]?.label}
                     </Badge>
+                    {(userPerms?.canChangeStatus || isMaster) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary"><MoreHorizontal className="w-4 h-4" /> Alterar</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px] z-[110]">
+                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                            const hasPerm = isMaster || (userPerms && (userPerms as any)[cfg.permKey]);
+                            if (!hasPerm) return null;
+                            return (
+                              <DropdownMenuItem key={key} onSelect={() => handleUpdateStatus(selectedBooking, key as StatusKey)} className="gap-2 rounded-lg py-2 cursor-pointer">
+                                <cfg.icon className="w-4 h-4" />{cfg.label}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
                 
@@ -691,13 +708,29 @@ export default function AppointmentsPage() {
               </div>
             </div>
           )}
-          <DialogFooter className="p-6 border-t bg-white flex justify-end">
+          <DialogFooter className="p-6 border-t bg-white flex justify-between">
+            <div className="flex gap-2">
+              {userPerms?.canEditAppointments && (
+                <Button variant="outline" onClick={() => setRescheduleBooking(selectedBooking)} className="rounded-xl border-primary text-primary hover:bg-primary/5">
+                  <Edit3 className="w-4 h-4 mr-2" /> Reagendar
+                </Button>
+              )}
+              {userPerms?.canCancelAppointments && selectedBooking?.status !== 'CANCELLED' && (
+                <Button variant="outline" onClick={() => selectedBooking && handleUpdateStatus(selectedBooking, 'CANCELLED')} className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50">
+                  <XCircle className="w-4 h-4 mr-2" /> Cancelar
+                </Button>
+              )}
+              {userPerms?.canDeleteAppointments && (
+                <Button variant="ghost" onClick={() => { setDeletingId(selectedBooking?.id || null); setSelectedBooking(null); }} className="rounded-xl text-destructive hover:bg-destructive/5">
+                  <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                </Button>
+              )}
+            </div>
             <Button onClick={() => setSelectedBooking(null)} className="rounded-xl px-10 h-11 font-bold">Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Alert */}
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
           <AlertDialogHeader>
