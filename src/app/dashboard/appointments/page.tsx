@@ -280,9 +280,7 @@ export default function AppointmentsPage() {
   }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
 
   const handleStartReschedule = (booking: Booking) => {
-    // Immediate closing of current modals and menus to prevent interaction locks
     setSelectedBooking(null);
-    // Use a small delay to ensure Radix UI animations don't interfere with the new Dialog focus
     setTimeout(() => {
       setRescheduleBooking(booking);
       setNewDate(undefined);
@@ -542,12 +540,10 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
-      {/* Reschedule Dialog - Isolated from other dialogs to avoid focus traps */}
+      {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-          onInteractOutside={(e) => e.preventDefault()}
-          onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
@@ -569,14 +565,14 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-date-trigger">Nova Data</Label>
-                  <Popover modal={false}>
+                  <Popover>
                     <PopoverTrigger asChild>
                       <Button id="reschedule-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl text-left">
                         <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[130]" align="start">
+                    <PopoverContent className="w-auto p-0" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -589,7 +585,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -608,22 +604,16 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Alert - Specifically triggered after Reschedule Dialog selections */}
+      {/* Confirmation Alert */}
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[150]">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
               <CalendarIcon className="w-8 h-8" />
             </div>
             <AlertDialogTitle className="text-2xl font-bold text-center">Confirmar Novo Horário?</AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
-              {rescheduleBooking && newDate && newSlotId && (
-                <>
-                  Você está alterando a sessão de <strong>{classMap[rescheduleBooking.schoolClassId]?.name}</strong> para o dia <strong>{format(newDate, 'dd/MM/yyyy')}</strong> às <strong>{slots?.find(s => s.id === newSlotId)?.startTime}</strong>.
-                  <br /><br />
-                  Deseja prosseguir com a alteração?
-                </>
-              )}
+              Você deseja realmente alterar o horário desta sessão de fotos para a nova data selecionada?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
@@ -654,24 +644,6 @@ export default function AppointmentsPage() {
                     <Badge className={cn("rounded-lg h-8 px-3 border-none", STATUS_CONFIG[selectedBooking.status as StatusKey]?.color)}>
                       {STATUS_CONFIG[selectedBooking.status as StatusKey]?.label}
                     </Badge>
-                    {(userPerms?.canChangeStatus || isMaster) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary"><MoreHorizontal className="w-4 h-4" /> Alterar</Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px]">
-                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-                            const hasPerm = isMaster || (userPerms && (userPerms as any)[cfg.permKey]);
-                            if (!hasPerm) return null;
-                            return (
-                              <DropdownMenuItem key={key} onSelect={() => handleUpdateStatus(selectedBooking, key as StatusKey)} className="gap-2 rounded-lg py-2 cursor-pointer">
-                                <cfg.icon className="w-4 h-4" />{cfg.label}
-                              </DropdownMenuItem>
-                            );
-                          })}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
                   </div>
                 </div>
                 
@@ -720,24 +692,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
           )}
-          <DialogFooter className="p-6 border-t bg-white flex justify-between">
-            <div className="flex gap-2">
-              {userPerms?.canEditAppointments && (
-                <Button type="button" variant="outline" onClick={() => selectedBooking && handleStartReschedule(selectedBooking)} className="rounded-xl border-primary text-primary hover:bg-primary/5">
-                  <Edit3 className="w-4 h-4 mr-2" /> Reagendar
-                </Button>
-              )}
-              {userPerms?.canCancelAppointments && selectedBooking?.status !== 'CANCELLED' && (
-                <Button type="button" variant="outline" onClick={() => selectedBooking && handleUpdateStatus(selectedBooking, 'CANCELLED')} className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50">
-                  <XCircle className="w-4 h-4 mr-2" /> Cancelar
-                </Button>
-              )}
-              {userPerms?.canDeleteAppointments && (
-                <Button type="button" variant="ghost" onClick={() => { setDeletingId(selectedBooking?.id || null); setSelectedBooking(null); }} className="rounded-xl text-destructive hover:bg-destructive/5">
-                  <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                </Button>
-              )}
-            </div>
+          <DialogFooter className="p-6 border-t bg-white flex justify-end">
             <Button onClick={() => setSelectedBooking(null)} className="rounded-xl px-10 h-11 font-bold">Fechar</Button>
           </DialogFooter>
         </DialogContent>

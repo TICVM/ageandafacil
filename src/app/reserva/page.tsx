@@ -298,14 +298,14 @@ export default function PublicBookingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                   <div className="space-y-3">
                     <Label htmlFor="date-trigger">Data</Label>
-                    <Popover modal={false}>
+                    <Popover>
                       <PopoverTrigger asChild>
                         <Button id="date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl">
                           <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                           {date ? format(date, "dd/MM/yyyy") : "Escolha o dia"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                      <PopoverContent className="w-auto p-0" align="start">
                         <Calendar mode="single" selected={date} onSelect={setDate} locale={ptBR} disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceBookingDays ?? 1)} />
                       </PopoverContent>
                     </Popover>
