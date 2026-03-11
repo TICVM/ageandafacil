@@ -443,7 +443,6 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
-      {/* Janela de Detalhes da Sessão */}
       <BookingDetailsDialog 
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
@@ -459,7 +458,6 @@ export default function AppointmentsPage() {
         locationMap={locationMap}
       />
 
-      {/* Janela de Reagendamento */}
       <RescheduleDialog 
         booking={rescheduleBooking}
         onClose={() => setRescheduleBooking(null)}
