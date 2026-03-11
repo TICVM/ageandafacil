@@ -182,17 +182,18 @@ export function RescheduleDialog({
 
   return (
     <>
-      <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none z-[130]"
           onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Edit3 className="w-7 h-7" /> Reagendar Sessão
             </DialogTitle>
-            <DialogDescription className="text-white/70">
+            <DialogDescription className="text-white/70 text-sm">
               Selecione os novos detalhes para o agendamento da turma.
             </DialogDescription>
           </DialogHeader>
