@@ -71,6 +71,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
+  // Destructure custom props to avoid passing them to the DOM
   const { onInteractOutside, onPointerDownOutside, ...domProps } = props as any;
 
   return (
