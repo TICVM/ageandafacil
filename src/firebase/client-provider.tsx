@@ -1,9 +1,9 @@
+
 'use client';
 
 import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
 import { initializeFirebase } from '@/firebase';
-import { Loader2 } from 'lucide-react';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
@@ -21,14 +21,11 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, []);
 
-  // Use a loading state that is identical on server and client before mounting
+  // Consistency in HTML structure between SSR and first Client render
   if (!mounted || !firebaseServices) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">Iniciando sistema...</p>
-        </div>
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
