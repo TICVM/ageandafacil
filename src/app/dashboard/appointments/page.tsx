@@ -460,7 +460,10 @@ export default function AppointmentsPage() {
       />
 
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
+        <DialogContent 
+          className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
             <DialogDescription className="text-white/70">Visualize o histórico e informações detalhadas desta reserva.</DialogDescription>

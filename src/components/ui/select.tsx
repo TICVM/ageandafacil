@@ -71,8 +71,8 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure onInteractOutside to prevent it from being passed to the DOM element
-  const { onInteractOutside, ...rest } = props as any;
+  // Destructure Radix-specific props that should not be passed to the DOM element
+  const { onInteractOutside, onPointerDownOutside, ...domProps } = props as any;
 
   return (
     <SelectPrimitive.Portal>
@@ -85,7 +85,7 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
-        {...rest}
+        {...domProps}
       >
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
