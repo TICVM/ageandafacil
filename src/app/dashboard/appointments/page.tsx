@@ -30,7 +30,8 @@ import {
   LayoutList,
   Calendar as CalendarIcon,
   Edit3,
-  AlertTriangle
+  AlertTriangle,
+  Save
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -134,6 +135,7 @@ export default function AppointmentsPage() {
   // Reschedule state
   const [newDate, setNewDate] = useState<Date>();
   const [newSlotId, setNewSlotId] = useState<string>('');
+  const [isRescheduleConfirmOpen, setIsRescheduleConfirmOpen] = useState(false);
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -262,7 +264,7 @@ export default function AppointmentsPage() {
     const dateStr = format(newDate, 'yyyy-MM-dd');
     const day = newDate.getDay().toString();
     const now = new Date();
-    const minLimit = addHours(addDays(now, appSettings?.minAdvanceBookingDays || 1), appSettings?.minAdvanceBookingHours || 0);
+    const minLimit = addHours(addDays(startOfDay(now), appSettings?.minAdvanceBookingDays || 1), appSettings?.minAdvanceBookingHours || 0);
     const cls = classMap[rescheduleBooking.schoolClassId];
     
     return slots.filter(s => {
@@ -303,6 +305,7 @@ export default function AppointmentsPage() {
     setRescheduleBooking(null);
     setNewDate(undefined);
     setNewSlotId('');
+    setIsRescheduleConfirmOpen(false);
     toast({ title: "Sessão Reagendada!" });
   };
 
@@ -545,7 +548,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start">
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -572,10 +575,40 @@ export default function AppointmentsPage() {
           )}
           <DialogFooter className="p-8 bg-slate-50 border-t flex justify-end gap-3">
             <Button variant="outline" onClick={() => setRescheduleBooking(null)} className="rounded-xl h-12 px-8">Cancelar</Button>
-            <Button onClick={handleReschedule} disabled={!newDate || !newSlotId} className="rounded-xl h-12 px-10 font-bold shadow-lg">Confirmar Reagendamento</Button>
+            <Button onClick={() => setIsRescheduleConfirmOpen(true)} disabled={!newDate || !newSlotId} className="rounded-xl h-12 px-10 font-bold shadow-lg">Confirmar Reagendamento</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Confirmation Alert */}
+      <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
+          <AlertDialogHeader>
+            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
+              <CalendarIcon className="w-8 h-8" />
+            </div>
+            <AlertDialogTitle className="text-2xl font-bold text-center">Confirmar Novo Horário?</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-base">
+              {rescheduleBooking && newDate && newSlotId && (
+                <>
+                  Você está alterando a sessão de <strong>{classMap[rescheduleBooking.schoolClassId]?.name}</strong> para o dia <strong>{format(newDate, 'dd/MM/yyyy')}</strong> às <strong>{slots?.find(s => s.id === newSlotId)?.startTime}</strong>.
+                  <br /><br />
+                  Deseja prosseguir com a alteração?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
+            <AlertDialogCancel className="rounded-2xl h-12 px-8 border-slate-200 font-bold">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleReschedule}
+              className="bg-primary text-white hover:bg-primary/90 rounded-2xl h-12 px-8 font-bold shadow-lg shadow-primary/20"
+            >
+              Sim, Alterar Horário
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
