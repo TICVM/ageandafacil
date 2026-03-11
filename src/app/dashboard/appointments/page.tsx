@@ -264,7 +264,9 @@ export default function AppointmentsPage() {
     const dateStr = format(newDate, 'yyyy-MM-dd');
     const day = newDate.getDay().toString();
     const now = new Date();
-    const minLimit = addHours(addDays(startOfDay(now), appSettings?.minAdvanceBookingDays || 1), appSettings?.minAdvanceBookingHours || 0);
+    
+    // Regra de antecedência específica para REAGENDAMENTO
+    const minLimit = addHours(addDays(startOfDay(now), appSettings?.minAdvanceRescheduleDays ?? 1), appSettings?.minAdvanceRescheduleHours ?? 0);
     const cls = classMap[rescheduleBooking.schoolClassId];
     
     return slots.filter(s => {
@@ -280,8 +282,17 @@ export default function AppointmentsPage() {
   }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
 
   const handleReschedule = () => {
-    if (!newDate || !newSlotId || !db || !profile || !rescheduleBooking) return;
-    const slot = slots?.find(s => s.id === newSlotId); if (!slot) return;
+    if (!newDate || !newSlotId || !db || !profile || !rescheduleBooking) {
+      toast({ title: "Erro no processamento", description: "Verifique se a data e o horário foram selecionados.", variant: "destructive" });
+      return;
+    }
+
+    const slot = slots?.find(s => s.id === newSlotId); 
+    if (!slot) {
+      toast({ title: "Horário inválido", variant: "destructive" });
+      return;
+    }
+
     const [h, m] = slot.startTime.split(':').map(Number);
     const endT = h * 60 + m + (slot.durationMinutes || 60);
     
@@ -302,11 +313,12 @@ export default function AppointmentsPage() {
       history: [...(rescheduleBooking.history || []), newHistoryEntry]
     });
 
+    // Reset state
     setRescheduleBooking(null);
     setNewDate(undefined);
     setNewSlotId('');
     setIsRescheduleConfirmOpen(false);
-    toast({ title: "Sessão Reagendada!" });
+    toast({ title: "Sessão Reagendada!", description: "Os novos horários já estão salvos na agenda." });
   };
 
   if (isLoading || !userPerms) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><div className="flex flex-col items-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-primary" /><p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p></div></div>;
@@ -314,7 +326,7 @@ export default function AppointmentsPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+        <div className="flex flex-col">
           <h1 className="text-3xl font-bold tracking-tight text-primary">Agenda</h1>
           <p className="text-muted-foreground">Visualize e gerencie as sessões de fotos escolares.</p>
         </div>
@@ -548,13 +560,13 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start">
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
                         onSelect={setNewDate} 
                         locale={ptBR} 
-                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceBookingDays || 1)} 
+                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays ?? 1)} 
                       />
                     </PopoverContent>
                   </Popover>
