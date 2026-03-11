@@ -33,7 +33,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // Destructure to prevent leakage to DOM
+  // Destructure interaction handlers to prevent them from reaching the DOM as unknown attributes
   const { onInteractOutside, onPointerDownOutside, ...restProps } = props as any;
 
   return (

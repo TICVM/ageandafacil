@@ -280,9 +280,9 @@ export default function AppointmentsPage() {
   }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
 
   const handleStartReschedule = (booking: Booking) => {
-    // Immediate closing of current modal to prevent Radix UI interaction lock issues
+    // Immediate closing of current modals and menus to prevent interaction locks
     setSelectedBooking(null);
-    // Allow animation to finish before opening next modal
+    // Use a small delay to ensure Radix UI animations don't interfere with the new Dialog focus
     setTimeout(() => {
       setRescheduleBooking(booking);
       setNewDate(undefined);
@@ -542,6 +542,7 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
+      {/* Reschedule Dialog - Isolated from other dialogs to avoid focus traps */}
       <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
@@ -575,7 +576,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[120]" align="start">
+                    <PopoverContent className="w-auto p-0 z-[130]" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -607,8 +608,9 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Confirmation Alert - Specifically triggered after Reschedule Dialog selections */}
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[130]">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[150]">
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
               <CalendarIcon className="w-8 h-8" />
@@ -636,6 +638,7 @@ export default function AppointmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Details Dialog */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
@@ -740,6 +743,7 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation Alert */}
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
           <AlertDialogHeader>
