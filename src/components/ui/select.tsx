@@ -83,7 +83,6 @@ const SelectContent = React.forwardRef<
         className
       )}
       position={position}
-      // Note: We're not passing onInteractOutside here as SelectPrimitive.Content might not support it directly or causes console errors
       {...props}
     >
       <SelectScrollUpButton />

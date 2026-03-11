@@ -265,7 +265,6 @@ export default function AppointmentsPage() {
     const day = newDate.getDay().toString();
     const now = new Date();
     
-    // Regra de antecedência específica para REAGENDAMENTO
     const minLimit = addHours(addDays(startOfDay(now), appSettings?.minAdvanceRescheduleDays ?? 1), appSettings?.minAdvanceRescheduleHours ?? 0);
     const cls = classMap[rescheduleBooking.schoolClassId];
     
@@ -294,7 +293,11 @@ export default function AppointmentsPage() {
     }
 
     const [h, m] = slot.startTime.split(':').map(Number);
-    const endT = h * 60 + m + (slot.durationMinutes || 60);
+    const duration = slot.durationMinutes || 60;
+    const totalMinutes = h * 60 + m + duration;
+    const endH = Math.floor(totalMinutes / 60);
+    const endM = totalMinutes % 60;
+    const endTimeStr = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
     
     const formattedDate = format(newDate, 'yyyy-MM-dd');
     const newHistoryEntry: HistoryEntry = {
@@ -308,12 +311,11 @@ export default function AppointmentsPage() {
     updateDocumentNonBlocking(doc(db, 'appointments', rescheduleBooking.id), {
       appointmentDate: formattedDate,
       startTime: slot.startTime,
-      endTime: `${Math.floor(endT/60).toString().padStart(2,'0')}:${(endT%60).toString().padStart(2,'0')}`,
+      endTime: endTimeStr,
       status: 'RESCHEDULED',
       history: [...(rescheduleBooking.history || []), newHistoryEntry]
     });
 
-    // Reset state
     setRescheduleBooking(null);
     setNewDate(undefined);
     setNewSlotId('');
@@ -531,8 +533,12 @@ export default function AppointmentsPage() {
       )}
 
       {/* Reschedule Dialog */}
-      <Dialog open={!!rescheduleBooking} onOpenChange={() => setRescheduleBooking(null)}>
-        <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
+      <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
+        <DialogContent 
+          className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
             <DialogDescription className="text-white/70">Escolha uma nova data e horário para o seu agendamento escolar.</DialogDescription>
@@ -560,7 +566,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                    <PopoverContent className="w-auto p-0 z-[110]" align="start">
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -573,7 +579,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
+                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate}>
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
@@ -594,7 +600,7 @@ export default function AppointmentsPage() {
 
       {/* Reschedule Confirmation Alert */}
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[120]">
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
               <CalendarIcon className="w-8 h-8" />
