@@ -9,8 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { 
   CalendarDays, 
   MapPin, 
@@ -30,9 +28,7 @@ import {
   ChevronRight,
   LayoutList,
   Calendar as CalendarIcon,
-  Edit3,
-  AlertTriangle,
-  Save
+  Edit3
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -49,20 +45,15 @@ import {
   startOfWeek, 
   endOfWeek, 
   eachDayOfInterval, 
-  isSameDay, 
   addMonths, 
   subMonths,
   isToday,
-  parseISO,
-  addDays,
-  addHours,
-  startOfDay
+  parseISO
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+import { RescheduleDialog } from '@/components/appointments/reschedule-dialog';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -92,7 +83,7 @@ const STATUS_CONFIG = {
   RE_SCHEDULE_REQUEST: {
     label: 'Solicitar Reagendamento',
     color: 'bg-yellow-500 text-black',
-    icon: AlertTriangle,
+    icon: Edit3,
     permKey: 'canStatusReScheduleRequest'
   },
   COMPLETED: {
@@ -114,12 +105,6 @@ const ADMIN_PERMS: AppPermissions = {
   canStatusPending: true, canStatusConfirmed: true, canStatusCancelled: true, canStatusRescheduled: true, canStatusReScheduleRequest: true, canStatusCompleted: true
 };
 
-const timeToMin = (t: string) => {
-  if (!t) return 0;
-  const [h, m] = t.split(':').map(Number);
-  return (h * 60) + m;
-};
-
 export default function AppointmentsPage() {
   const db = useFirestore();
   const { user: authUser } = useUser();
@@ -132,10 +117,6 @@ export default function AppointmentsPage() {
   
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
-
-  const [newDate, setNewDate] = useState<Date>();
-  const [newSlotId, setNewSlotId] = useState<string>('');
-  const [isRescheduleConfirmOpen, setIsRescheduleConfirmOpen] = useState(false);
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -212,17 +193,9 @@ export default function AppointmentsPage() {
         history: [...(booking.history || []), newHistoryEntry]
       });
       
-      if (selectedBooking?.id === booking.id) {
-        setSelectedBooking(prev => prev ? {
-          ...prev,
-          status: newStatus,
-          history: [...(prev.history || []), newHistoryEntry]
-        } : null);
-      }
-      
       toast({ title: "Status Atualizado" });
     },
-    [db, profile, selectedBooking]
+    [db, profile]
   );
 
   const filtered = useMemo(() => {
@@ -259,72 +232,14 @@ export default function AppointmentsPage() {
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToday = () => setCurrentMonth(new Date());
 
-  const avRescheduleSlots = useMemo(() => {
-    if (!slots || !newDate || !rescheduleBooking) return [];
-    const dateStr = format(newDate, 'yyyy-MM-dd');
-    const day = newDate.getDay().toString();
-    const now = new Date();
-    
-    const minLimit = addHours(addDays(startOfDay(now), appSettings?.minAdvanceRescheduleDays ?? 1), appSettings?.minAdvanceRescheduleHours ?? 0);
-    const cls = classMap[rescheduleBooking.schoolClassId];
-    
-    return slots.filter(s => {
-      if (s.dayOfWeek !== day) return false;
-      const targetMatches = s.schoolClassId ? s.schoolClassId === rescheduleBooking.schoolClassId : s.schoolSegmentId ? s.schoolSegmentId === cls?.schoolSegmentId : !s.schoolClassId && !s.schoolSegmentId;
-      if (!targetMatches) return false;
-      const [h, m] = s.startTime.split(':').map(Number);
-      const sDT = new Date(newDate); sDT.setHours(h, m, 0, 0);
-      if (sDT < minLimit) return false;
-      if (list?.some(app => app.id !== rescheduleBooking.id && app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
-      return !allBlocks?.some(b => b.date === dateStr && timeToMin(s.startTime) < timeToMin(b.endTime) && (timeToMin(s.startTime) + (s.durationMinutes || 60)) > timeToMin(b.startTime));
-    }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [slots, newDate, rescheduleBooking, classMap, list, allBlocks, appSettings]);
-
-  const handleReschedule = () => {
-    if (!newDate || !newSlotId || !db || !profile || !rescheduleBooking) {
-      toast({ title: "Erro no processamento", description: "Verifique se a data e o horário foram selecionados.", variant: "destructive" });
-      return;
-    }
-
-    const slot = slots?.find(s => s.id === newSlotId); 
-    if (!slot) {
-      toast({ title: "Horário inválido", variant: "destructive" });
-      return;
-    }
-
-    const [h, m] = slot.startTime.split(':').map(Number);
-    const duration = slot.durationMinutes || 60;
-    const totalMinutes = h * 60 + m + duration;
-    const endH = Math.floor(totalMinutes / 60);
-    const endM = totalMinutes % 60;
-    const endTimeStr = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
-    
-    const formattedDate = format(newDate, 'yyyy-MM-dd');
-    const newHistoryEntry: HistoryEntry = {
-      timestamp: new Date().toISOString(),
-      userId: profile.id,
-      userName: profile.name,
-      action: 'REAGENDAMENTO',
-      details: `Sessão reagendada de ${format(parseISO(`${rescheduleBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} ${rescheduleBooking.startTime} para ${format(newDate, 'dd/MM/yyyy')} ${slot.startTime}.`
-    };
-
-    updateDocumentNonBlocking(doc(db, 'appointments', rescheduleBooking.id), {
-      appointmentDate: formattedDate,
-      startTime: slot.startTime,
-      endTime: endTimeStr,
-      status: 'RESCHEDULED',
-      history: [...(rescheduleBooking.history || []), newHistoryEntry]
-    });
-
-    setRescheduleBooking(null);
-    setSelectedBooking(null);
-    setNewDate(undefined);
-    setNewSlotId('');
-    setIsRescheduleConfirmOpen(false);
-    toast({ title: "Sessão Reagendada!", description: "Os novos horários já estão salvos na agenda." });
-  };
-
-  if (isLoading || !userPerms) return <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]"><div className="flex flex-col items-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-primary" /><p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p></div></div>;
+  if (isLoading || !userPerms) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground">Sincronizando perfil...</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -387,13 +302,13 @@ export default function AppointmentsPage() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold">{b.teacherName}</span>
-                        <span className="text-xs text-muted-foreground">{classMap[b.schoolClassId]?.name || 'Turma não identificada'}</span>
+                        <span className="text-xs text-muted-foreground">{classMap[b.schoolClassId]?.name || '---'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5 text-sm">
                         <MapPin className="w-3 h-3 text-primary" />
-                        {locationMap[b.photoLocationId]?.name || 'Local não definido'} {b.locationIdentifier ? `(${b.locationIdentifier})` : ''}
+                        {locationMap[b.photoLocationId]?.name || '---'} {b.locationIdentifier ? `(${b.locationIdentifier})` : ''}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -426,7 +341,7 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10" onClick={() => setSelectedBooking(b)} aria-label="Ver detalhes"><Info className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10" onClick={() => setSelectedBooking(b)}><Info className="w-4 h-4" /></Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>
@@ -443,7 +358,7 @@ export default function AppointmentsPage() {
                               </DropdownMenuItem>
                             )}
                             {userPerms?.canDeleteAppointments && (
-                              <DropdownMenuItem onSelect={() => setTimeout(() => setDeletingId(b.id), 100)} className="gap-2 text-destructive cursor-pointer rounded-lg py-2 border-t mt-1">
+                              <DropdownMenuItem onSelect={() => setDeletingId(b.id)} className="gap-2 text-destructive cursor-pointer rounded-lg py-2 border-t mt-1">
                                 <Trash2 className="w-4 h-4" /> Excluir Registro
                               </DropdownMenuItem>
                             )}
@@ -533,106 +448,23 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
-      {/* Janela de Reagendamento */}
-      <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
-        <DialogContent 
-          className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-          onInteractOutside={(e) => e.preventDefault()}
-          onPointerDownOutside={(e) => e.preventDefault()}
-        >
-          <DialogHeader className="bg-primary p-8 text-white">
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Escolha uma nova data e horário para o seu agendamento escolar.</DialogDescription>
-          </DialogHeader>
-          {rescheduleBooking && (
-            <div className="p-8 space-y-8">
-              <div className="bg-muted/30 p-6 rounded-2xl border border-dashed border-slate-300">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Agendamento Atual</p>
-                <div className="flex flex-col gap-1">
-                  <p className="font-bold text-slate-800">{rescheduleBooking.teacherName} - {classMap[rescheduleBooking.schoolClassId]?.name}</p>
-                  <p className="text-sm text-slate-600 flex items-center gap-2">
-                    <CalendarDays className="w-4 h-4 text-primary" />
-                    {format(parseISO(`${rescheduleBooking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} às {rescheduleBooking.startTime}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="reschedule-date-trigger">Nova Data</Label>
-                  <Popover modal={false}>
-                    <PopoverTrigger asChild>
-                      <Button id="reschedule-date-trigger" variant="outline" className="w-full h-12 justify-start rounded-xl text-left">
-                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                        {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[150]" align="start" onInteractOutside={(e) => e.preventDefault()}>
-                      <Calendar 
-                        mode="single" 
-                        selected={newDate} 
-                        onSelect={setNewDate} 
-                        locale={ptBR} 
-                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays ?? 1)} 
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-3">
-                  <Label htmlFor="reschedule-slot-select">Novo Horário</Label>
-                  <Select value={newSlotId} onValueChange={setNewSlotId} disabled={!newDate} modal={false}>
-                    <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
-                      <SelectValue placeholder="Escolha o horário" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="p-8 bg-slate-50 border-t flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setRescheduleBooking(null)} className="rounded-xl h-12 px-8">Cancelar</Button>
-            <Button onClick={() => setIsRescheduleConfirmOpen(true)} disabled={!newDate || !newSlotId} className="rounded-xl h-12 px-10 font-bold shadow-lg">Confirmar Reagendamento</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[160]">
-          <AlertDialogHeader>
-            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
-              <CalendarIcon className="w-8 h-8" />
-            </div>
-            <AlertDialogTitle className="text-2xl font-bold text-center">Confirmar Novo Horário?</AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-base">
-              {rescheduleBooking && newDate && newSlotId && (
-                <>
-                  Você está alterando a sessão de <strong>{classMap[rescheduleBooking.schoolClassId]?.name}</strong> para o dia <strong>{format(newDate, 'dd/MM/yyyy')}</strong> às <strong>{slots?.find(s => s.id === newSlotId)?.startTime}</strong>.
-                  <br /><br />
-                  Deseja prosseguir com a alteração?
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
-            <AlertDialogCancel className="rounded-2xl h-12 px-8 border-slate-200 font-bold">Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleReschedule}
-              className="bg-primary text-white hover:bg-primary/90 rounded-2xl h-12 px-8 font-bold shadow-lg shadow-primary/20"
-            >
-              Sim, Alterar Horário
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Componente Isolado de Reagendamento */}
+      <RescheduleDialog 
+        booking={rescheduleBooking}
+        onClose={() => setRescheduleBooking(null)}
+        classes={classes}
+        slots={slots}
+        allAppointments={list}
+        allBlocks={allBlocks}
+        appSettings={appSettings}
+        profile={profile}
+      />
 
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>
-            <DialogDescription className="text-white/70">Veja as informações detalhadas e o histórico completo desta sessão de fotos.</DialogDescription>
+            <DialogDescription className="text-white/70">Informações detalhadas e histórico completo da sessão.</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="grid grid-cols-1 md:grid-cols-2">
@@ -648,7 +480,7 @@ export default function AppointmentsPage() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary"><MoreHorizontal className="w-4 h-4" /> Alterar</Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px] z-[110]">
+                        <DropdownMenuContent align="start" className="rounded-xl p-2 shadow-xl border-none min-w-[200px]">
                           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
                             const hasPerm = isMaster || (userPerms && (userPerms as any)[cfg.permKey]);
                             if (!hasPerm) return null;
@@ -750,7 +582,7 @@ export default function AppointmentsPage() {
                 if (deletingId && db) {
                   deleteDocumentNonBlocking(doc(db, 'appointments', deletingId));
                   setDeletingId(null);
-                  toast({ title: "Agendamento removido com sucesso." });
+                  toast({ title: "Agendamento removido." });
                 }
               }}
               className="bg-destructive text-white hover:bg-destructive/90 rounded-2xl h-12 px-8 font-bold shadow-lg shadow-destructive/20"

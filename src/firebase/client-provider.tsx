@@ -22,7 +22,7 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, []);
 
-  // Standardized loading state to prevent hydration mismatch
+  // Use a consistent loading UI to prevent hydration mismatch
   if (!mounted || !firebaseServices) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
