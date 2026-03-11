@@ -343,7 +343,13 @@ export default function AppointmentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-2xl shadow-2xl border-none p-2">
                             {userPerms?.canEditAppointments && (
-                              <DropdownMenuItem onSelect={() => setRescheduleBooking(b)} className="gap-2 text-primary cursor-pointer rounded-lg py-2">
+                              <DropdownMenuItem 
+                                onSelect={(e) => { 
+                                  e.preventDefault(); 
+                                  setRescheduleBooking(b); 
+                                }} 
+                                className="gap-2 text-primary cursor-pointer rounded-lg py-2"
+                              >
                                 <Edit3 className="w-4 h-4" /> Reagendar
                               </DropdownMenuItem>
                             )}
