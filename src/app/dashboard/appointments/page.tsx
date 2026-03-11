@@ -533,6 +533,7 @@ export default function AppointmentsPage() {
         </Card>
       )}
 
+      {/* Janela de Reagendamento */}
       <Dialog open={!!rescheduleBooking} onOpenChange={(open) => { if (!open) setRescheduleBooking(null); }}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
@@ -566,7 +567,7 @@ export default function AppointmentsPage() {
                         {newDate ? format(newDate, "dd/MM/yyyy") : "Escolha o dia"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[110]" align="start" onInteractOutside={(e) => e.preventDefault()}>
+                    <PopoverContent className="w-auto p-0 z-[150]" align="start" onInteractOutside={(e) => e.preventDefault()}>
                       <Calendar 
                         mode="single" 
                         selected={newDate} 
@@ -583,7 +584,7 @@ export default function AppointmentsPage() {
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent className="z-[110]">
+                    <SelectContent>
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -599,7 +600,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[120]">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[160]">
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
               <CalendarIcon className="w-8 h-8" />
