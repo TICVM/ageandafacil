@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -263,7 +264,7 @@ export default function AppointmentsPage() {
     const dateStr = format(newDate, 'yyyy-MM-dd');
     const day = newDate.getDay().toString();
     const now = new Date();
-    const minLimit = addHours(addDays(now, appSettings?.minAdvanceRescheduleDays || 1), appSettings?.minAdvanceRescheduleHours || 0);
+    const minLimit = addHours(addDays(now, appSettings?.minAdvanceBookingDays || 1), appSettings?.minAdvanceBookingHours || 0);
     const cls = classMap[rescheduleBooking.schoolClassId];
     
     return slots.filter(s => {
@@ -520,7 +521,6 @@ export default function AppointmentsPage() {
       <Dialog open={!!rescheduleBooking} onOpenChange={() => setRescheduleBooking(null)}>
         <DialogContent 
           className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-          onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><Edit3 className="w-7 h-7" /> Reagendar Sessão</DialogTitle>
@@ -559,7 +559,7 @@ export default function AppointmentsPage() {
                         selected={newDate} 
                         onSelect={setNewDate} 
                         locale={ptBR} 
-                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceRescheduleDays || 1)} 
+                        disabled={(d) => d < addDays(startOfDay(new Date()), appSettings?.minAdvanceBookingDays || 1)} 
                       />
                     </PopoverContent>
                   </Popover>
@@ -570,7 +570,10 @@ export default function AppointmentsPage() {
                     <SelectTrigger id="reschedule-slot-select" className="rounded-xl h-12">
                       <SelectValue placeholder="Escolha o horário" />
                     </SelectTrigger>
-                    <SelectContent onInteractOutside={(e) => e.preventDefault()}>
+                    <SelectContent 
+                      onInteractOutside={(e) => e.preventDefault()}
+                      className="z-[110]"
+                    >
                       {avRescheduleSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -589,7 +592,6 @@ export default function AppointmentsPage() {
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
         <DialogContent 
           className="max-w-3xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none"
-          onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2"><FileText className="w-7 h-7" /> Detalhes da Sessão</DialogTitle>

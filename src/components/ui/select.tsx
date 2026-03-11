@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -71,7 +72,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure to avoid passing non-DOM props to the underlying element
+  // Destructure to avoid passing non-DOM props like onInteractOutside to the underlying element
   const { onInteractOutside, ...rest } = props as any;
   
   return (
@@ -85,6 +86,7 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
+        onInteractOutside={onInteractOutside}
         {...rest}
       >
         <SelectScrollUpButton />
