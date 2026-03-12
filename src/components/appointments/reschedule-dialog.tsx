@@ -173,16 +173,13 @@ export function RescheduleDialog({
     <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DialogContent 
         className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none z-[130]"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="bg-primary p-8 text-white">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             <Edit3 className="w-7 h-7" /> Reagendar Sessão
           </DialogTitle>
           <DialogDescription className="text-white/70 text-sm">
-            Selecione os novos detalhes para o agendamento da turma.
+            Selecione a nova data e horário para esta sessão de fotos.
           </DialogDescription>
         </DialogHeader>
         {booking && (
@@ -206,7 +203,7 @@ export function RescheduleDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label>Nova Data</Label>
-                <Popover modal={false}>
+                <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full h-12 justify-start rounded-xl text-left">
                       <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
