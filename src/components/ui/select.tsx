@@ -71,7 +71,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure properties that shouldn't be passed to the DOM element
+  // Destructure properties that shouldn't be passed to the DOM element to avoid console errors
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   return (
     <SelectPrimitive.Portal>
@@ -84,6 +84,8 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
+        onInteractOutside={onInteractOutside}
+        onPointerDownOutside={onPointerDownOutside}
         {...cleanProps}
       >
         <SelectScrollUpButton />
