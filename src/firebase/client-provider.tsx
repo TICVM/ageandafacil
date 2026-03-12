@@ -21,7 +21,7 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, []);
 
-  // Use a consistent loading UI for both SSR and initial client mount
+  // Use a consistent loading UI for both SSR and initial client mount to avoid hydration mismatch
   const loadingUI = (
     <div className="min-h-screen flex items-center justify-center bg-[#ECF1FA]">
       <div className="flex flex-col items-center gap-4">

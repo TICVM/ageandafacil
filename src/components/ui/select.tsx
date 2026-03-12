@@ -71,6 +71,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
+  // Destructure properties that shouldn't be passed to the DOM element
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   return (
     <SelectPrimitive.Portal>
