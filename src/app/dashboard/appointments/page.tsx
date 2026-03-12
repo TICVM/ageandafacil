@@ -159,6 +159,7 @@ export default function AppointmentsPage() {
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
+  // Sincroniza o agendamento selecionado com as mudanças em tempo real na lista
   useEffect(() => {
     if (selectedBooking && list) {
       const updated = list.find(b => b.id === selectedBooking.id);
@@ -349,7 +350,7 @@ export default function AppointmentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full text-primary hover:bg-primary/10" onClick={() => setSelectedBooking(b)}><Info className="w-4 h-4" /></Button>
+                        <Button variant="ghost" id={`view-booking-${b.id}`} name="viewBooking" size="icon" className="rounded-full text-primary hover:bg-primary/10" onClick={() => setSelectedBooking(b)}><Info className="w-4 h-4" /></Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button>

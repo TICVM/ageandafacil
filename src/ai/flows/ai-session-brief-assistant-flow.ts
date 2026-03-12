@@ -55,7 +55,7 @@ Com base no contexto e nas notas fornecidas, gere um briefing detalhado focando 
 3.  **Fotos Preferidas**: Sugira tipos específicos de fotos ou composições que o professor/escola gostaria de capturar.
 4.  **Clima Desejado**: Descreva o sentimento ou atmosfera geral que as fotos devem transmitir.
 
-TODA A SAÍDA DEVE SER EM PORTUGUÊS (PT-BR). NÃO RESPONDA EM INGLÊS EM NENHUMA HIPÓTESE.
+TODA A SAÍDA DEVE SER EM PORTUGUÊS (PT-BR). NÃO RESPONDA EM INGLÊS EM NENHUMA HIPÓTESE. É OBRIGATÓRIO QUE O TEXTO GERADO ESTEJA EM PORTUGUÊS.
 
 Por favor, estruture sua saída para fornecer claramente esses quatro elementos, aderindo ao esquema JSON especificado.`,
 });

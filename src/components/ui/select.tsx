@@ -83,8 +83,6 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
-        onInteractOutside={onInteractOutside}
-        onPointerDownOutside={onPointerDownOutside}
         {...cleanProps}
       >
         <SelectScrollUpButton />
