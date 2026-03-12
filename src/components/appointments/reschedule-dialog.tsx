@@ -173,6 +173,9 @@ export function RescheduleDialog({
     <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DialogContent 
         className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none z-[130]"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="bg-primary p-8 text-white">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">

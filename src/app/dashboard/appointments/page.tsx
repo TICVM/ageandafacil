@@ -476,7 +476,7 @@ export default function AppointmentsPage() {
       />
 
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[160]">
+        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[160]" onOpenAutoFocus={(e) => e.preventDefault()}>
           <AlertDialogHeader>
             <div className="w-16 h-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-4 mx-auto">
               <Trash2 className="w-8 h-8" />
