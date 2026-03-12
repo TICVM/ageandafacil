@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -33,14 +34,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // Destructure internal Radix props to avoid DOM warnings
-  const { 
-    onInteractOutside, 
-    onPointerDownOutside, 
-    onEscapeKeyDown, 
-    ...cleanProps 
-  } = props as any;
-
+  const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -52,7 +46,6 @@ const DialogContent = React.forwardRef<
         )}
         onInteractOutside={onInteractOutside}
         onPointerDownOutside={onPointerDownOutside}
-        onEscapeKeyDown={onEscapeKeyDown}
         {...cleanProps}
       >
         {children}

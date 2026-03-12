@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,12 +13,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { format, startOfDay, addDays, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, MapPin, Loader2, CheckCircle2, Camera, Hash, ShieldAlert, ArrowLeft, Mail } from 'lucide-react';
+import { CalendarIcon, MapPin, Loader2, CheckCircle2, Camera, Hash, ShieldAlert, ArrowLeft, Mail, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
 import { TimeSlot, Class, PhotoLocation, Segment, Booking, ScheduleBlock, User, RoleConfig, AppPermissions, AppSettings } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
+import { aiSessionBriefAssistant } from '@/ai/flows/ai-session-brief-assistant-flow';
 
 const timeToMin = (t: string) => {
   if (!t) return 0;
@@ -47,6 +49,7 @@ export default function PublicBookingPage() {
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<AppPermissions | null>(null);
@@ -190,6 +193,33 @@ export default function PublicBookingPage() {
     }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, date, selectedClassId, rawClasses, allAppointments, allBlocks, appSettings]);
 
+  const handleGenerateAI = async () => {
+    if (!notes || !selectedClassId || !selectedLocationId) {
+      toast({ title: "Preencha a turma, local e um resumo inicial.", variant: "destructive" });
+      return;
+    }
+    
+    const selClass = rawClasses?.find(c => c.id === selectedClassId);
+    const selSeg = rawSegments?.find(s => s.id === selClass?.schoolSegmentId);
+    const selLoc = rawLocations?.find(l => l.id === selectedLocationId);
+
+    setIsGeneratingAI(true);
+    try {
+      const result = await aiSessionBriefAssistant({
+        briefNotes: notes,
+        className: selClass?.name || 'Não informada',
+        segmentName: selSeg?.name || 'Não informado',
+        locationName: selLoc?.name || 'Não informado'
+      });
+      setNotes(result.detailedBrief);
+      toast({ title: "Resumo aprimorado com sucesso!" });
+    } catch (e) {
+      toast({ title: "Erro ao gerar resumo.", variant: "destructive" });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   const handleSchedule = () => {
     if (!date || !selectedSlotId || !db || !profile) return;
     const slot = slots?.find(s => s.id === selectedSlotId); if (!slot) return;
@@ -326,8 +356,26 @@ export default function PublicBookingPage() {
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <Label>Observações</Label>
-                  <Textarea placeholder="Descreva solicitações especiais para a equipe..." className="rounded-2xl min-h-[120px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <div className="flex justify-between items-center">
+                    <Label>Resumo da Atividade</Label>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleGenerateAI} 
+                      disabled={isGeneratingAI || !notes || !selectedClassId || !selectedLocationId}
+                      className="text-primary gap-1.5 h-8 font-bold hover:bg-primary/10"
+                    >
+                      {isGeneratingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Aprimorar com IA
+                    </Button>
+                  </div>
+                  <Textarea 
+                    placeholder="Descreva brevemente o que os alunos estarão fazendo. Use a IA para expandir o texto para o marketing." 
+                    className="rounded-2xl min-h-[140px]" 
+                    value={notes} 
+                    onChange={(e) => setNotes(e.target.value)} 
+                  />
                 </div>
               </CardContent>
               <CardFooter className="bg-slate-50 p-10 flex justify-center">

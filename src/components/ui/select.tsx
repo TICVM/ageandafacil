@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -71,14 +72,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure internal Radix props to prevent them from reaching the DOM
-  const { 
-    onInteractOutside, 
-    onPointerDownOutside, 
-    onEscapeKeyDown, 
-    ...cleanProps 
-  } = props as any;
-
+  const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -90,6 +84,8 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
+        onInteractOutside={onInteractOutside}
+        onPointerDownOutside={onPointerDownOutside}
         {...cleanProps}
       >
         <SelectScrollUpButton />
