@@ -359,7 +359,7 @@ export default function AppointmentsPage() {
                             {userPerms?.canEditAppointments && (
                               <DropdownMenuItem 
                                 onSelect={(e) => { 
-                                  // Prevent closing the dropdown instantly from affecting the new dialog focus
+                                  // Prevents dropdown closing from breaking focus management
                                   e.preventDefault(); 
                                   setRescheduleBooking(b); 
                                 }} 

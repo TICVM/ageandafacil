@@ -71,8 +71,9 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure properties that shouldn't be passed to the DOM element to avoid console errors
+  // Extract custom event handlers to prevent them from reaching the DOM element
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
+  
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -138,7 +139,7 @@ const SelectItem = React.forwardRef<
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ))
-SelectItem.displayName = SelectItem.displayName
+SelectItem.displayName = SelectPrimitive.Item.displayName
 
 const SelectSeparator = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Separator>,
