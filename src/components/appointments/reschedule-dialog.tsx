@@ -175,6 +175,7 @@ export function RescheduleDialog({
         className="max-w-xl rounded-3xl p-0 overflow-hidden shadow-2xl border-none z-[130]"
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="bg-primary p-8 text-white">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
