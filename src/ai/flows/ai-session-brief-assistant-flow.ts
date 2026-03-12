@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview An AI assistant that helps teachers generate detailed briefs for photo session bookings.
+ * @fileOverview An AI assistant that helps teachers generate detailed briefs for photo session bookings in Portuguese.
  *
  * - aiSessionBriefAssistant - A function that generates a detailed brief from teacher's notes.
  * - AISessionBriefAssistantInput - The input type for the aiSessionBriefAssistant function.
@@ -40,22 +40,24 @@ const prompt = ai.definePrompt({
   name: 'aiSessionBriefAssistantPrompt',
   input: { schema: AISessionBriefAssistantInputSchema },
   output: { schema: AISessionBriefAssistantOutputSchema },
-  prompt: `You are an AI assistant designed to help teachers create detailed briefs for school photo sessions for the marketing team. Your goal is to expand brief notes into a comprehensive description, including specific activities, preferred shots, and the desired mood.
+  prompt: `Você é um assistente de IA projetado para ajudar professores a criar briefings detalhados para sessões de fotos escolares para a equipe de marketing. Seu objetivo é expandir notas breves em uma descrição abrangente, incluindo atividades específicas, fotos preferidas e o clima desejado.
 
-Context for the photo session:
-Class: {{{className}}}
-School Segment: {{{segmentName}}}
-Location: {{{locationName}}}
+Contexto da sessão de fotos:
+Turma: {{{className}}}
+Segmento Escolar: {{{segmentName}}}
+Local: {{{locationName}}}
 
-Teacher's Brief Notes: """{{{briefNotes}}}"""
+Notas do Professor: """{{{briefNotes}}}"""
 
-Based on the provided context and brief notes, generate a detailed brief focusing on:
-1.  **Detailed Brief**: A narrative description of the session, what will be happening, and any special considerations.
-2.  **Key Activities**: List the main activities that will occur during the session.
-3.  **Preferred Shots**: Suggest specific types of photos or compositions the teacher/school would like to capture.
-4.  **Desired Mood**: Describe the overall feeling or atmosphere the photos should convey.
+Com base no contexto e nas notas fornecidas, gere um briefing detalhado focando em:
+1.  **Briefing Detalhado**: Uma descrição narrativa da sessão, o que estará acontecendo e quaisquer considerações especiais.
+2.  **Atividades Principais**: Liste as principais atividades que ocorrerão durante a sessão.
+3.  **Fotos Preferidas**: Sugira tipos específicos de fotos ou composições que o professor/escola gostaria de capturar.
+4.  **Clima Desejado**: Descreva o sentimento ou atmosfera geral que as fotos devem transmitir.
 
-Please structure your output to clearly provide these four elements, adhering to the specified JSON schema.`,
+TODA A SAÍDA DEVE SER EM PORTUGUÊS (PT-BR).
+
+Por favor, estruture sua saída para fornecer claramente esses quatro elementos, aderindo ao esquema JSON especificado.`,
 });
 
 const aiSessionBriefAssistantFlow = ai.defineFlow(

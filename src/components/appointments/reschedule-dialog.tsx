@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -160,6 +159,7 @@ export function RescheduleDialog({
       history: [...(booking.history || []), newHistoryEntry],
     });
 
+    // Experience: close without extra alert
     setTimeout(() => {
       setIsSaving(false);
       onClose();

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -160,10 +159,15 @@ export default function AppointmentsPage() {
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
+  // Sync selected booking when list updates to reflect status changes in details dialog
   useEffect(() => {
     if (selectedBooking && list) {
       const updated = list.find(b => b.id === selectedBooking.id);
-      if (updated && (updated.status !== selectedBooking.status || updated.appointmentDate !== selectedBooking.appointmentDate || updated.startTime !== selectedBooking.startTime)) {
+      if (updated && (
+        updated.status !== selectedBooking.status || 
+        updated.appointmentDate !== selectedBooking.appointmentDate || 
+        updated.startTime !== selectedBooking.startTime
+      )) {
         setSelectedBooking(updated);
       }
     }
