@@ -33,7 +33,6 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // Destructure internal Radix props to avoid them reaching the DOM div
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   return (
     <DialogPortal>
@@ -100,7 +99,7 @@ const DialogTitle = React.forwardRef<
     {...props}
   />
 ))
-DialogTitle.displayName = DialogPrimitive.Title.displayName
+DialogTitle.displayName = "DialogTitle"
 
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
@@ -112,7 +111,7 @@ const DialogDescription = React.forwardRef<
     {...props}
   />
 ))
-DialogDescription.displayName = DialogPrimitive.Description.displayName
+DialogDescription.displayName = "DialogDescription"
 
 export {
   Dialog,

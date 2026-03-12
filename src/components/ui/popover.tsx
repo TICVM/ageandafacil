@@ -13,7 +13,6 @@ const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, ...props }, ref) => {
-  // Destructure internal Radix props to avoid them reaching the DOM div
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   return (
     <PopoverPrimitive.Portal>
