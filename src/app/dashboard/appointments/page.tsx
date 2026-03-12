@@ -30,7 +30,6 @@ import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@
 import { collection, doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Booking, Class, PhotoLocation, User, AppPermissions, HistoryEntry, TimeSlot, ScheduleBlock, AppSettings, RoleConfig } from '@/lib/types';
 import { 
@@ -49,6 +48,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { RescheduleDialog } from '@/components/appointments/reschedule-dialog';
 import { BookingDetailsDialog } from '@/components/appointments/booking-details-dialog';
+import { DeleteConfirmationDialog } from '@/components/appointments/delete-confirmation-dialog';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -488,34 +488,17 @@ export default function AppointmentsPage() {
         profile={profile}
       />
 
-      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
-        <AlertDialogContent className="rounded-3xl p-8 border-none shadow-2xl z-[160]" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <AlertDialogHeader>
-            <div className="w-16 h-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-4 mx-auto">
-              <Trash2 className="w-8 h-8" />
-            </div>
-            <AlertDialogTitle className="text-2xl font-bold text-center">Excluir Registro?</AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-base">
-              Deseja realmente remover este agendamento do sistema?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="mt-8 flex gap-3 sm:justify-center">
-            <AlertDialogCancel className="rounded-2xl h-12 px-8 border-slate-200 font-bold">Voltar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => {
-                if (deletingId && db) {
-                  deleteDocumentNonBlocking(doc(db, 'appointments', deletingId));
-                  setDeletingId(null);
-                  toast({ title: "Agendamento removido." });
-                }
-              }}
-              className="bg-destructive text-white hover:bg-destructive/90 rounded-2xl h-12 px-8 font-bold shadow-lg shadow-destructive/20"
-            >
-              Sim, Excluir Registro
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmationDialog 
+        isOpen={Boolean(deletingId)}
+        onClose={() => setDeletingId(null)}
+        onConfirm={() => {
+          if (deletingId && db) {
+            deleteDocumentNonBlocking(doc(db, 'appointments', deletingId));
+            setDeletingId(null);
+            toast({ title: "Agendamento removido." });
+          }
+        }}
+      />
     </div>
   );
 }

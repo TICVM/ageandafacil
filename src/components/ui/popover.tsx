@@ -13,7 +13,6 @@ const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, ...props }, ref) => {
-  // Desestrutura para evitar erro de console
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
 
   return (

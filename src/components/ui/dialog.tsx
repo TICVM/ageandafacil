@@ -33,7 +33,6 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // Desestrutura propriedades para evitar que cheguem ao DOM (causando erro de console)
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
 
   return (
