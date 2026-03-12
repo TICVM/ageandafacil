@@ -71,8 +71,9 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
+  // Destructure internal Radix props to prevent them from leaking to the DOM
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
-  
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -138,7 +139,7 @@ const SelectItem = React.forwardRef<
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ))
-SelectItem.displayName = SelectPrimitive.Item.displayName
+SelectItem.displayName = SelectItem.displayName
 
 const SelectSeparator = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Separator>,
