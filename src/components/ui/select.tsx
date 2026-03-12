@@ -71,7 +71,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure Radix-internal props to prevent them from reaching the DOM
+  // Destructure internal Radix props to prevent them from reaching the DOM
   const { 
     onInteractOutside, 
     onPointerDownOutside, 

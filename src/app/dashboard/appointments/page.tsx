@@ -159,6 +159,16 @@ export default function AppointmentsPage() {
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
+  // Sincroniza o agendamento selecionado com os dados live do Firestore
+  useEffect(() => {
+    if (selectedBooking && list) {
+      const updated = list.find(b => b.id === selectedBooking.id);
+      if (updated && (updated.status !== selectedBooking.status || updated.appointmentDate !== selectedBooking.appointmentDate || updated.startTime !== selectedBooking.startTime)) {
+        setSelectedBooking(updated);
+      }
+    }
+  }, [list, selectedBooking]);
+
   const classMap = useMemo(() => {
     const map: Record<string, Class> = {};
     classes?.forEach(c => { map[c.id] = c; });
