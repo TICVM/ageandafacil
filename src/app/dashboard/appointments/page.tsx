@@ -159,7 +159,6 @@ export default function AppointmentsPage() {
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
-  // Sincroniza o agendamento selecionado com as mudanças em tempo real na lista
   useEffect(() => {
     if (selectedBooking && list) {
       const updated = list.find(b => b.id === selectedBooking.id);
