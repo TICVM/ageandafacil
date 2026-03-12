@@ -159,7 +159,6 @@ export default function AppointmentsPage() {
   const { data: allBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
 
-  // Sync selected booking details in real-time
   useEffect(() => {
     if (selectedBooking && list) {
       const updated = list.find(b => b.id === selectedBooking.id);
@@ -359,7 +358,6 @@ export default function AppointmentsPage() {
                             {userPerms?.canEditAppointments && (
                               <DropdownMenuItem 
                                 onSelect={(e) => { 
-                                  // Prevents dropdown closing from breaking focus management
                                   e.preventDefault(); 
                                   setRescheduleBooking(b); 
                                 }} 

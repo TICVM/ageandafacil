@@ -71,7 +71,6 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure custom handlers to prevent them from reaching the DOM as Radix Select doesn't support them
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
   
   return (
@@ -85,6 +84,8 @@ const SelectContent = React.forwardRef<
           className
         )}
         position={position}
+        onInteractOutside={onInteractOutside}
+        onPointerDownOutside={onPointerDownOutside}
         {...cleanProps}
       >
         <SelectScrollUpButton />
