@@ -28,7 +28,9 @@ const PopoverContent = React.forwardRef<
         onInteractOutside={onInteractOutside}
         onPointerDownOutside={onPointerDownOutside}
         {...cleanProps}
-      />
+      >
+        {props.children}
+      </PopoverPrimitive.Content>
     </PopoverPrimitive.Portal>
   );
 })
