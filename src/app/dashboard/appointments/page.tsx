@@ -468,8 +468,8 @@ export default function AppointmentsPage() {
         onReschedule={(b) => setRescheduleBooking(b)}
         onStatusUpdate={handleUpdateStatus}
         onDelete={(id) => {
-          setDeletingId(id);
           setSelectedBooking(null);
+          setTimeout(() => setDeletingId(id), 100);
         }}
         userPerms={userPerms}
         isMaster={isMaster}

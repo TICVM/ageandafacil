@@ -70,6 +70,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
 
   return (
