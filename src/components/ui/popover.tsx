@@ -13,7 +13,7 @@ const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, ...props }, ref) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Filter out Radix-internal properties that cause React 19 warnings
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
 
   return (

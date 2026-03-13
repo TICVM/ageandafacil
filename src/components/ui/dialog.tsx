@@ -33,7 +33,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Filter out Radix-internal properties that cause React 19 warnings
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
 
   return (

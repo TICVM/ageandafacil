@@ -469,7 +469,8 @@ export default function AppointmentsPage() {
         onStatusUpdate={handleUpdateStatus}
         onDelete={(id) => {
           setSelectedBooking(null);
-          setTimeout(() => setDeletingId(id), 100);
+          // Wait for details to close before opening confirmation to avoid Radix UI focus/lock issues
+          setTimeout(() => setDeletingId(id), 150);
         }}
         userPerms={userPerms}
         isMaster={isMaster}
