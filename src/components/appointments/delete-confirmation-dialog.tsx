@@ -37,30 +37,35 @@ export function DeleteConfirmationDialog({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="rounded-3xl p-10 border-none shadow-2xl max-w-sm mx-auto z-[200]">
+      <DialogContent className="z-[200] mx-auto max-w-sm rounded-3xl border-none p-10 shadow-2xl">
         <DialogHeader className="flex flex-col items-center text-center">
-          <div className="w-20 h-20 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-6">
-            <Trash2 className="w-10 h-10" />
+          <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <Trash2 className="h-10 w-10" />
           </div>
+
           <DialogTitle className="text-2xl font-bold text-slate-800">
             {title}
           </DialogTitle>
-          <DialogDescription className="text-base text-slate-500 mt-2 leading-relaxed">
+
+          <DialogDescription className="mt-2 text-base leading-relaxed text-slate-500">
             {description}
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="mt-10 flex flex-row gap-4 sm:justify-center">
+        <DialogFooter className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
           <Button
+            type="button"
             variant="outline"
             onClick={onClose}
-            className="flex-1 rounded-2xl h-14 border-slate-100 bg-slate-50 text-slate-600 font-bold hover:bg-slate-100 transition-colors"
+            className="h-14 flex-1 rounded-2xl border-slate-100 bg-slate-50 font-bold text-slate-600 transition-colors hover:bg-slate-100"
           >
             {cancelText}
           </Button>
+
           <Button
+            type="button"
             onClick={onConfirm}
-            className="flex-1 bg-destructive text-white hover:bg-destructive/90 rounded-2xl h-14 font-bold shadow-lg shadow-destructive/20 transition-all active:scale-95"
+            className="h-14 flex-1 rounded-2xl bg-destructive font-bold text-white shadow-lg shadow-destructive/20 transition-all hover:bg-destructive/90 active:scale-95"
           >
             {confirmText}
           </Button>
