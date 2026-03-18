@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, Trash, Search } from 'lucide-react';
+import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, Search } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, serverTimestamp, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -59,8 +59,8 @@ export default function SlotAdminPage() {
 
   // Novo Horário
   const [selectedDays, setSelectedDays] = useState<string[]>(['1', '2', '3', '4', '5']);
-  const [bulkTimes, setBulkTimes] = useState('08:00, 09:00, 10:00');
-  const [duration, setDuration] = useState('60');
+  const [bulkTimes, setBulkTimes] = useState('08:00, 09:00-30, 10:00');
+  const [defaultDuration, setDefaultDuration] = useState('60');
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [targetId, setTargetId] = useState('');
   
@@ -139,9 +139,25 @@ export default function SlotAdminPage() {
       return;
     }
     
-    const times = bulkTimes.split(',').map(t => t.trim()).filter(t => /^([01]\d|2[0-3]):([0-5]\d)$/.test(t));
-    if (times.length === 0) {
-      toast({ title: "Horários inválidos. Use HH:mm", variant: "destructive" });
+    // Parse format: "08:00, 09:00-30, 10:00-45"
+    const timeEntries = bulkTimes.split(',').map(t => t.trim()).filter(Boolean);
+    const parsedEntries: { startTime: string; duration: number }[] = [];
+
+    for (const entry of timeEntries) {
+      if (entry.includes('-')) {
+        const [time, dur] = entry.split('-');
+        if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
+          parsedEntries.push({ startTime: time, duration: parseInt(dur) || parseInt(defaultDuration) });
+        }
+      } else {
+        if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(entry)) {
+          parsedEntries.push({ startTime: entry, duration: parseInt(defaultDuration) });
+        }
+      }
+    }
+
+    if (parsedEntries.length === 0) {
+      toast({ title: "Nenhum horário válido. Use HH:mm ou HH:mm-duração", variant: "destructive" });
       return;
     }
 
@@ -151,12 +167,12 @@ export default function SlotAdminPage() {
       const slotsCol = collection(db, 'available_time_slots');
       
       selectedDays.forEach(day => {
-        times.forEach(time => {
+        parsedEntries.forEach(entry => {
           const newSlotRef = doc(slotsCol);
           batch.set(newSlotRef, {
             dayOfWeek: day,
-            startTime: time,
-            durationMinutes: parseInt(duration),
+            startTime: entry.startTime,
+            durationMinutes: entry.duration,
             schoolSegmentId: targetType === 'segment' ? targetId : null,
             schoolClassId: targetType === 'class' ? targetId : null,
             isActive: true
@@ -165,7 +181,7 @@ export default function SlotAdminPage() {
       });
 
       await batch.commit();
-      toast({ title: `${times.length * selectedDays.length} horários criados!` });
+      toast({ title: `${parsedEntries.length * selectedDays.length} horários criados!` });
       setBulkTimes('');
     } catch (error) {
       toast({ title: "Erro ao salvar", variant: "destructive" });
@@ -182,7 +198,6 @@ export default function SlotAdminPage() {
 
     setIsCopying(true);
     try {
-      // Busca horários da origem
       const slotsCol = collection(db, 'available_time_slots');
       let q;
       if (copySourceType === 'global') {
@@ -350,21 +365,23 @@ export default function SlotAdminPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="bulk-times-input" className="text-xs font-bold">Horários (separados por vírgula)</Label>
+                    <Label htmlFor="bulk-times-input" className="text-xs font-bold">Horários (HH:mm ou HH:mm-duração)</Label>
                     <Input 
                       id="bulk-times-input" 
-                      placeholder="Ex: 08:00, 09:00, 10:30" 
+                      placeholder="Ex: 08:00, 09:00-30, 10:30-45" 
                       value={bulkTimes} 
                       onChange={(e) => setBulkTimes(e.target.value)} 
                       className="rounded-xl h-10" 
                     />
-                    <p className="text-[10px] text-muted-foreground">Será criado um registro para cada horário nos dias marcados.</p>
+                    <p className="text-[9px] text-muted-foreground leading-tight italic">
+                      Dica: Use vírgula para separar. Se não informar a duração (ex: 08:00), será usada a duração padrão abaixo.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="slot-duration-input" className="text-xs font-bold">Duração (min)</Label>
-                      <Input id="slot-duration-input" name="duration" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="rounded-xl h-10" />
+                      <Label htmlFor="slot-duration-input" className="text-xs font-bold">Duração Padrão (min)</Label>
+                      <Input id="slot-duration-input" name="duration" type="number" value={defaultDuration} onChange={(e) => setDefaultDuration(e.target.value)} className="rounded-xl h-10" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold">Vínculo</Label>
@@ -416,10 +433,10 @@ export default function SlotAdminPage() {
                     <Badge variant={isBulkMode ? "default" : "outline"} className="cursor-pointer rounded-lg text-[10px]" onClick={() => { setIsBulkMode(p => !p); if (!isBulkMode) setBlockDate(undefined); else setBlockMultipleDates([]); }}>{isBulkMode ? "Múltiplas Datas Ativado" : "Clique para selecionar várias"}</Badge>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="block-date-popover-trigger" className="text-xs font-bold">Data(s) do Evento</Label>
+                    <Label className="text-xs font-bold">Data(s) do Evento</Label>
                     <Popover modal={false}>
                       <PopoverTrigger asChild>
-                        <Button id="block-date-popover-trigger" name="blockDate" variant="outline" className={cn("w-full h-10 justify-start rounded-xl", ((!isBulkMode && !blockDate) || (isBulkMode && blockMultipleDates.length === 0)) && "text-muted-foreground")}>
+                        <Button variant="outline" className={cn("w-full h-10 justify-start rounded-xl", ((!isBulkMode && !blockDate) || (isBulkMode && blockMultipleDates.length === 0)) && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {isBulkMode ? (blockMultipleDates.length > 0 ? `${blockMultipleDates.length} datas` : "Escolha as datas") : (blockDate ? format(blockDate, "dd/MM/yyyy") : "Escolha a data")}
                         </Button>
@@ -690,4 +707,3 @@ export default function SlotAdminPage() {
     </div>
   );
 }
-

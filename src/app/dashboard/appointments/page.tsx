@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/tabs';
 import {
   CalendarDays,
   MapPin,
@@ -724,7 +724,6 @@ export default function AppointmentsPage() {
         onStatusUpdate={handleUpdateStatus}
         onDelete={(id) => {
           setSelectedBooking(null);
-          // Pequeno delay para garantir que o Dialog anterior feche e libere o scroll/overlay do Radix
           setTimeout(() => setDeletingId(id), 150);
         }}
         userPerms={userPerms}
@@ -758,4 +757,3 @@ export default function AppointmentsPage() {
     </div>
   );
 }
-
