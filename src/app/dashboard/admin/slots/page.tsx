@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert } from 'lucide-react';
+import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, Trash, Search } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings } from '@/lib/types';
@@ -53,12 +53,18 @@ export default function SlotAdminPage() {
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
+  // Filtros de Visualização
+  const [filterType, setFilterType] = useState<'all' | 'segment' | 'class'>('all');
+  const [filterId, setFilterId] = useState('');
+
+  // Novo Horário
   const [selectedDays, setSelectedDays] = useState<string[]>(['1', '2', '3', '4', '5']);
-  const [startTime, setStartTime] = useState('08:00');
+  const [bulkTimes, setBulkTimes] = useState('08:00, 09:00, 10:00');
   const [duration, setDuration] = useState('60');
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [targetId, setTargetId] = useState('');
   
+  // Bloqueios
   const [blockDate, setBlockDate] = useState<Date>();
   const [blockMultipleDates, setBlockMultipleDates] = useState<Date[]>([]);
   const [blockStart, setBlockStart] = useState('07:00');
@@ -68,7 +74,15 @@ export default function SlotAdminPage() {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkDatesText, setBulkDatesText] = useState('');
 
+  // Duplicação (Exportar)
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [copySourceType, setCopySourceType] = useState<'global' | 'segment' | 'class'>('global');
+  const [copySourceId, setCopySourceId] = useState('');
+  const [copyDestType, setCopyDestType] = useState<'segment' | 'class'>('segment');
+  const [copyDestId, setCopyDestId] = useState('');
+
   const [isSaving, setIsSaving] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
 
   const [bookingDays, setBookingDays] = useState(1);
@@ -84,6 +98,16 @@ export default function SlotAdminPage() {
       setRescheduleHours(appSettings.minAdvanceRescheduleHours ?? 0);
     }
   }, [appSettings]);
+
+  const filteredSlots = useMemo(() => {
+    if (!slots) return [];
+    return slots.filter(s => {
+      if (filterType === 'all') return true;
+      if (filterType === 'segment') return s.schoolSegmentId === filterId;
+      if (filterType === 'class') return s.schoolClassId === filterId;
+      return true;
+    });
+  }, [slots, filterType, filterId]);
 
   const handleSaveRules = async () => {
     if (!db || !settingsRef) return;
@@ -110,31 +134,90 @@ export default function SlotAdminPage() {
   };
 
   const handleBatchAdd = async () => {
-    if (!db || selectedDays.length === 0) {
-      toast({ title: "Selecione ao menos um dia", variant: "destructive" });
+    if (!db || selectedDays.length === 0 || !bulkTimes.trim()) {
+      toast({ title: "Preencha os dias e horários", variant: "destructive" });
       return;
     }
+    
+    const times = bulkTimes.split(',').map(t => t.trim()).filter(t => /^([01]\d|2[0-3]):([0-5]\d)$/.test(t));
+    if (times.length === 0) {
+      toast({ title: "Horários inválidos. Use HH:mm", variant: "destructive" });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const batch = writeBatch(db);
       const slotsCol = collection(db, 'available_time_slots');
+      
       selectedDays.forEach(day => {
-        const newSlotRef = doc(slotsCol);
-        batch.set(newSlotRef, {
-          dayOfWeek: day,
-          startTime: startTime,
-          durationMinutes: parseInt(duration),
-          schoolSegmentId: targetType === 'segment' ? targetId : null,
-          schoolClassId: targetType === 'class' ? targetId : null,
-          isActive: true
+        times.forEach(time => {
+          const newSlotRef = doc(slotsCol);
+          batch.set(newSlotRef, {
+            dayOfWeek: day,
+            startTime: time,
+            durationMinutes: parseInt(duration),
+            schoolSegmentId: targetType === 'segment' ? targetId : null,
+            schoolClassId: targetType === 'class' ? targetId : null,
+            isActive: true
+          });
         });
       });
+
       await batch.commit();
-      toast({ title: "Horários Criados" });
+      toast({ title: `${times.length * selectedDays.length} horários criados!` });
+      setBulkTimes('');
     } catch (error) {
       toast({ title: "Erro ao salvar", variant: "destructive" });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDuplicateGrade = async () => {
+    if (!db || !copyDestId) {
+      toast({ title: "Selecione o destino", variant: "destructive" });
+      return;
+    }
+
+    setIsCopying(true);
+    try {
+      // Busca horários da origem
+      const slotsCol = collection(db, 'available_time_slots');
+      let q;
+      if (copySourceType === 'global') {
+        q = query(slotsCol, where('schoolSegmentId', '==', null), where('schoolClassId', '==', null));
+      } else if (copySourceType === 'segment') {
+        q = query(slotsCol, where('schoolSegmentId', '==', copySourceId));
+      } else {
+        q = query(slotsCol, where('schoolClassId', '==', copySourceId));
+      }
+
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        toast({ title: "Origem não possui horários." });
+        setIsCopying(false);
+        return;
+      }
+
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => {
+        const data = d.data();
+        const newRef = doc(slotsCol);
+        batch.set(newRef, {
+          ...data,
+          schoolSegmentId: copyDestType === 'segment' ? copyDestId : null,
+          schoolClassId: copyDestType === 'class' ? copyDestId : null,
+        });
+      });
+
+      await batch.commit();
+      toast({ title: `Sucesso! ${snap.size} horários duplicados.` });
+      setIsCopyDialogOpen(false);
+    } catch (e) {
+      toast({ title: "Erro ao duplicar", variant: "destructive" });
+    } finally {
+      setIsCopying(false);
     }
   };
 
@@ -229,11 +312,15 @@ export default function SlotAdminPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Grade e Bloqueios</h1>
           <p className="text-muted-foreground">Gerencie a estrutura de horários e as regras de antecedência.</p>
         </div>
+        <Button onClick={() => setIsCopyDialogOpen(true)} variant="outline" className="rounded-xl gap-2 h-11 bg-white border-primary text-primary hover:bg-primary/5">
+          <Copy className="w-4 h-4" />
+          Duplicar Grade
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -246,7 +333,7 @@ export default function SlotAdminPage() {
             
             <TabsContent value="create">
               <Card className="shadow-md border-none">
-                <CardHeader><CardTitle className="text-lg">Gerar Grade</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-lg">Gerar Grade em Lote</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-4 gap-1">
                     {DAYS_OF_WEEK.map((day) => (
@@ -261,37 +348,56 @@ export default function SlotAdminPage() {
                       </div>
                     ))}
                   </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="bulk-times-input" className="text-xs font-bold">Horários (separados por vírgula)</Label>
+                    <Input 
+                      id="bulk-times-input" 
+                      placeholder="Ex: 08:00, 09:00, 10:30" 
+                      value={bulkTimes} 
+                      onChange={(e) => setBulkTimes(e.target.value)} 
+                      className="rounded-xl h-10" 
+                    />
+                    <p className="text-[10px] text-muted-foreground">Será criado um registro para cada horário nos dias marcados.</p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="slot-start-input" className="text-xs font-bold">Início</Label>
-                      <Input id="slot-start-input" name="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl h-10" />
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="slot-duration-input" className="text-xs font-bold">Duração (min)</Label>
                       <Input id="slot-duration-input" name="duration" type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="rounded-xl h-10" />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold">Alvo</Label>
-                    <div className="flex gap-1 mb-2">
-                      <Button variant={targetType === 'global' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('global'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Global</Button>
-                      <Button variant={targetType === 'segment' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('segment'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Segmento</Button>
-                      <Button variant={targetType === 'class' ? 'default' : 'outline'} size="sm" onClick={() => { setTargetType('class'); setTargetId(''); }} className="text-[10px] h-8 flex-1">Turma</Button>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold">Vínculo</Label>
+                      <Select value={targetType} onValueChange={(v: any) => { setTargetType(v); setTargetId(''); }}>
+                        <SelectTrigger className="rounded-xl h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="global">Global</SelectItem>
+                          <SelectItem value="segment">Segmento</SelectItem>
+                          <SelectItem value="class">Turma</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    {targetType !== 'global' && (
+                  </div>
+
+                  {targetType !== 'global' && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2">
+                      <Label className="text-xs font-bold">{targetType === 'segment' ? "Escolha o Segmento" : "Escolha a Turma"}</Label>
                       <Select onValueChange={setTargetId} value={targetId}>
-                        <SelectTrigger id="slot-target-select" name="target" className="rounded-xl h-10">
-                          <SelectValue placeholder={targetType === 'segment' ? "Escolha o Segmento" : "Escolha a Turma"} />
+                        <SelectTrigger className="rounded-xl h-10">
+                          <SelectValue placeholder="Selecionar..." />
                         </SelectTrigger>
                         <SelectContent>
                           {targetType === 'segment' ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                    )}
-                  </div>
-                  <Button onClick={handleBatchAdd} className="w-full rounded-xl gap-2 shadow-lg" disabled={isSaving}>
+                    </div>
+                  )}
+
+                  <Button onClick={handleBatchAdd} className="w-full rounded-xl gap-2 shadow-lg h-12" disabled={isSaving}>
                     {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    Adicionar à Grade
+                    Cadastrar Horários
                   </Button>
                 </CardContent>
               </Card>
@@ -387,8 +493,42 @@ export default function SlotAdminPage() {
 
         <Card className="lg:col-span-2 shadow-md border-none overflow-hidden bg-white">
           <CardHeader className="bg-muted/10">
-            <CardTitle className="text-xl">Gestão da Agenda</CardTitle>
-            <CardDescription>Visualize a grade padrão e as datas bloqueadas.</CardDescription>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <CardTitle className="text-xl">Gestão da Agenda</CardTitle>
+                <CardDescription>Visualize e filtre a grade padrão do sistema.</CardDescription>
+              </div>
+              
+              <div className="flex items-center gap-2 bg-white p-2 rounded-xl border shadow-sm w-full md:w-auto">
+                <Filter className="w-4 h-4 text-muted-foreground ml-2" />
+                <Select value={filterType} onValueChange={(v: any) => { setFilterType(v); setFilterId(''); }}>
+                  <SelectTrigger className="w-[120px] h-9 border-none bg-transparent shadow-none focus:ring-0">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="segment">Por Segmento</SelectItem>
+                    <SelectItem value="class">Por Turma</SelectItem>
+                  </SelectContent>
+                </Select>
+                {filterType !== 'all' && (
+                  <>
+                    <div className="w-px h-6 bg-slate-200" />
+                    <Select value={filterId} onValueChange={setFilterId}>
+                      <SelectTrigger className="w-[180px] h-9 border-none bg-transparent shadow-none focus:ring-0">
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filterType === 'segment' 
+                          ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) 
+                          : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                        }
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-6">
             <Tabs defaultValue="slots" className="w-full">
@@ -404,7 +544,7 @@ export default function SlotAdminPage() {
                       {DAYS_OF_WEEK.map(d => <TabsTrigger key={d.id} value={d.id} className="rounded-lg flex-1 text-xs py-2">{d.short}</TabsTrigger>)}
                     </TabsList>
                     {DAYS_OF_WEEK.map(d => {
-                      const daySlots = slots?.filter(s => s.dayOfWeek === d.id) || [];
+                      const daySlots = filteredSlots?.filter(s => s.dayOfWeek === d.id) || [];
                       return (
                         <TabsContent key={d.id} value={d.id}>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -416,7 +556,7 @@ export default function SlotAdminPage() {
                                 </div>
                                 <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive opacity-0 group-hover:opacity-100" onClick={() => handleRemoveSlot(s.id)} aria-label="Remover horário"><Trash2 className="w-4 h-4" /></Button>
                               </div>
-                            )) : <div className="p-10 text-center text-muted-foreground border-2 border-dashed rounded-2xl col-span-2">Nenhum horário padrão para este dia.</div>}
+                            )) : <div className="p-10 text-center text-muted-foreground border-2 border-dashed rounded-2xl col-span-2">Nenhum horário padrão encontrado para este filtro.</div>}
                           </div>
                         </TabsContent>
                       );
@@ -465,6 +605,72 @@ export default function SlotAdminPage() {
         </Card>
       </div>
 
+      <Dialog open={isCopyDialogOpen} onOpenChange={setIsCopyDialogOpen}>
+        <DialogContent className="rounded-3xl max-w-xl p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="bg-primary p-8 text-white">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <Copy className="w-6 h-6" /> Duplicar Grade de Horários
+            </DialogTitle>
+            <DialogDescription className="text-white/70">
+              Copie toda a estrutura de horários de uma origem para um novo destino.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-8 space-y-8">
+            <div className="space-y-4">
+              <Label className="text-xs font-bold uppercase tracking-widest text-primary">Origem (De onde copiar)</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <Select value={copySourceType} onValueChange={(v: any) => { setCopySourceType(v); setCopySourceId(''); }}>
+                  <SelectTrigger className="rounded-xl h-12"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Grade Global</SelectItem>
+                    <SelectItem value="segment">Por Segmento</SelectItem>
+                    <SelectItem value="class">Por Turma</SelectItem>
+                  </SelectContent>
+                </Select>
+                {copySourceType !== 'global' && (
+                  <Select value={copySourceId} onValueChange={setCopySourceId}>
+                    <SelectTrigger className="rounded-xl h-12"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                    <SelectContent>
+                      {copySourceType === 'segment' ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label className="text-xs font-bold uppercase tracking-widest text-primary">Destino (Para onde copiar)</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <Select value={copyDestType} onValueChange={(v: any) => { setCopyDestType(v); setCopyDestId(''); }}>
+                  <SelectTrigger className="rounded-xl h-12"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="segment">Segmento</SelectItem>
+                    <SelectItem value="class">Turma</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={copyDestId} onValueChange={setCopyDestId}>
+                  <SelectTrigger className="rounded-xl h-12"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                  <SelectContent>
+                    {copyDestType === 'segment' ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="bg-muted/30 p-4 rounded-2xl border border-dashed flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
+              <p className="text-xs text-muted-foreground leading-relaxed">Isso criará cópias idênticas dos horários de origem para o destino selecionado. Verifique se o destino já possui horários para evitar duplicidade.</p>
+            </div>
+          </div>
+          <DialogFooter className="p-8 bg-slate-50 border-t gap-3">
+            <Button variant="outline" onClick={() => setIsCopyDialogOpen(false)} className="rounded-xl h-12 px-8">Cancelar</Button>
+            <Button onClick={handleDuplicateGrade} disabled={isCopying || !copyDestId || (copySourceType !== 'global' && !copySourceId)} className="rounded-xl h-12 px-10 font-bold shadow-lg">
+              {isCopying ? <Loader2 className="animate-spin w-5 h-5" /> : "Confirmar Duplicação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader>
@@ -484,3 +690,4 @@ export default function SlotAdminPage() {
     </div>
   );
 }
+
