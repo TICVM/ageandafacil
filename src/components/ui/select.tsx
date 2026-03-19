@@ -69,9 +69,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  // Destructure internal Radix props to prevent "Unknown event handler" warnings in React 19
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
-
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -93,6 +91,7 @@ const SelectContent = React.forwardRef<
         {...cleanProps}
       >
         <SelectScrollUpButton />
+
         <SelectPrimitive.Viewport
           className={cn(
             "p-1",
@@ -102,6 +101,7 @@ const SelectContent = React.forwardRef<
         >
           {children}
         </SelectPrimitive.Viewport>
+
         <SelectScrollDownButton />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>

@@ -53,7 +53,7 @@ export default function SlotAdminPage() {
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
 
   // Filtros de Visualização
-  const [filterType, setFilterType] = useState<'all' | 'segment' | 'class'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'global' | 'segment' | 'class'>('all');
   const [filterId, setFilterId] = useState('');
 
   // Novo Horário
@@ -108,6 +108,7 @@ export default function SlotAdminPage() {
     if (!slots) return [];
     return slots.filter(s => {
       if (filterType === 'all') return true;
+      if (filterType === 'global') return !s.schoolSegmentId && !s.schoolClassId;
       if (filterType === 'segment') return s.schoolSegmentId === filterId;
       if (filterType === 'class') return s.schoolClassId === filterId;
       return true;
@@ -439,7 +440,7 @@ export default function SlotAdminPage() {
                           <SelectValue placeholder="Selecionar..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {targetType === 'segment' ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                          {targetType === 'segment' ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) }
                         </SelectContent>
                       </Select>
                     </div>
@@ -557,11 +558,12 @@ export default function SlotAdminPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="global">Grade Global</SelectItem>
                     <SelectItem value="segment">Por Segmento</SelectItem>
                     <SelectItem value="class">Por Turma</SelectItem>
                   </SelectContent>
                 </Select>
-                {filterType !== 'all' && (
+                {(filterType === 'segment' || filterType === 'class') && (
                   <>
                     <div className="w-px h-6 bg-slate-200" />
                     <Select value={filterId} onValueChange={setFilterId}>
