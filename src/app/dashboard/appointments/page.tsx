@@ -730,6 +730,7 @@ export default function AppointmentsPage() {
         onStatusUpdate={handleUpdateStatus}
         onDelete={(id) => {
           setSelectedBooking(null);
+          // Pequeno intervalo para garantir que o backdrop do modal anterior limpe
           setTimeout(() => setDeletingId(id), 150);
         }}
         userPerms={userPerms}

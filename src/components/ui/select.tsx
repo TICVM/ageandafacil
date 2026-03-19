@@ -69,7 +69,9 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
-  const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
+  // Destructure internal Radix props to prevent "Unknown event handler" warnings in React 19
+  const { onInteractOutside, onPointerDownOutside, onEscapeKeyDown, ...cleanProps } = props as any;
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -77,6 +79,7 @@ const SelectContent = React.forwardRef<
         position={position}
         onInteractOutside={onInteractOutside}
         onPointerDownOutside={onPointerDownOutside}
+        onEscapeKeyDown={onEscapeKeyDown}
         className={cn(
           "relative z-[300] max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
@@ -105,7 +108,7 @@ const SelectContent = React.forwardRef<
         <SelectScrollDownButton />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
-  );
+  )
 })
 SelectContent.displayName = SelectPrimitive.Content.displayName
 
