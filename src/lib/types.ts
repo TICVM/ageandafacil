@@ -84,6 +84,7 @@ export interface Booking {
   appointmentDate: string;
   startTime: string;
   endTime: string;
+  subject?: string;
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'RESCHEDULED' | 'RE_SCHEDULE_REQUEST' | 'COMPLETED';
   observations: string;
   history?: HistoryEntry[];
@@ -95,6 +96,7 @@ export interface TimeSlot {
   dayOfWeek: string;
   startTime: string;
   durationMinutes: number;
+  subject?: string;
   schoolSegmentId?: string | null;
   schoolClassId?: string | null;
   isActive: boolean;

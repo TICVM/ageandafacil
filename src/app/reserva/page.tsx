@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { format, startOfDay, addDays, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, MapPin, Loader2, CheckCircle2, Camera, Hash, ShieldAlert, ArrowLeft, Mail, Sparkles } from 'lucide-react';
+import { CalendarIcon, MapPin, Loader2, CheckCircle2, Camera, Hash, ShieldAlert, ArrowLeft, Mail, Sparkles, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, serverTimestamp, addDoc, doc, getDoc, query, where, getDocs, limit } from 'firebase/firestore';
@@ -172,6 +173,11 @@ export default function PublicBookingPage() {
     [rawLocations, selectedLocationId]
   );
 
+  const selectedSlot = useMemo(() => 
+    slots?.find(s => s.id === selectedSlotId),
+    [slots, selectedSlotId]
+  );
+
   const avSlots = useMemo(() => {
     if (!slots || !date || !selectedClassId) return [];
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -229,6 +235,7 @@ export default function PublicBookingPage() {
       photoLocationId: selectedLocationId, locationIdentifier: locationIdentifier || null,
       appointmentDate: format(date, 'yyyy-MM-dd'), startTime: slot.startTime,
       endTime: `${Math.floor(endT/60).toString().padStart(2,'0')}:${(endT%60).toString().padStart(2,'0')}`,
+      subject: slot.subject || null,
       status: 'PENDING', observations: notes,
       history: [{ timestamp: new Date().toISOString(), userId: profile.id, userName: teacherName, action: 'CRIACAO', details: 'Reserva realizada.' }],
       createdAt: serverTimestamp(),
@@ -349,9 +356,19 @@ export default function PublicBookingPage() {
                         <SelectValue placeholder="Escolha o horário" />
                       </SelectTrigger>
                       <SelectContent>
-                        {avSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.startTime}</SelectItem>)}
+                        {avSlots.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.startTime} {s.subject ? `(${s.subject})` : ''}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    {selectedSlot?.subject && (
+                      <p className="text-xs text-primary font-bold flex items-center gap-1.5 mt-1 animate-in slide-in-from-left-2">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Disciplina: {selectedSlot.subject}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-3">

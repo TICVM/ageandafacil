@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -25,7 +26,8 @@ import {
   CheckCircle,
   Edit3,
   Trash2,
-  MoreHorizontal
+  MoreHorizontal,
+  BookOpen
 } from 'lucide-react';
 
 import { format, parseISO } from 'date-fns';
@@ -149,57 +151,58 @@ export function BookingDetailsDialog({
 
           <div className="p-8 space-y-6 md:border-r">
 
-            <div>
-              <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
-                Status Atual
-              </p>
-
-              <div className="flex items-center gap-2">
-
-                <Badge className={cn("rounded-lg h-8 px-3 border-none", statusCfg.color)}>
-                  <StatusIcon className="w-3.5 h-3.5 mr-1.5" />
-                  {statusCfg.label}
-                </Badge>
-
-                {(userPerms?.canChangeStatus || isMaster) && (
-
-                  <DropdownMenu modal={false}>
-
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary">
-                        <MoreHorizontal className="w-4 h-4" />
-                        Alterar
-                      </Button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent
-                      align="start"
-                      className="rounded-xl p-2 shadow-xl border-none min-w-[200px]"
-                    >
-                      {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-
-                        if (!hasPerm(cfg.permKey)) return null;
-
-                        const Icon = cfg.icon;
-
-                        return (
-                          <DropdownMenuItem
-                            key={key}
-                            onSelect={() => onStatusUpdate(booking, key as StatusKey)}
-                            className="gap-2 rounded-lg py-2 cursor-pointer"
-                          >
-                            <Icon className="w-4 h-4" />
-                            {cfg.label}
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </DropdownMenuContent>
-
-                  </DropdownMenu>
-
-                )}
-
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                  Status Atual
+                </p>
+                <div className="flex items-center gap-2">
+                  <Badge className={cn("rounded-lg h-8 px-3 border-none", statusCfg.color)}>
+                    <StatusIcon className="w-3.5 h-3.5 mr-1.5" />
+                    {statusCfg.label}
+                  </Badge>
+                  {(userPerms?.canChangeStatus || isMaster) && (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary">
+                          <MoreHorizontal className="w-4 h-4" />
+                          Alterar
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="rounded-xl p-2 shadow-xl border-none min-w-[200px]"
+                      >
+                        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                          if (!hasPerm(cfg.permKey)) return null;
+                          const Icon = cfg.icon;
+                          return (
+                            <DropdownMenuItem
+                              key={key}
+                              onSelect={() => onStatusUpdate(booking, key as StatusKey)}
+                              className="gap-2 rounded-lg py-2 cursor-pointer"
+                            >
+                              <Icon className="w-4 h-4" />
+                              {cfg.label}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </div>
+              {booking.subject && (
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                    Disciplina
+                  </p>
+                  <Badge variant="outline" className="gap-1.5 h-8 border-primary text-primary font-bold">
+                    <BookOpen className="w-3 h-3" />
+                    {booking.subject}
+                  </Badge>
+                </div>
+              )}
             </div>
 
             <div>
