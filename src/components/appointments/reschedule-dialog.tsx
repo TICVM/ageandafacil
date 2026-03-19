@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CalendarDays, Calendar as CalendarIcon, Edit3, Loader2 } from 'lucide-react';
+import { CalendarDays, Calendar as CalendarIcon, Edit3, Loader2, BookOpen } from 'lucide-react';
 import {
   format,
   parseISO,
@@ -124,6 +124,11 @@ export function RescheduleDialog({
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [slots, newDate, booking, classMap, allAppointments, allBlocks, appSettings]);
 
+  const selectedSlot = useMemo(() => 
+    slots?.find(s => s.id === newSlotId),
+    [slots, newSlotId]
+  );
+
   const handleRescheduleAction = () => {
     if (!newDate || !newSlotId || !db || !profile || !booking) return;
 
@@ -156,6 +161,7 @@ export function RescheduleDialog({
       appointmentDate: formattedDate,
       startTime: slot.startTime,
       endTime: endTimeStr,
+      subject: slot.subject || null,
       status: 'RESCHEDULED',
       history: [...(booking.history || []), newHistoryEntry],
     });
@@ -165,7 +171,7 @@ export function RescheduleDialog({
       onClose();
       toast({
         title: 'Sessão Reagendada!',
-        description: 'O novo horário foi salvo com sucesso.',
+        description: 'O novo horário e disciplina foram atualizados.',
       });
     }, 500);
   };
@@ -196,11 +202,19 @@ export function RescheduleDialog({
                 <p className="font-bold text-slate-800">
                   {booking.teacherName} - {classMap[booking.schoolClassId]?.name}
                 </p>
-                <p className="text-sm text-slate-600 flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-primary" />
-                  {format(parseISO(`${booking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} às{' '}
-                  {booking.startTime}
-                </p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <p className="text-sm text-slate-600 flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-primary" />
+                    {format(parseISO(`${booking.appointmentDate}T00:00:00`), 'dd/MM/yyyy')} às{' '}
+                    {booking.startTime}
+                  </p>
+                  {booking.subject && (
+                    <p className="text-xs text-primary font-bold flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      {booking.subject}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -240,11 +254,17 @@ export function RescheduleDialog({
                   <SelectContent>
                     {availableSlots.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
-                        {s.startTime}
+                        {s.startTime} {s.subject ? `(${s.subject})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedSlot?.subject && (
+                  <p className="text-xs text-primary font-bold flex items-center gap-1.5 mt-1 animate-in slide-in-from-left-2">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Disciplina: {selectedSlot.subject}
+                  </p>
+                )}
               </div>
             </div>
           </div>

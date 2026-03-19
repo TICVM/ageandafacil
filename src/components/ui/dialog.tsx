@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -33,6 +34,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
+  // Destructure internal Radix props to prevent "Unknown event handler" warnings in React 19
   const { onInteractOutside, onPointerDownOutside, ...cleanProps } = props as any;
 
   return (
@@ -100,7 +102,7 @@ const DialogTitle = React.forwardRef<
     {...props}
   />
 ))
-DialogTitle.displayName = "DialogTitle"
+DialogTitle.displayName = DialogPrimitive.Title.displayName
 
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
