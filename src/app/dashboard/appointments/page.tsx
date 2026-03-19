@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   CalendarDays,
   MapPin,
@@ -25,7 +24,8 @@ import {
   ChevronRight,
   LayoutList,
   Calendar as CalendarIcon,
-  Edit3
+  Edit3,
+  BookOpen
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -457,6 +457,12 @@ export default function AppointmentsPage() {
                           <span className="text-xs text-muted-foreground">
                             {classMap[booking.schoolClassId]?.name || '---'}
                           </span>
+                          {booking.subject && (
+                            <div className="flex items-center gap-1 text-[10px] text-primary font-bold mt-0.5">
+                              <BookOpen className="w-2.5 h-2.5" />
+                              {booking.subject}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
 

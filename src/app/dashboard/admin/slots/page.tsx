@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, BookOpen } from 'lucide-react';
+import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, BookOpen, LayoutGrid } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp, setDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
 import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings } from '@/lib/types';
@@ -91,6 +90,11 @@ export default function SlotAdminPage() {
   const [rescheduleDays, setRescheduleDays] = useState(1);
   const [rescheduleHours, setRescheduleHours] = useState(0);
 
+  // Grade Curricular
+  const [gridClassId, setGridClassId] = useState('');
+  const [editingGridSlot, setEditingGridSlot] = useState<TimeSlot | null>(null);
+  const [tempSubject, setTempSubject] = useState('');
+
   useEffect(() => {
     if (appSettings) {
       setBookingDays(appSettings.minAdvanceBookingDays ?? 1);
@@ -140,7 +144,6 @@ export default function SlotAdminPage() {
       return;
     }
     
-    // Parse format: "HH:mm-dur-Matéria" ou "HH:mm-dur" ou "HH:mm"
     const timeEntries = bulkTimes.split(',').map(t => t.trim()).filter(Boolean);
     const parsedEntries: { startTime: string; duration: number; subject: string }[] = [];
 
@@ -171,8 +174,8 @@ export default function SlotAdminPage() {
       
       selectedDays.forEach(day => {
         parsedEntries.forEach(entry => {
-          const newSlotRef = doc(slotsCol);
-          batch.set(newSlotRef, {
+          const newRef = doc(slotsCol);
+          batch.set(newRef, {
             dayOfWeek: day,
             startTime: entry.startTime,
             durationMinutes: entry.duration,
@@ -329,6 +332,27 @@ export default function SlotAdminPage() {
     return 'Global';
   };
 
+  // Funções da Matriz Curricular
+  const uniqueTimesForGrid = useMemo(() => {
+    if (!slots || !gridClassId) return [];
+    const classSlots = slots.filter(s => s.schoolClassId === gridClassId);
+    const times = Array.from(new Set(classSlots.map(s => s.startTime))).sort();
+    return times;
+  }, [slots, gridClassId]);
+
+  const handleSaveGridSubject = async () => {
+    if (!db || !editingGridSlot) return;
+    try {
+      await updateDoc(doc(db, 'available_time_slots', editingGridSlot.id), {
+        subject: tempSubject
+      });
+      toast({ title: "Matéria atualizada!" });
+      setEditingGridSlot(null);
+    } catch (e) {
+      toast({ title: "Erro ao atualizar", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -443,7 +467,7 @@ export default function SlotAdminPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-bold">Data(s) do Evento</Label>
-                    <Popover modal={false}>
+                    <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full h-10 justify-start rounded-xl", ((!isBulkMode && !blockDate) || (isBulkMode && blockMultipleDates.length === 0)) && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
@@ -560,6 +584,7 @@ export default function SlotAdminPage() {
             <Tabs defaultValue="slots" className="w-full">
               <TabsList className="flex gap-1 bg-muted/20 p-1 mb-6 rounded-xl border w-full sm:w-fit">
                 <TabsTrigger value="slots" className="rounded-lg px-6"><Clock className="w-4 h-4 mr-2" /> Grade Padrão</TabsTrigger>
+                <TabsTrigger value="curriculum" className="rounded-lg px-6"><LayoutGrid className="w-4 h-4 mr-2" /> Grade Curricular</TabsTrigger>
                 <TabsTrigger value="blocks" className="rounded-lg px-6"><ShieldAlert className="w-4 h-4 mr-2" /> Datas Bloqueadas</TabsTrigger>
               </TabsList>
 
@@ -603,6 +628,72 @@ export default function SlotAdminPage() {
                 )}
               </TabsContent>
 
+              <TabsContent value="curriculum" className="space-y-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex-1">
+                    <Label className="text-xs font-bold mb-1 block">Selecionar Turma para Visualizar Matriz</Label>
+                    <Select value={gridClassId} onValueChange={setGridClassId}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha uma turma..." /></SelectTrigger>
+                      <SelectContent>
+                        {sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {gridClassId ? (
+                  <div className="border rounded-2xl overflow-hidden shadow-sm bg-white">
+                    <Table>
+                      <TableHeader className="bg-primary/5">
+                        <TableRow>
+                          <TableHead className="font-bold border-r w-24">Horário</TableHead>
+                          {DAYS_OF_WEEK.slice(0, 5).map(day => (
+                            <TableHead key={day.id} className="font-bold text-center">{day.label}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {uniqueTimesForGrid.length > 0 ? uniqueTimesForGrid.map(time => (
+                          <TableRow key={time}>
+                            <TableCell className="font-bold border-r bg-muted/5">{time}</TableCell>
+                            {DAYS_OF_WEEK.slice(0, 5).map(day => {
+                              const slot = slots?.find(s => s.schoolClassId === gridClassId && s.dayOfWeek === day.id && s.startTime === time);
+                              return (
+                                <TableCell key={day.id} className="p-1 h-16">
+                                  {slot ? (
+                                    <button 
+                                      onClick={() => { setEditingGridSlot(slot); setTempSubject(slot.subject || ''); }}
+                                      className={cn(
+                                        "w-full h-full rounded-lg text-[10px] font-bold p-2 transition-all text-center flex flex-col items-center justify-center gap-1 hover:brightness-95",
+                                        slot.subject ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted/30 text-muted-foreground border border-dashed"
+                                      )}
+                                    >
+                                      <BookOpen className="w-3 h-3 opacity-50" />
+                                      {slot.subject || "Sem matéria"}
+                                    </button>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center opacity-20"><Plus className="w-4 h-4" /></div>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        )) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="h-40 text-center italic text-muted-foreground">Nenhum horário cadastrado para esta turma.</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="p-20 text-center text-muted-foreground border-2 border-dashed rounded-3xl flex flex-col items-center gap-3">
+                    <LayoutGrid className="w-10 h-10 opacity-20" />
+                    <p>Selecione uma turma acima para configurar a grade curricular.</p>
+                  </div>
+                )}
+              </TabsContent>
+
               <TabsContent value="blocks">
                 {loadingBlocks ? <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-primary" /></div> : (
                   <div className="space-y-4">
@@ -642,6 +733,33 @@ export default function SlotAdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog de Edição de Matéria na Matriz */}
+      <Dialog open={!!editingGridSlot} onOpenChange={() => setEditingGridSlot(null)}>
+        <DialogContent className="rounded-2xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Definir Matéria</DialogTitle>
+            <DialogDescription>
+              {editingGridSlot && `${editingGridSlot.startTime} - ${editingGridSlot.durationMinutes}min`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Nome da Disciplina</Label>
+              <Input 
+                value={tempSubject} 
+                onChange={(e) => setTempSubject(e.target.value)} 
+                placeholder="Ex: Matemática, Português..." 
+                className="rounded-xl h-12"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingGridSlot(null)}>Cancelar</Button>
+            <Button onClick={handleSaveGridSubject}>Salvar Alteração</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCopyDialogOpen} onOpenChange={setIsCopyDialogOpen}>
         <DialogContent className="rounded-3xl max-w-xl p-0 overflow-hidden border-none shadow-2xl">
