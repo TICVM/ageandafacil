@@ -1,0 +1,35 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /alunos/{alunoId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /modelosCracha/{modeloId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /segmentos/{segmentoId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /turmas/{turmaId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /configuracoes/{configId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+    
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
