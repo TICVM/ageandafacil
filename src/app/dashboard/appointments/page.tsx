@@ -562,9 +562,8 @@ export default function AppointmentsPage() {
                             >
                               {userPerms.canEditAppointments && (
                                 <DropdownMenuItem
-                                  onSelect={(event) => {
-                                    event.preventDefault();
-                                    setRescheduleBooking(booking);
+                                  onSelect={() => {
+                                    setTimeout(() => setRescheduleBooking(booking), 100);
                                   }}
                                   className="cursor-pointer gap-2 rounded-lg py-2 text-primary"
                                 >
@@ -585,9 +584,8 @@ export default function AppointmentsPage() {
 
                               {userPerms.canDeleteAppointments && (
                                 <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault();
-                                    setDeletingId(booking.id);
+                                  onSelect={() => {
+                                    setTimeout(() => setDeletingId(booking.id), 100);
                                   }}
                                   className="mt-1 cursor-pointer gap-2 rounded-lg border-t py-2 text-destructive"
                                 >
