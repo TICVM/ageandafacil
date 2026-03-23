@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, BookOpen, LayoutGrid } from 'lucide-react';
+import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, BookOpen, LayoutGrid, Download, Upload } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, serverTimestamp, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings } from '@/lib/types';
+import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings, Subject } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, parse } from 'date-fns';
@@ -42,15 +42,18 @@ export default function SlotAdminPage() {
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
   const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
   const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
+  const subjectsRef = useMemoFirebase(() => db ? collection(db, 'school_subjects') : null, [db]);
 
   const { data: slots, isLoading: loadingSlots } = useCollection<TimeSlot>(slotsRef);
   const { data: rawClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments } = useCollection<Segment>(segmentsRef);
   const { data: blocks, isLoading: loadingBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
+  const { data: rawSubjects } = useCollection<Subject>(subjectsRef);
 
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+  const sortedSubjects = rawSubjects ? [...rawSubjects].sort((a, b) => a.name.localeCompare(b.name)) : [];
 
   // Filtros de Visualização
   const [filterType, setFilterType] = useState<'all' | 'global' | 'segment' | 'class'>('all');
@@ -61,6 +64,7 @@ export default function SlotAdminPage() {
   const [bulkTimes, setBulkTimes] = useState('08:00, 09:00-30, 10:00');
   const [defaultDuration, setDefaultDuration] = useState('60');
   const [defaultSubject, setDefaultSubject] = useState('');
+  const [newSubjectName, setNewSubjectName] = useState('');
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [targetId, setTargetId] = useState('');
   
@@ -94,6 +98,45 @@ export default function SlotAdminPage() {
   const [gridClassId, setGridClassId] = useState('');
   const [editingGridSlot, setEditingGridSlot] = useState<TimeSlot | null>(null);
   const [tempSubject, setTempSubject] = useState('');
+  const [selectedRepeatDays, setSelectedRepeatDays] = useState<string[]>([]);
+  const [selectedRepeatTimes, setSelectedRepeatTimes] = useState<string[]>([]);
+  
+  // Estados para Disciplinas com Cores
+  const [newSubjectColor, setNewSubjectColor] = useState('#3b82f6');
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [editSubjectName, setEditSubjectName] = useState('');
+  const [editSubjectColor, setEditSubjectColor] = useState('');
+  
+  // Categorização de Disciplinas
+  const [subjectTargetType, setSubjectTargetType] = useState<'global' | 'segment' | 'class'>('global');
+  const [subjectTargetId, setSubjectTargetId] = useState('');
+  const [editSubjectTargetType, setEditSubjectTargetType] = useState<'global' | 'segment' | 'class'>('global');
+  const [editSubjectTargetId, setEditSubjectTargetId] = useState('');
+
+  const PREDEFINED_COLORS = [
+    { name: 'Azul', value: '#3b82f6' },
+    { name: 'Verde', value: '#10b981' },
+    { name: 'Amarelo', value: '#f59e0b' },
+    { name: 'Vermelho', value: '#ef4444' },
+    { name: 'Roxo', value: '#8b5cf6' },
+    { name: 'Rosa', value: '#ec4899' },
+    { name: 'Laranja', value: '#f97316' },
+    { name: 'Ciano', value: '#06b6d4' },
+    { name: 'Slate', value: '#64748b' },
+  ];
+
+  const getContrastColor = (hexColor?: string) => {
+    if (!hexColor) return 'inherit';
+    const hex = hexColor.replace('#', '');
+    if (hex.length < 6) return '#000000';
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128 ? '#000000' : '#ffffff';
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (appSettings) {
@@ -342,29 +385,282 @@ export default function SlotAdminPage() {
   }, [slots, gridClassId]);
 
   const handleSaveGridSubject = async () => {
-    if (!db || !editingGridSlot) return;
+    if (!db || !editingGridSlot || !gridClassId) return;
+    
     try {
-      await updateDoc(doc(db, 'available_time_slots', editingGridSlot.id), {
-        subject: tempSubject
-      });
-      toast({ title: "Matéria atualizada!" });
+      const batch = writeBatch(db);
+      const slotsCol = collection(db, 'available_time_slots');
+      
+      // Itere sobre todos os dias e horários selecionados para replicação
+      for (const dayId of selectedRepeatDays) {
+        for (const timeStr of selectedRepeatTimes) {
+          // Procure se já existe um slot nesta turma, neste dia e neste horário
+          const existing = slots?.find(s => 
+            s.schoolClassId === gridClassId && 
+            s.dayOfWeek === dayId && 
+            s.startTime === timeStr
+          );
+
+          if (existing) {
+            // Se existe, apenas atualiza a matéria
+            batch.update(doc(slotsCol, existing.id), { subject: tempSubject });
+          } else {
+            // Se não existe, cria um novo slot baseado no modelo do que está sendo editado
+            const newRef = doc(slotsCol);
+            batch.set(newRef, {
+              dayOfWeek: dayId,
+              startTime: timeStr,
+              durationMinutes: editingGridSlot.durationMinutes || 60,
+              schoolClassId: gridClassId,
+              schoolSegmentId: editingGridSlot.schoolSegmentId || null,
+              subject: tempSubject,
+              isActive: true
+            });
+          }
+        }
+      }
+
+      await batch.commit();
+      toast({ title: "Grade atualizada e replicada!" });
       setEditingGridSlot(null);
+      setSelectedRepeatDays([]);
+      setSelectedRepeatTimes([]);
     } catch (e) {
       toast({ title: "Erro ao atualizar", variant: "destructive" });
     }
   };
 
+  const handleExportExcel = () => {
+    if (!slots) {
+      toast({ title: 'Nenhum horário para exportar', variant: 'destructive' });
+      return;
+    }
+
+    const rows = [
+      ['Dia da Semana', 'Horário', 'Duração (min)', 'Matéria', 'Vínculo', 'Status']
+    ];
+
+    slots.forEach(s => {
+      const day = DAYS_OF_WEEK.find(d => d.id === s.dayOfWeek)?.label || s.dayOfWeek;
+      const target = getTargetName(s);
+      rows.push([
+        day,
+        s.startTime,
+        s.durationMinutes.toString(),
+        s.subject || 'Sem matéria',
+        target,
+        s.isActive ? 'Ativo' : 'Inativo'
+      ]);
+    });
+
+    const csvContent = rows.map(e => e.join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Grade_Horarios_${format(new Date(), 'dd_MM_yyyy')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: 'Exportação concluída!' });
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast({ title: "Formato inválido. Por favor, envie um arquivo .csv", variant: "destructive" });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (!db) {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+      return;
+    }
+
+    setIsSaving(true);
+    
+    try {
+      const text = await file.text();
+      
+      if (text.startsWith('PK') || text.includes('xl/worksheets')) {
+        toast({ title: "O arquivo parece ser um Excel (.xlsx). Salve como CSV para importar.", variant: "destructive" });
+        setIsSaving(false);
+        return;
+      }
+
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      
+      if (lines.length < 2) {
+        toast({ title: "Arquivo vazio ou inválido", variant: "destructive" });
+        setIsSaving(false);
+        return;
+      }
+
+      const batch = writeBatch(db);
+      const slotsCol = collection(db, 'available_time_slots');
+      let count = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        
+        const parts = line.split(';');
+        if (parts.length < 5) continue;
+
+        const [dayStr, startTime, durationStr, subjectStr, targetStr, statusStr] = parts;
+        
+        if (startTime.length > 20) continue; // safety check against garbage data
+
+        const dayObj = DAYS_OF_WEEK.find(d => d.label.toLowerCase() === dayStr.toLowerCase() || d.short.toLowerCase() === dayStr.toLowerCase() || d.id === dayStr);
+        const dayOfWeek = dayObj ? dayObj.id : '1'; 
+
+        let schoolSegmentId: string | null = null;
+        let schoolClassId: string | null = null;
+
+        if (targetStr.startsWith('Turma:')) {
+          const name = targetStr.replace('Turma:', '').trim();
+          const cls = sortedClasses.find(c => c.name.toLowerCase() === name.toLowerCase());
+          if (cls) schoolClassId = cls.id;
+        } else if (targetStr.startsWith('Seg:')) {
+          const name = targetStr.replace('Seg:', '').trim();
+          const seg = sortedSegments.find(s => s.name.toLowerCase() === name.toLowerCase());
+          if (seg) schoolSegmentId = seg.id;
+        }
+
+        const durationMinutes = parseInt(durationStr, 10) || 60;
+        const subject = subjectStr === 'Sem matéria' ? '' : subjectStr;
+        const isActive = statusStr !== 'Inativo';
+
+        const newRef = doc(slotsCol);
+        batch.set(newRef, {
+          dayOfWeek,
+          startTime,
+          durationMinutes,
+          subject,
+          schoolSegmentId,
+          schoolClassId,
+          isActive
+        });
+        count++;
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        toast({ title: `Importação concluída! ${count} horários inseridos.` });
+      } else {
+        toast({ title: "Nenhum horário válido encontrado no arquivo.", variant: "destructive" });
+      }
+
+    } catch (error) {
+      toast({ title: "Erro ao ler arquivo", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleCleanCorrupted = async () => {
+    if (!slots || !db) return;
+    const corrupted = slots.filter(s => s.startTime.length > 10 || s.startTime.includes('PK') || s.startTime.includes('xl/'));
+    
+    if (corrupted.length === 0) {
+      toast({ title: 'Nenhum horário corrompido encontrado!' });
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      corrupted.forEach(s => {
+        batch.delete(doc(db, 'available_time_slots', s.id));
+      });
+      await batch.commit();
+      toast({ title: `${corrupted.length} horários corrompidos removidos com sucesso!` });
+    } catch (e) {
+      toast({ title: "Erro ao remover itens", variant: "destructive" });
+    }
+  };
+
+  const handleAddSubject = async () => {
+    if (!db || !newSubjectName.trim()) return;
+    try {
+      const newRef = doc(collection(db, 'school_subjects'));
+      await setDoc(newRef, { 
+        name: newSubjectName.trim(),
+        color: newSubjectColor,
+        schoolSegmentId: subjectTargetType === 'segment' ? subjectTargetId : null,
+        schoolClassId: subjectTargetType === 'class' ? subjectTargetId : null
+      });
+      setNewSubjectName('');
+      setNewSubjectColor('#3b82f6');
+      setSubjectTargetId('');
+      toast({ title: 'Disciplina adicionada!' });
+    } catch (e) {
+      toast({ title: 'Erro ao adicionar', variant: 'destructive' });
+    }
+  };
+
+  const handleUpdateSubject = async () => {
+    if (!db || !editingSubject || !editSubjectName.trim()) return;
+    try {
+      await updateDoc(doc(db, 'school_subjects', editingSubject.id), {
+        name: editSubjectName.trim(),
+        color: editSubjectColor,
+        schoolSegmentId: editSubjectTargetType === 'segment' ? editSubjectTargetId : null,
+        schoolClassId: editSubjectTargetType === 'class' ? editSubjectTargetId : null
+      });
+      setEditingSubject(null);
+      toast({ title: 'Disciplina atualizada!' });
+    } catch (e) {
+      toast({ title: 'Erro ao atualizar', variant: 'destructive' });
+    }
+  };
+
+  const handleRemoveSubject = async (id: string) => {
+    if (!db) return;
+    deleteDocumentNonBlocking(doc(db, 'school_subjects', id));
+    toast({ title: 'Disciplina removida!' });
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      <datalist id="subjectsList">
+        {sortedSubjects.map(s => <option key={s.id} value={s.name} />)}
+      </datalist>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Grade e Bloqueios</h1>
           <p className="text-muted-foreground">Gerencie a estrutura de horários e as matérias associadas.</p>
         </div>
-        <Button onClick={() => setIsCopyDialogOpen(true)} variant="outline" className="rounded-xl gap-2 h-11 bg-white border-primary text-primary hover:bg-primary/5">
-          <Copy className="w-4 h-4" />
-          Duplicar Grade
-        </Button>
+        <div className="flex gap-2 w-full md:w-auto">
+          <Button onClick={handleCleanCorrupted} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-red-50 border-red-600 text-red-600 hover:bg-red-100">
+            <Trash2 className="w-4 h-4" />
+            Limpar Corrompidos
+          </Button>
+          <input 
+            type="file" 
+            accept=".csv" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleImportExcel} 
+          />
+          <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-white border-blue-600 text-blue-600 hover:bg-blue-50" disabled={isSaving}>
+            <Upload className="w-4 h-4" />
+            Importar Excel
+          </Button>
+          <Button onClick={handleExportExcel} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-white border-green-600 text-green-600 hover:bg-green-50">
+            <Download className="w-4 h-4" />
+            Exportar Excel
+          </Button>
+          <Button onClick={() => setIsCopyDialogOpen(true)} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-white border-primary text-primary hover:bg-primary/5">
+            <Copy className="w-4 h-4" />
+            Duplicar Grade
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -414,7 +710,7 @@ export default function SlotAdminPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="slot-subject-input" className="text-xs font-bold">Matéria Padrão</Label>
-                      <Input id="slot-subject-input" name="subject" placeholder="Ex: Matemática" value={defaultSubject} onChange={(e) => setDefaultSubject(e.target.value)} className="rounded-xl h-10" />
+                      <Input id="slot-subject-input" name="subject" list="subjectsList" placeholder="Ex: Matemática" value={defaultSubject} onChange={(e) => setDefaultSubject(e.target.value)} className="rounded-xl h-10" />
                     </div>
                   </div>
 
@@ -476,7 +772,7 @@ export default function SlotAdminPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        {isBulkMode ? <Calendar mode="multiple" selected={blockMultipleDates} onSelect={setBlockMultipleDates} locale={ptBR} /> : <Calendar mode="single" selected={blockDate} onSelect={setBlockDate} locale={ptBR} />}
+                        {isBulkMode ? <Calendar mode="multiple" required selected={blockMultipleDates} onSelect={setBlockMultipleDates} locale={ptBR} /> : <Calendar mode="single" required selected={blockDate} onSelect={setBlockDate} locale={ptBR} />}
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -584,10 +880,11 @@ export default function SlotAdminPage() {
           </CardHeader>
           <CardContent className="p-6">
             <Tabs defaultValue="slots" className="w-full">
-              <TabsList className="flex gap-1 bg-muted/20 p-1 mb-6 rounded-xl border w-full sm:w-fit">
+              <TabsList className="flex gap-1 bg-muted/20 p-1 mb-6 rounded-xl border w-full sm:w-fit flex-wrap">
                 <TabsTrigger value="slots" className="rounded-lg px-6"><Clock className="w-4 h-4 mr-2" /> Grade Padrão</TabsTrigger>
                 <TabsTrigger value="curriculum" className="rounded-lg px-6"><LayoutGrid className="w-4 h-4 mr-2" /> Grade Curricular</TabsTrigger>
                 <TabsTrigger value="blocks" className="rounded-lg px-6"><ShieldAlert className="w-4 h-4 mr-2" /> Datas Bloqueadas</TabsTrigger>
+                <TabsTrigger value="subjects" className="rounded-lg px-6"><BookOpen className="w-4 h-4 mr-2" /> Disciplinas</TabsTrigger>
               </TabsList>
 
               <TabsContent value="slots" className="space-y-6">
@@ -610,10 +907,16 @@ export default function SlotAdminPage() {
                                     <span className="text-xs text-muted-foreground">({s.durationMinutes} min)</span>
                                   </div>
                                   {s.subject && (
-                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-primary font-medium">
-                                      <BookOpen className="w-3 h-3" />
-                                      {s.subject}
-                                    </div>
+                                    (() => {
+                                      const subjectObj = sortedSubjects.find(sub => sub.name === s.subject);
+                                      const color = subjectObj?.color || '#3b82f6';
+                                      return (
+                                        <div className="flex items-center gap-1.5 mt-1 text-xs font-bold" style={{ color }}>
+                                          <BookOpen className="w-3 h-3" />
+                                          {s.subject}
+                                        </div>
+                                      );
+                                    })()
                                   )}
                                   <div className="mt-2">
                                     <Badge variant="outline" className="text-[10px] bg-white border-primary/20 text-primary">{getTargetName(s)}</Badge>
@@ -663,18 +966,53 @@ export default function SlotAdminPage() {
                               return (
                                 <TableCell key={day.id} className="p-1 h-16">
                                   {slot ? (
-                                    <button 
-                                      onClick={() => { setEditingGridSlot(slot); setTempSubject(slot.subject || ''); }}
-                                      className={cn(
-                                        "w-full h-full rounded-lg text-[10px] font-bold p-2 transition-all text-center flex flex-col items-center justify-center gap-1 hover:brightness-95",
-                                        slot.subject ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted/30 text-muted-foreground border border-dashed"
-                                      )}
-                                    >
-                                      <BookOpen className="w-3 h-3 opacity-50" />
-                                      {slot.subject || "Sem matéria"}
-                                    </button>
+                                    (() => {
+                                      const subjectObj = sortedSubjects.find(s => s.name === slot.subject);
+                                      const bgColor = (slot.subject && subjectObj?.color) ? subjectObj.color : (slot.subject ? '#3b82f6' : 'transparent');
+                                      const textColor = slot.subject ? getContrastColor(bgColor) : 'inherit';
+                                      
+                                      return (
+                                        <button 
+                                          onClick={() => { 
+                                            setEditingGridSlot(slot); 
+                                            setTempSubject(slot.subject || '');
+                                            setSelectedRepeatDays([slot.dayOfWeek]);
+                                            setSelectedRepeatTimes([slot.startTime]);
+                                          }}
+                                          className={cn(
+                                            "w-full h-full rounded-lg text-[10px] font-bold p-2 transition-all text-center flex flex-col items-center justify-center gap-1 hover:brightness-95 shadow-sm",
+                                            !slot.subject && "bg-muted/30 text-muted-foreground border border-dashed"
+                                          )}
+                                          style={slot.subject ? { 
+                                            backgroundColor: bgColor, 
+                                            color: textColor,
+                                            border: `1px solid ${bgColor}44`
+                                          } : {}}
+                                        >
+                                          <BookOpen className="w-3 h-3 opacity-50" />
+                                          {slot.subject || "Sem matéria"}
+                                        </button>
+                                      );
+                                    })()
                                   ) : (
-                                    <div className="w-full h-full flex items-center justify-center opacity-20"><Plus className="w-4 h-4" /></div>
+                                    <button 
+                                      onClick={() => { 
+                                        setEditingGridSlot({
+                                          id: 'new',
+                                          dayOfWeek: day.id,
+                                          startTime: time,
+                                          durationMinutes: 60,
+                                          schoolClassId: gridClassId,
+                                          isActive: true
+                                        } as TimeSlot);
+                                        setTempSubject('');
+                                        setSelectedRepeatDays([day.id]);
+                                        setSelectedRepeatTimes([time]);
+                                      }}
+                                      className="w-full h-full flex items-center justify-center opacity-10 hover:opacity-100 hover:bg-primary/5 rounded-lg transition-all"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </button>
                                   )}
                                 </TableCell>
                               );
@@ -731,13 +1069,154 @@ export default function SlotAdminPage() {
                   </div>
                 )}
               </TabsContent>
+
+              <TabsContent value="subjects">
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-4 bg-muted/20 p-4 rounded-2xl border border-dashed">
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1 space-y-2">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">Nome da Disciplina</Label>
+                        <Input 
+                          placeholder="Ex: Matemática, Português..." 
+                          value={newSubjectName} 
+                          onChange={(e) => setNewSubjectName(e.target.value)} 
+                          className="rounded-xl h-12"
+                        />
+                      </div>
+                      <Button onClick={handleAddSubject} className="rounded-xl gap-2 h-12 px-6 font-bold shadow-sm">
+                        <Plus className="w-4 h-4" /> Cadastrar
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-muted-foreground">Cor de Destaque</Label>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {PREDEFINED_COLORS.map(c => (
+                          <button
+                            key={c.value}
+                            onClick={() => setNewSubjectColor(c.value)}
+                            type="button"
+                            className={cn(
+                              "w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center shadow-sm",
+                              newSubjectColor === c.value ? "border-primary scale-110 shadow-md" : "border-transparent hover:scale-105"
+                            )}
+                            style={{ backgroundColor: c.value }}
+                            title={c.name}
+                          >
+                            {newSubjectColor === c.value && <div className="w-3 h-3 rounded-full bg-white shadow-sm" />}
+                          </button>
+                        ))}
+                        
+                        <div className="w-px h-6 bg-slate-200 mx-1" />
+                        
+                        <div className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-white border border-dashed hover:border-primary transition-all">
+                          <input 
+                            type="color" 
+                            value={newSubjectColor} 
+                            onChange={(e) => setNewSubjectColor(e.target.value)}
+                            className="w-8 h-8 p-0 border-none rounded-full cursor-pointer bg-transparent overflow-hidden" 
+                          />
+                          <span className="text-[10px] font-bold text-muted-foreground group-hover:text-primary transition-colors">Personalizada</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-4 pt-2 border-t border-dashed">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs font-bold whitespace-nowrap">Vincular a:</Label>
+                        <Select value={subjectTargetType} onValueChange={(v: any) => { setSubjectTargetType(v); setSubjectTargetId(''); }}>
+                          <SelectTrigger className="h-9 w-[120px] rounded-lg bg-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="global">Global</SelectItem>
+                            <SelectItem value="segment">Segmento</SelectItem>
+                            <SelectItem value="class">Turma</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {subjectTargetType !== 'global' && (
+                        <div className="flex items-center gap-2 animate-in slide-in-from-left-2">
+                          <Select value={subjectTargetId} onValueChange={setSubjectTargetId}>
+                            <SelectTrigger className="h-9 w-[180px] rounded-lg bg-white">
+                              <SelectValue placeholder="Selecionar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subjectTargetType === 'segment' 
+                                ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) 
+                                : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                              }
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {sortedSubjects.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {sortedSubjects.map(s => (
+                        <div key={s.id} className="flex justify-between items-center p-3 border rounded-xl bg-muted/5 group hover:bg-white shadow-sm transition-all">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-8 h-8 rounded-lg shadow-sm flex items-center justify-center text-[10px] font-bold" 
+                              style={{ backgroundColor: s.color || '#3b82f6', color: getContrastColor(s.color || '#3b82f6') }}
+                            >
+                              {s.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-sm">{s.name}</span>
+                              {(() => {
+                                if (s.schoolClassId) {
+                                  const cls = sortedClasses.find(c => c.id === s.schoolClassId);
+                                  return <span className="text-[10px] text-muted-foreground italic">Turma: {cls?.name || '...'}</span>;
+                                }
+                                if (s.schoolSegmentId) {
+                                  const seg = sortedSegments.find(seg => seg.id === s.schoolSegmentId);
+                                  return <span className="text-[10px] text-muted-foreground italic">Seg: {seg?.name || '...'}</span>;
+                                }
+                                return <span className="text-[10px] text-muted-foreground italic opacity-50">Global</span>;
+                              })()}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-primary" 
+                              onClick={() => {
+                                setEditingSubject(s);
+                                setEditSubjectName(s.name);
+                                setEditSubjectColor(s.color || '#3b82f6');
+                                setEditSubjectTargetType(s.schoolClassId ? 'class' : (s.schoolSegmentId ? 'segment' : 'global'));
+                                setEditSubjectTargetId(s.schoolClassId || s.schoolSegmentId || '');
+                              }}
+                            >
+                              <ListPlus className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleRemoveSubject(s.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-20 text-center text-muted-foreground border-2 border-dashed rounded-3xl flex flex-col items-center gap-3">
+                      <BookOpen className="w-8 h-8 opacity-20" />
+                      <p>Nenhuma disciplina cadastrada nesta listagem rápida.</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       </div>
 
       {/* Dialog de Edição de Matéria na Matriz */}
-      <Dialog open={!!editingGridSlot} onOpenChange={() => setEditingGridSlot(null)}>
+      <Dialog open={!!editingGridSlot} onOpenChange={() => { setEditingGridSlot(null); setSelectedRepeatDays([]); setSelectedRepeatTimes([]); }}>
         <DialogContent className="rounded-2xl max-w-sm">
           <DialogHeader>
             <DialogTitle>Definir Matéria</DialogTitle>
@@ -745,20 +1224,178 @@ export default function SlotAdminPage() {
               {editingGridSlot && `${editingGridSlot.startTime} - ${editingGridSlot.durationMinutes}min`}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="py-4 space-y-5">
             <div className="space-y-2">
               <Label>Nome da Disciplina</Label>
               <Input 
                 value={tempSubject} 
                 onChange={(e) => setTempSubject(e.target.value)} 
+                list="subjectsList"
                 placeholder="Ex: Matemática, Português..." 
                 className="rounded-xl h-12"
               />
             </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Replicar nos dias:</Label>
+                <button 
+                  onClick={() => {
+                    const allDays = DAYS_OF_WEEK.slice(0, 5).map(d => d.id);
+                    setSelectedRepeatDays(selectedRepeatDays.length === 5 ? [] : allDays);
+                  }}
+                  className="text-[10px] text-primary font-bold hover:underline"
+                >
+                  {selectedRepeatDays.length === 5 ? "Desmarcar Todos" : "Marcar Todos (Seg-Sex)"}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {DAYS_OF_WEEK.slice(0, 6).map(day => (
+                  <button
+                    key={day.id}
+                    onClick={() => {
+                      setSelectedRepeatDays(prev => 
+                        prev.includes(day.id) ? prev.filter(id => id !== day.id) : [...prev, day.id]
+                      );
+                    }}
+                    className={cn(
+                      "px-3 py-2 rounded-xl text-xs font-bold border transition-all",
+                      selectedRepeatDays.includes(day.id) 
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                        : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                    )}
+                  >
+                    {day.short}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Replicar nos horários:</Label>
+                <button 
+                  onClick={() => {
+                    setSelectedRepeatTimes(selectedRepeatTimes.length === uniqueTimesForGrid.length ? [] : uniqueTimesForGrid);
+                  }}
+                  className="text-[10px] text-primary font-bold hover:underline"
+                >
+                  {selectedRepeatTimes.length === uniqueTimesForGrid.length ? "Desmarcar Todos" : "Marcar Todos"}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 min-h-[40px]">
+                {uniqueTimesForGrid.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      setSelectedRepeatTimes(prev => 
+                        prev.includes(t) ? prev.filter(time => time !== t) : [...prev, t]
+                      );
+                    }}
+                    className={cn(
+                      "px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all",
+                      selectedRepeatTimes.includes(t) 
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                        : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingGridSlot(null)}>Cancelar</Button>
-            <Button onClick={handleSaveGridSubject}>Salvar Alteração</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" className="rounded-xl" onClick={() => { setEditingGridSlot(null); setSelectedRepeatDays([]); setSelectedRepeatTimes([]); }}>Cancelar</Button>
+            <Button className="rounded-xl font-bold px-6" onClick={handleSaveGridSubject}>Salvar e Replicar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Edição de Disciplina */}
+      <Dialog open={!!editingSubject} onOpenChange={() => setEditingSubject(null)}>
+        <DialogContent className="rounded-2xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar Disciplina</DialogTitle>
+            <DialogDescription>Altere as informações da disciplina abaixo.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-6">
+            <div className="space-y-2">
+              <Label>Nome da Disciplina</Label>
+              <Input 
+                value={editSubjectName} 
+                onChange={(e) => setEditSubjectName(e.target.value)} 
+                placeholder="Ex: Matemática" 
+                className="rounded-xl h-12"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Cor de Destaque</Label>
+              <div className="flex flex-wrap gap-2 items-center">
+                {PREDEFINED_COLORS.map(c => (
+                  <button
+                    key={c.value}
+                    onClick={() => setEditSubjectColor(c.value)}
+                    type="button"
+                    className={cn(
+                      "w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center shadow-sm",
+                      editSubjectColor === c.value ? "border-primary scale-110 shadow-md" : "border-transparent hover:scale-105"
+                    )}
+                    style={{ backgroundColor: c.value }}
+                    title={c.name}
+                  >
+                    {editSubjectColor === c.value && <div className="w-2 h-2 rounded-full bg-white shadow-sm" />}
+                  </button>
+                ))}
+                
+                <div className="w-px h-6 bg-slate-200 mx-1" />
+                
+                <div className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-white border border-dashed hover:border-primary transition-all">
+                  <input 
+                    type="color" 
+                    value={editSubjectColor} 
+                    onChange={(e) => setEditSubjectColor(e.target.value)}
+                    className="w-8 h-8 p-0 border-none rounded-full cursor-pointer bg-transparent overflow-hidden" 
+                  />
+                  <span className="text-[10px] font-bold text-muted-foreground group-hover:text-primary transition-colors">Personalizada</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Vínculo</Label>
+              <div className="space-y-3">
+                <Select value={editSubjectTargetType} onValueChange={(v: any) => { setEditSubjectTargetType(v); setEditSubjectTargetId(''); }}>
+                  <SelectTrigger className="rounded-xl h-11 bg-white font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Global</SelectItem>
+                    <SelectItem value="segment">Segmento</SelectItem>
+                    <SelectItem value="class">Turma</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {editSubjectTargetType !== 'global' && (
+                  <Select value={editSubjectTargetId} onValueChange={setEditSubjectTargetId}>
+                    <SelectTrigger className="rounded-xl h-11 bg-white animate-in slide-in-from-top-2 font-medium">
+                      <SelectValue placeholder="Selecionar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {editSubjectTargetType === 'segment' 
+                        ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) 
+                        : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                      }
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" className="rounded-xl" onClick={() => setEditingSubject(null)}>Cancelar</Button>
+            <Button className="rounded-xl font-bold px-6 shadow-md" onClick={handleUpdateSubject}>Salvar Alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
