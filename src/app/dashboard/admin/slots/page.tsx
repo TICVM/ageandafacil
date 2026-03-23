@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import * as XLSX from 'xlsx';
+
 
 const DAYS_OF_WEEK = [
   { id: '1', label: 'Segunda', short: 'Seg' },
@@ -53,6 +55,7 @@ export default function SlotAdminPage() {
 
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
+
   const sortedSubjects = rawSubjects ? [...rawSubjects].sort((a, b) => a.name.localeCompare(b.name)) : [];
 
   // Filtros de Visualização
@@ -107,11 +110,31 @@ export default function SlotAdminPage() {
   const [editSubjectName, setEditSubjectName] = useState('');
   const [editSubjectColor, setEditSubjectColor] = useState('');
   
-  // Categorização de Disciplinas
+  // Categorização de Disciplinas (Múltipla)
   const [subjectTargetType, setSubjectTargetType] = useState<'global' | 'segment' | 'class'>('global');
-  const [subjectTargetId, setSubjectTargetId] = useState('');
+  const [subjectTargetIds, setSubjectTargetIds] = useState<string[]>([]);
   const [editSubjectTargetType, setEditSubjectTargetType] = useState<'global' | 'segment' | 'class'>('global');
-  const [editSubjectTargetId, setEditSubjectTargetId] = useState('');
+  const [editSubjectTargetIds, setEditSubjectTargetIds] = useState<string[]>([]);
+
+  const filteredSubjectsForGrid = useMemo(() => {
+    if (!sortedSubjects || !editingGridSlot) return [];
+    
+    const currentClass = sortedClasses.find(c => c.id === editingGridSlot.schoolClassId);
+    const currentSegmentId = editingGridSlot.schoolSegmentId || currentClass?.schoolSegmentId;
+    
+    return sortedSubjects.filter(s => {
+      // Global
+      if ((!s.schoolSegmentIds || s.schoolSegmentIds.length === 0) && (!s.schoolClassIds || s.schoolClassIds.length === 0)) return true;
+      
+      // Segment match
+      if (currentSegmentId && s.schoolSegmentIds?.includes(currentSegmentId)) return true;
+      
+      // Class match
+      if (editingGridSlot.schoolClassId && s.schoolClassIds?.includes(editingGridSlot.schoolClassId)) return true;
+      
+      return false;
+    });
+  }, [sortedSubjects, editingGridSlot, sortedClasses]);
 
   const PREDEFINED_COLORS = [
     { name: 'Azul', value: '#3b82f6' },
@@ -137,6 +160,7 @@ export default function SlotAdminPage() {
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const subjectsImportRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (appSettings) {
@@ -592,12 +616,12 @@ export default function SlotAdminPage() {
       await setDoc(newRef, { 
         name: newSubjectName.trim(),
         color: newSubjectColor,
-        schoolSegmentId: subjectTargetType === 'segment' ? subjectTargetId : null,
-        schoolClassId: subjectTargetType === 'class' ? subjectTargetId : null
+        schoolSegmentIds: subjectTargetType === 'segment' ? subjectTargetIds : [],
+        schoolClassIds: subjectTargetType === 'class' ? subjectTargetIds : []
       });
       setNewSubjectName('');
       setNewSubjectColor('#3b82f6');
-      setSubjectTargetId('');
+      setSubjectTargetIds([]);
       toast({ title: 'Disciplina adicionada!' });
     } catch (e) {
       toast({ title: 'Erro ao adicionar', variant: 'destructive' });
@@ -610,8 +634,8 @@ export default function SlotAdminPage() {
       await updateDoc(doc(db, 'school_subjects', editingSubject.id), {
         name: editSubjectName.trim(),
         color: editSubjectColor,
-        schoolSegmentId: editSubjectTargetType === 'segment' ? editSubjectTargetId : null,
-        schoolClassId: editSubjectTargetType === 'class' ? editSubjectTargetId : null
+        schoolSegmentIds: editSubjectTargetType === 'segment' ? editSubjectTargetIds : [],
+        schoolClassIds: editSubjectTargetType === 'class' ? editSubjectTargetIds : []
       });
       setEditingSubject(null);
       toast({ title: 'Disciplina atualizada!' });
@@ -619,6 +643,71 @@ export default function SlotAdminPage() {
       toast({ title: 'Erro ao atualizar', variant: 'destructive' });
     }
   };
+
+  const handleExportSubjects = () => {
+    if (!sortedSubjects) return;
+    
+    const data = sortedSubjects.map(s => ({
+      Nome: s.name,
+      Cor: s.color || '#3b82f6',
+      Segmentos: s.schoolSegmentIds?.map(id => sortedSegments.find(seg => seg.id === id)?.name).filter(Boolean).join(', ') || '',
+      Turmas: s.schoolClassIds?.map(id => sortedClasses.find(c => c.id === id)?.name).filter(Boolean).join(', ') || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Disciplinas");
+    XLSX.writeFile(workbook, "disciplinas_agenda_facil.xlsx");
+    toast({ title: 'Exportação concluída!' });
+  };
+
+  const handleImportSubjects = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !db) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        const batch = writeBatch(db);
+        let count = 0;
+
+        for (const row of data) {
+          const name = row.Nome || row.name || row.disciplina || row.Disciplina;
+          if (!name) continue;
+
+          const color = row.Cor || row.color || '#3b82f6';
+          const segmentNames = (row.Segmentos || row.segments || row.segmentos || '').toString().split(',').map((s: string) => s.trim()).filter(Boolean);
+          const classNames = (row.Turmas || row.classes || row.turmas || '').toString().split(',').map((s: string) => s.trim()).filter(Boolean);
+
+          const schoolSegmentIds = segmentNames.map((n: string) => sortedSegments.find(s => s.name.toLowerCase() === n.toLowerCase())?.id).filter(Boolean) as string[];
+          const schoolClassIds = classNames.map((n: string) => sortedClasses.find(c => c.name.toLowerCase() === n.toLowerCase())?.id).filter(Boolean) as string[];
+
+          const newRef = doc(collection(db, 'school_subjects'));
+          batch.set(newRef, {
+            name,
+            color,
+            schoolSegmentIds,
+            schoolClassIds
+          });
+          count++;
+        }
+
+        await batch.commit();
+        toast({ title: `${count} disciplinas importadas!` });
+        if (subjectsImportRef.current) subjectsImportRef.current.value = '';
+      } catch (err) {
+        toast({ title: 'Erro ao importar arquivo', variant: 'destructive' });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
 
   const handleRemoveSubject = async (id: string) => {
     if (!db) return;
@@ -1072,6 +1161,33 @@ export default function SlotAdminPage() {
 
               <TabsContent value="subjects">
                 <div className="space-y-6">
+                  {/* Header com Importação/Exportação */}
+                  <div className="flex items-center gap-3 justify-end px-1">
+                    <input 
+                      type="file" 
+                      ref={subjectsImportRef} 
+                      onChange={handleImportSubjects} 
+                      accept=".xlsx, .xls, .csv" 
+                      className="hidden" 
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="rounded-xl gap-2 h-9 text-[10px] font-bold uppercase border-primary/20 hover:bg-primary/5 shadow-sm"
+                      onClick={() => subjectsImportRef.current?.click()}
+                    >
+                      <Upload className="w-3 h-3 text-primary" /> Importar Excel
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="rounded-xl gap-2 h-9 text-[10px] font-bold uppercase border-primary/20 hover:bg-primary/5 shadow-sm"
+                      onClick={handleExportSubjects}
+                    >
+                      <Download className="w-3 h-3 text-primary" /> Exportar Excel
+                    </Button>
+                  </div>
+
                   <div className="flex flex-col gap-4 bg-muted/20 p-4 rounded-2xl border border-dashed">
                     <div className="flex items-end gap-3">
                       <div className="flex-1 space-y-2">
@@ -1121,34 +1237,47 @@ export default function SlotAdminPage() {
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap gap-4 pt-2 border-t border-dashed">
+                    <div className="flex flex-col gap-4 pt-2 border-t border-dashed">
                       <div className="flex items-center gap-2">
                         <Label className="text-xs font-bold whitespace-nowrap">Vincular a:</Label>
-                        <Select value={subjectTargetType} onValueChange={(v: any) => { setSubjectTargetType(v); setSubjectTargetId(''); }}>
+                        <Select value={subjectTargetType} onValueChange={(v: any) => { setSubjectTargetType(v); setSubjectTargetIds([]); }}>
                           <SelectTrigger className="h-9 w-[120px] rounded-lg bg-white">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="global">Global</SelectItem>
-                            <SelectItem value="segment">Segmento</SelectItem>
-                            <SelectItem value="class">Turma</SelectItem>
+                            <SelectItem value="segment">Segmentos</SelectItem>
+                            <SelectItem value="class">Turmas</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       
                       {subjectTargetType !== 'global' && (
-                        <div className="flex items-center gap-2 animate-in slide-in-from-left-2">
-                          <Select value={subjectTargetId} onValueChange={setSubjectTargetId}>
-                            <SelectTrigger className="h-9 w-[180px] rounded-lg bg-white">
-                              <SelectValue placeholder="Selecionar..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {subjectTargetType === 'segment' 
-                                ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) 
-                                : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
-                              }
-                            </SelectContent>
-                          </Select>
+                        <div className="flex flex-col gap-2 p-3 bg-white border rounded-xl animate-in slide-in-from-left-2 w-full">
+                          <Label className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                            {subjectTargetType === 'segment' ? "Selecionar Segmentos" : "Selecionar Turmas"}
+                          </Label>
+                          <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto pr-2">
+                            {(subjectTargetType === 'segment' ? sortedSegments : sortedClasses).map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  setSubjectTargetIds(prev => 
+                                    prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                                  );
+                                }}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all",
+                                  subjectTargetIds.includes(item.id) 
+                                    ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                                    : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                                )}
+                              >
+                                {item.name}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1168,13 +1297,13 @@ export default function SlotAdminPage() {
                             <div className="flex flex-col">
                               <span className="font-semibold text-sm">{s.name}</span>
                               {(() => {
-                                if (s.schoolClassId) {
-                                  const cls = sortedClasses.find(c => c.id === s.schoolClassId);
-                                  return <span className="text-[10px] text-muted-foreground italic">Turma: {cls?.name || '...'}</span>;
+                                if (s.schoolClassIds && s.schoolClassIds.length > 0) {
+                                  const names = s.schoolClassIds.map(id => sortedClasses.find(c => c.id === id)?.name).filter(Boolean);
+                                  return <span className="text-[10px] text-muted-foreground italic line-clamp-1" title={names.join(', ')}>Turmas: {names.join(', ')}</span>;
                                 }
-                                if (s.schoolSegmentId) {
-                                  const seg = sortedSegments.find(seg => seg.id === s.schoolSegmentId);
-                                  return <span className="text-[10px] text-muted-foreground italic">Seg: {seg?.name || '...'}</span>;
+                                if (s.schoolSegmentIds && s.schoolSegmentIds.length > 0) {
+                                  const names = s.schoolSegmentIds.map(id => sortedSegments.find(seg => seg.id === id)?.name).filter(Boolean);
+                                  return <span className="text-[10px] text-muted-foreground italic line-clamp-1" title={names.join(', ')}>Segs: {names.join(', ')}</span>;
                                 }
                                 return <span className="text-[10px] text-muted-foreground italic opacity-50">Global</span>;
                               })()}
@@ -1189,8 +1318,8 @@ export default function SlotAdminPage() {
                                 setEditingSubject(s);
                                 setEditSubjectName(s.name);
                                 setEditSubjectColor(s.color || '#3b82f6');
-                                setEditSubjectTargetType(s.schoolClassId ? 'class' : (s.schoolSegmentId ? 'segment' : 'global'));
-                                setEditSubjectTargetId(s.schoolClassId || s.schoolSegmentId || '');
+                                setEditSubjectTargetType(s.schoolClassIds?.length ? 'class' : (s.schoolSegmentIds?.length ? 'segment' : 'global'));
+                                setEditSubjectTargetIds(s.schoolClassIds || s.schoolSegmentIds || []);
                               }}
                             >
                               <ListPlus className="w-4 h-4" />
@@ -1226,14 +1355,32 @@ export default function SlotAdminPage() {
           </DialogHeader>
           <div className="py-4 space-y-5">
             <div className="space-y-2">
-              <Label>Nome da Disciplina</Label>
-              <Input 
-                value={tempSubject} 
-                onChange={(e) => setTempSubject(e.target.value)} 
-                list="subjectsList"
-                placeholder="Ex: Matemática, Português..." 
-                className="rounded-xl h-12"
-              />
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Disciplina</Label>
+              <Select value={tempSubject} onValueChange={setTempSubject}>
+                <SelectTrigger className="rounded-xl h-12 bg-white font-medium">
+                  <SelectValue placeholder="Escolha a disciplina..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredSubjectsForGrid.map(s => (
+                    <SelectItem key={s.id} value={s.name}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: s.color || '#3b82f6' }} />
+                        {s.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <div className="h-px bg-muted my-1" />
+                  <SelectItem value="_manual_">✎ Outra (Digitar)...</SelectItem>
+                </SelectContent>
+              </Select>
+              {tempSubject === '_manual_' && (
+                <Input 
+                  placeholder="Nome da disciplina..." 
+                  className="rounded-xl h-11 animate-in slide-in-from-top-1" 
+                  autoFocus
+                  onChange={(e) => setTempSubject(e.target.value)} 
+                />
+              )}
             </div>
 
             <div className="space-y-3">
@@ -1366,29 +1513,44 @@ export default function SlotAdminPage() {
             <div className="space-y-2 border-t pt-4">
               <Label className="text-xs font-bold uppercase text-muted-foreground">Vínculo</Label>
               <div className="space-y-3">
-                <Select value={editSubjectTargetType} onValueChange={(v: any) => { setEditSubjectTargetType(v); setEditSubjectTargetId(''); }}>
+                <Select value={editSubjectTargetType} onValueChange={(v: any) => { setEditSubjectTargetType(v); setEditSubjectTargetIds([]); }}>
                   <SelectTrigger className="rounded-xl h-11 bg-white font-medium">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="global">Global</SelectItem>
-                    <SelectItem value="segment">Segmento</SelectItem>
-                    <SelectItem value="class">Turma</SelectItem>
+                    <SelectItem value="segment">Segmentos</SelectItem>
+                    <SelectItem value="class">Turmas</SelectItem>
                   </SelectContent>
                 </Select>
                 
                 {editSubjectTargetType !== 'global' && (
-                  <Select value={editSubjectTargetId} onValueChange={setEditSubjectTargetId}>
-                    <SelectTrigger className="rounded-xl h-11 bg-white animate-in slide-in-from-top-2 font-medium">
-                      <SelectValue placeholder="Selecionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {editSubjectTargetType === 'segment' 
-                        ? sortedSegments.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>) 
-                        : sortedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
-                      }
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-col gap-2 p-3 bg-white border rounded-xl animate-in slide-in-from-top-2 w-full">
+                    <Label className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                      {editSubjectTargetType === 'segment' ? "Selecionar Segmentos" : "Selecionar Turmas"}
+                    </Label>
+                    <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto pr-2">
+                      {(editSubjectTargetType === 'segment' ? sortedSegments : sortedClasses).map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setEditSubjectTargetIds(prev => 
+                              prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                            );
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all",
+                            editSubjectTargetIds.includes(item.id) 
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
