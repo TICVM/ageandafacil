@@ -162,7 +162,7 @@ export function BookingDetailsDialog({
                     {statusCfg.label}
                   </Badge>
                   {(userPerms?.canChangeStatus || isMaster) && (
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1 text-primary">
                           <MoreHorizontal className="w-4 h-4" />
