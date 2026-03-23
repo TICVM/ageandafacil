@@ -18,6 +18,11 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    match /school_subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     match /photo_locations/{locationId} {
       allow read: if true;
       allow write: if isSignedIn();
