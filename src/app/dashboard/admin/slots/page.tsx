@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, BookOpen, LayoutGrid, Download, Upload } from 'lucide-react';
+import { Clock, Plus, Trash2, Loader2, ListPlus, Save, Timer, AlertCircle, CalendarIcon, ShieldAlert, Copy, Filter, BookOpen, LayoutGrid } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, serverTimestamp, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { toast } from '@/hooks/use-toast';
-import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings, Subject } from '@/lib/types';
+import { TimeSlot, Class, Segment, ScheduleBlock, AppSettings } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, parse } from 'date-fns';
@@ -42,18 +42,15 @@ export default function SlotAdminPage() {
   const segmentsRef = useMemoFirebase(() => db ? collection(db, 'school_segments') : null, [db]);
   const blocksRef = useMemoFirebase(() => db ? collection(db, 'schedule_blocks') : null, [db]);
   const settingsRef = useMemoFirebase(() => db ? doc(db, 'app_settings', 'general') : null, [db]);
-  const subjectsRef = useMemoFirebase(() => db ? collection(db, 'school_subjects') : null, [db]);
 
   const { data: slots, isLoading: loadingSlots } = useCollection<TimeSlot>(slotsRef);
   const { data: rawClasses } = useCollection<Class>(classesRef);
   const { data: rawSegments } = useCollection<Segment>(segmentsRef);
   const { data: blocks, isLoading: loadingBlocks } = useCollection<ScheduleBlock>(blocksRef);
   const { data: appSettings } = useDoc<AppSettings>(settingsRef);
-  const { data: rawSubjects } = useCollection<Subject>(subjectsRef);
 
   const sortedSegments = rawSegments ? [...rawSegments].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
   const sortedClasses = rawClasses ? [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [];
-  const sortedSubjects = rawSubjects ? [...rawSubjects].sort((a, b) => a.name.localeCompare(b.name)) : [];
 
   // Filtros de Visualização
   const [filterType, setFilterType] = useState<'all' | 'global' | 'segment' | 'class'>('all');
@@ -64,7 +61,6 @@ export default function SlotAdminPage() {
   const [bulkTimes, setBulkTimes] = useState('08:00, 09:00-30, 10:00');
   const [defaultDuration, setDefaultDuration] = useState('60');
   const [defaultSubject, setDefaultSubject] = useState('');
-  const [newSubjectName, setNewSubjectName] = useState('');
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [targetId, setTargetId] = useState('');
   
@@ -98,8 +94,6 @@ export default function SlotAdminPage() {
   const [gridClassId, setGridClassId] = useState('');
   const [editingGridSlot, setEditingGridSlot] = useState<TimeSlot | null>(null);
   const [tempSubject, setTempSubject] = useState('');
-  const [selectedRepeatDays, setSelectedRepeatDays] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (appSettings) {
@@ -348,256 +342,29 @@ export default function SlotAdminPage() {
   }, [slots, gridClassId]);
 
   const handleSaveGridSubject = async () => {
-    if (!db || !editingGridSlot || !gridClassId) return;
-    
+    if (!db || !editingGridSlot) return;
     try {
-      const batch = writeBatch(db);
-      const slotsCol = collection(db, 'available_time_slots');
-      
-      // Itere sobre todos os dias selecionados para replicação
-      for (const dayId of selectedRepeatDays) {
-        // Procure se já existe um slot nesta turma, neste dia e neste horário
-        const existing = slots?.find(s => 
-          s.schoolClassId === gridClassId && 
-          s.dayOfWeek === dayId && 
-          s.startTime === editingGridSlot.startTime
-        );
-
-        if (existing) {
-          // Se existe, apenas atualiza a matéria
-          batch.update(doc(slotsCol, existing.id), { subject: tempSubject });
-        } else {
-          // Se não existe, cria um novo slot baseado no modelo do que está sendo editado
-          const newRef = doc(slotsCol);
-          batch.set(newRef, {
-            dayOfWeek: dayId,
-            startTime: editingGridSlot.startTime,
-            durationMinutes: editingGridSlot.durationMinutes || 60,
-            schoolClassId: gridClassId,
-            schoolSegmentId: editingGridSlot.schoolSegmentId || null,
-            subject: tempSubject,
-            isActive: true
-          });
-        }
-      }
-
-      await batch.commit();
-      toast({ title: "Matéria atualizada e replicada!" });
+      await updateDoc(doc(db, 'available_time_slots', editingGridSlot.id), {
+        subject: tempSubject
+      });
+      toast({ title: "Matéria atualizada!" });
       setEditingGridSlot(null);
-      setSelectedRepeatDays([]);
     } catch (e) {
       toast({ title: "Erro ao atualizar", variant: "destructive" });
     }
   };
 
-  const handleExportExcel = () => {
-    if (!slots) {
-      toast({ title: 'Nenhum horário para exportar', variant: 'destructive' });
-      return;
-    }
-
-    const rows = [
-      ['Dia da Semana', 'Horário', 'Duração (min)', 'Matéria', 'Vínculo', 'Status']
-    ];
-
-    slots.forEach(s => {
-      const day = DAYS_OF_WEEK.find(d => d.id === s.dayOfWeek)?.label || s.dayOfWeek;
-      const target = getTargetName(s);
-      rows.push([
-        day,
-        s.startTime,
-        s.durationMinutes.toString(),
-        s.subject || 'Sem matéria',
-        target,
-        s.isActive ? 'Ativo' : 'Inativo'
-      ]);
-    });
-
-    const csvContent = rows.map(e => e.join(';')).join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Grade_Horarios_${format(new Date(), 'dd_MM_yyyy')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: 'Exportação concluída!' });
-  };
-
-  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast({ title: "Formato inválido. Por favor, envie um arquivo .csv", variant: "destructive" });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    if (!db) {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-      return;
-    }
-
-    setIsSaving(true);
-    
-    try {
-      const text = await file.text();
-      
-      if (text.startsWith('PK') || text.includes('xl/worksheets')) {
-        toast({ title: "O arquivo parece ser um Excel (.xlsx). Salve como CSV para importar.", variant: "destructive" });
-        setIsSaving(false);
-        return;
-      }
-
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-      
-      if (lines.length < 2) {
-        toast({ title: "Arquivo vazio ou inválido", variant: "destructive" });
-        setIsSaving(false);
-        return;
-      }
-
-      const batch = writeBatch(db);
-      const slotsCol = collection(db, 'available_time_slots');
-      let count = 0;
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line) continue;
-        
-        const parts = line.split(';');
-        if (parts.length < 5) continue;
-
-        const [dayStr, startTime, durationStr, subjectStr, targetStr, statusStr] = parts;
-        
-        if (startTime.length > 20) continue; // safety check against garbage data
-
-        const dayObj = DAYS_OF_WEEK.find(d => d.label.toLowerCase() === dayStr.toLowerCase() || d.short.toLowerCase() === dayStr.toLowerCase() || d.id === dayStr);
-        const dayOfWeek = dayObj ? dayObj.id : '1'; 
-
-        let schoolSegmentId: string | null = null;
-        let schoolClassId: string | null = null;
-
-        if (targetStr.startsWith('Turma:')) {
-          const name = targetStr.replace('Turma:', '').trim();
-          const cls = sortedClasses.find(c => c.name.toLowerCase() === name.toLowerCase());
-          if (cls) schoolClassId = cls.id;
-        } else if (targetStr.startsWith('Seg:')) {
-          const name = targetStr.replace('Seg:', '').trim();
-          const seg = sortedSegments.find(s => s.name.toLowerCase() === name.toLowerCase());
-          if (seg) schoolSegmentId = seg.id;
-        }
-
-        const durationMinutes = parseInt(durationStr, 10) || 60;
-        const subject = subjectStr === 'Sem matéria' ? '' : subjectStr;
-        const isActive = statusStr !== 'Inativo';
-
-        const newRef = doc(slotsCol);
-        batch.set(newRef, {
-          dayOfWeek,
-          startTime,
-          durationMinutes,
-          subject,
-          schoolSegmentId,
-          schoolClassId,
-          isActive
-        });
-        count++;
-      }
-
-      if (count > 0) {
-        await batch.commit();
-        toast({ title: `Importação concluída! ${count} horários inseridos.` });
-      } else {
-        toast({ title: "Nenhum horário válido encontrado no arquivo.", variant: "destructive" });
-      }
-
-    } catch (error) {
-      toast({ title: "Erro ao ler arquivo", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const handleCleanCorrupted = async () => {
-    if (!slots || !db) return;
-    const corrupted = slots.filter(s => s.startTime.length > 10 || s.startTime.includes('PK') || s.startTime.includes('xl/'));
-    
-    if (corrupted.length === 0) {
-      toast({ title: 'Nenhum horário corrompido encontrado!' });
-      return;
-    }
-
-    try {
-      const batch = writeBatch(db);
-      corrupted.forEach(s => {
-        batch.delete(doc(db, 'available_time_slots', s.id));
-      });
-      await batch.commit();
-      toast({ title: `${corrupted.length} horários corrompidos removidos com sucesso!` });
-    } catch (e) {
-      toast({ title: "Erro ao remover itens", variant: "destructive" });
-    }
-  };
-
-  const handleAddSubject = async () => {
-    if (!db || !newSubjectName.trim()) return;
-    try {
-      const newRef = doc(collection(db, 'school_subjects'));
-      await setDoc(newRef, { name: newSubjectName.trim() });
-      setNewSubjectName('');
-      toast({ title: 'Disciplina adicionada!' });
-    } catch (e) {
-      toast({ title: 'Erro ao adicionar', variant: 'destructive' });
-    }
-  };
-
-  const handleRemoveSubject = async (id: string) => {
-    if (!db) return;
-    deleteDocumentNonBlocking(doc(db, 'school_subjects', id));
-    toast({ title: 'Disciplina removida!' });
-  };
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <datalist id="subjectsList">
-        {sortedSubjects.map(s => <option key={s.id} value={s.name} />)}
-      </datalist>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Grade e Bloqueios</h1>
           <p className="text-muted-foreground">Gerencie a estrutura de horários e as matérias associadas.</p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
-          <Button onClick={handleCleanCorrupted} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-red-50 border-red-600 text-red-600 hover:bg-red-100">
-            <Trash2 className="w-4 h-4" />
-            Limpar Corrompidos
-          </Button>
-          <input 
-            type="file" 
-            accept=".csv" 
-            ref={fileInputRef} 
-            className="hidden" 
-            onChange={handleImportExcel} 
-          />
-          <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-white border-blue-600 text-blue-600 hover:bg-blue-50" disabled={isSaving}>
-            <Upload className="w-4 h-4" />
-            Importar Excel
-          </Button>
-          <Button onClick={handleExportExcel} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-white border-green-600 text-green-600 hover:bg-green-50">
-            <Download className="w-4 h-4" />
-            Exportar Excel
-          </Button>
-          <Button onClick={() => setIsCopyDialogOpen(true)} variant="outline" className="flex-1 md:flex-none rounded-xl gap-2 h-11 bg-white border-primary text-primary hover:bg-primary/5">
-            <Copy className="w-4 h-4" />
-            Duplicar Grade
-          </Button>
-        </div>
+        <Button onClick={() => setIsCopyDialogOpen(true)} variant="outline" className="rounded-xl gap-2 h-11 bg-white border-primary text-primary hover:bg-primary/5">
+          <Copy className="w-4 h-4" />
+          Duplicar Grade
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -647,7 +414,7 @@ export default function SlotAdminPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="slot-subject-input" className="text-xs font-bold">Matéria Padrão</Label>
-                      <Input id="slot-subject-input" name="subject" list="subjectsList" placeholder="Ex: Matemática" value={defaultSubject} onChange={(e) => setDefaultSubject(e.target.value)} className="rounded-xl h-10" />
+                      <Input id="slot-subject-input" name="subject" placeholder="Ex: Matemática" value={defaultSubject} onChange={(e) => setDefaultSubject(e.target.value)} className="rounded-xl h-10" />
                     </div>
                   </div>
 
@@ -709,7 +476,7 @@ export default function SlotAdminPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        {isBulkMode ? <Calendar mode="multiple" required selected={blockMultipleDates} onSelect={setBlockMultipleDates} locale={ptBR} /> : <Calendar mode="single" required selected={blockDate} onSelect={setBlockDate} locale={ptBR} />}
+                        {isBulkMode ? <Calendar mode="multiple" selected={blockMultipleDates} onSelect={setBlockMultipleDates} locale={ptBR} /> : <Calendar mode="single" selected={blockDate} onSelect={setBlockDate} locale={ptBR} />}
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -817,11 +584,10 @@ export default function SlotAdminPage() {
           </CardHeader>
           <CardContent className="p-6">
             <Tabs defaultValue="slots" className="w-full">
-              <TabsList className="flex gap-1 bg-muted/20 p-1 mb-6 rounded-xl border w-full sm:w-fit flex-wrap">
+              <TabsList className="flex gap-1 bg-muted/20 p-1 mb-6 rounded-xl border w-full sm:w-fit">
                 <TabsTrigger value="slots" className="rounded-lg px-6"><Clock className="w-4 h-4 mr-2" /> Grade Padrão</TabsTrigger>
                 <TabsTrigger value="curriculum" className="rounded-lg px-6"><LayoutGrid className="w-4 h-4 mr-2" /> Grade Curricular</TabsTrigger>
                 <TabsTrigger value="blocks" className="rounded-lg px-6"><ShieldAlert className="w-4 h-4 mr-2" /> Datas Bloqueadas</TabsTrigger>
-                <TabsTrigger value="subjects" className="rounded-lg px-6"><BookOpen className="w-4 h-4 mr-2" /> Disciplinas</TabsTrigger>
               </TabsList>
 
               <TabsContent value="slots" className="space-y-6">
@@ -898,11 +664,7 @@ export default function SlotAdminPage() {
                                 <TableCell key={day.id} className="p-1 h-16">
                                   {slot ? (
                                     <button 
-                                      onClick={() => { 
-                                        setEditingGridSlot(slot); 
-                                        setTempSubject(slot.subject || '');
-                                        setSelectedRepeatDays([slot.dayOfWeek]);
-                                      }}
+                                      onClick={() => { setEditingGridSlot(slot); setTempSubject(slot.subject || ''); }}
                                       className={cn(
                                         "w-full h-full rounded-lg text-[10px] font-bold p-2 transition-all text-center flex flex-col items-center justify-center gap-1 hover:brightness-95",
                                         slot.subject ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted/30 text-muted-foreground border border-dashed"
@@ -912,23 +674,7 @@ export default function SlotAdminPage() {
                                       {slot.subject || "Sem matéria"}
                                     </button>
                                   ) : (
-                                    <button 
-                                      onClick={() => { 
-                                        setEditingGridSlot({
-                                          id: 'new',
-                                          dayOfWeek: day.id,
-                                          startTime: time,
-                                          durationMinutes: 60,
-                                          schoolClassId: gridClassId,
-                                          isActive: true
-                                        } as TimeSlot);
-                                        setTempSubject('');
-                                        setSelectedRepeatDays([day.id]);
-                                      }}
-                                      className="w-full h-full flex items-center justify-center opacity-10 hover:opacity-100 hover:bg-primary/5 rounded-lg transition-all"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </button>
+                                    <div className="w-full h-full flex items-center justify-center opacity-20"><Plus className="w-4 h-4" /></div>
                                   )}
                                 </TableCell>
                               );
@@ -985,40 +731,6 @@ export default function SlotAdminPage() {
                   </div>
                 )}
               </TabsContent>
-
-              <TabsContent value="subjects">
-                <div className="space-y-6">
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="Nova Disciplina (Ex: Matemática)" 
-                      value={newSubjectName} 
-                      onChange={(e) => setNewSubjectName(e.target.value)} 
-                      className="max-w-md rounded-xl h-10"
-                    />
-                    <Button onClick={handleAddSubject} className="rounded-xl gap-2 h-10">
-                      <Plus className="w-4 h-4" /> Adicionar
-                    </Button>
-                  </div>
-                  
-                  {sortedSubjects.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {sortedSubjects.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-3 border rounded-xl bg-muted/5 group hover:bg-white shadow-sm transition-all">
-                          <span className="font-semibold text-sm">{s.name}</span>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleRemoveSubject(s.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-20 text-center text-muted-foreground border-2 border-dashed rounded-3xl flex flex-col items-center gap-3">
-                      <BookOpen className="w-8 h-8 opacity-20" />
-                      <p>Nenhuma disciplina cadastrada nesta listagem rápida.</p>
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -1039,50 +751,14 @@ export default function SlotAdminPage() {
               <Input 
                 value={tempSubject} 
                 onChange={(e) => setTempSubject(e.target.value)} 
-                list="subjectsList"
                 placeholder="Ex: Matemática, Português..." 
                 className="rounded-xl h-12"
               />
             </div>
-
-            <div className="space-y-3 pt-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Repetir para os dias:</Label>
-                <button 
-                  onClick={() => {
-                    const allDays = DAYS_OF_WEEK.slice(0, 5).map(d => d.id);
-                    setSelectedRepeatDays(selectedRepeatDays.length === 5 ? [] : allDays);
-                  }}
-                  className="text-[10px] text-primary font-bold hover:underline"
-                >
-                  {selectedRepeatDays.length === 5 ? "Desmarcar Todos" : "Marcar Todos (Seg-Sex)"}
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {DAYS_OF_WEEK.slice(0, 6).map(day => (
-                  <button
-                    key={day.id}
-                    onClick={() => {
-                      setSelectedRepeatDays(prev => 
-                        prev.includes(day.id) ? prev.filter(id => id !== day.id) : [...prev, day.id]
-                      );
-                    }}
-                    className={cn(
-                      "px-3 py-2 rounded-xl text-xs font-bold border transition-all",
-                      selectedRepeatDays.includes(day.id) 
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm" 
-                        : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
-                    )}
-                  >
-                    {day.short}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" className="rounded-xl" onClick={() => { setEditingGridSlot(null); setSelectedRepeatDays([]); }}>Cancelar</Button>
-            <Button className="rounded-xl font-bold px-6" onClick={handleSaveGridSubject}>Salvar e Replicar</Button>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingGridSlot(null)}>Cancelar</Button>
+            <Button onClick={handleSaveGridSubject}>Salvar Alteração</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
