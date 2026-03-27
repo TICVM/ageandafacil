@@ -57,6 +57,14 @@ export interface Class {
   isActive?: boolean;
 }
 
+export interface Subject {
+  id: string;
+  name: string;
+  color?: string;
+  schoolSegmentIds?: string[];
+  schoolClassIds?: string[];
+}
+
 export interface PhotoLocation {
   id: string;
   name: string;
@@ -118,4 +126,5 @@ export interface AppSettings {
   minAdvanceBookingHours: number;
   minAdvanceRescheduleDays: number;
   minAdvanceRescheduleHours: number;
+  defaultRoleId?: string;
 }
