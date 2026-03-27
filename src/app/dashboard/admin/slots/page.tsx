@@ -36,6 +36,19 @@ const DAYS_OF_WEEK = [
   { id: '0', label: 'Domingo', short: 'Dom' },
 ];
 
+const PREDEFINED_COLORS = [
+  { name: 'Azul', value: '#3b82f6' },
+  { name: 'Verde', value: '#10b981' },
+  { name: 'Amarelo', value: '#f59e0b' },
+  { name: 'Vermelho', value: '#ef4444' },
+  { name: 'Roxo', value: '#8b5cf6' },
+  { name: 'Rosa', value: '#ec4899' },
+  { name: 'Ciano', value: '#06b6d4' },
+  { name: 'Laranja', value: '#f97316' },
+  { name: 'Indigo', value: '#6366f1' },
+  { name: 'Slate', value: '#64748b' },
+];
+
 export default function SlotAdminPage() {
   const db = useFirestore();
   
@@ -65,7 +78,7 @@ export default function SlotAdminPage() {
   // Novo Horário
   const [selectedDays, setSelectedDays] = useState<string[]>(['1', '2', '3', '4', '5']);
   const [bulkTimes, setBulkTimes] = useState('08:00, 09:00-30, 10:00');
-  const [defaultDuration, setDefaultDuration] = useState('60');
+  const [defaultDuration, setDefaultDuration] = useState('50');
   const [defaultSubject, setDefaultSubject] = useState('');
   const [newSubjectName, setNewSubjectName] = useState('');
   const [targetType, setTargetType] = useState<'global' | 'segment' | 'class'>('global');
@@ -116,6 +129,15 @@ export default function SlotAdminPage() {
   const [editSubjectTargetType, setEditSubjectTargetType] = useState<'global' | 'segment' | 'class'>('global');
   const [editSubjectTargetIds, setEditSubjectTargetIds] = useState<string[]>([]);
 
+  // Preview de Importação
+  const [importPreviewData, setImportPreviewData] = useState<TimeSlot[]>([]);
+  const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false);
+  const [importMode, setImportMode] = useState<'append' | 'replace'>('replace');
+  const [newSubjectsToRegister, setNewSubjectsToRegister] = useState<string[]>([]);
+  const [newSubjectColorsMap, setNewSubjectColorsMap] = useState<Record<string, string>>({});
+  const [importFileClassIds, setImportFileClassIds] = useState<string[]>([]);
+  const [importFileSegmentIds, setImportFileSegmentIds] = useState<string[]>([]);
+
   const filteredSubjectsForGrid = useMemo(() => {
     if (!sortedSubjects || !editingGridSlot) return [];
     
@@ -135,18 +157,6 @@ export default function SlotAdminPage() {
       return false;
     });
   }, [sortedSubjects, editingGridSlot, sortedClasses]);
-
-  const PREDEFINED_COLORS = [
-    { name: 'Azul', value: '#3b82f6' },
-    { name: 'Verde', value: '#10b981' },
-    { name: 'Amarelo', value: '#f59e0b' },
-    { name: 'Vermelho', value: '#ef4444' },
-    { name: 'Roxo', value: '#8b5cf6' },
-    { name: 'Rosa', value: '#ec4899' },
-    { name: 'Laranja', value: '#f97316' },
-    { name: 'Ciano', value: '#06b6d4' },
-    { name: 'Slate', value: '#64748b' },
-  ];
 
   const getContrastColor = (hexColor?: string) => {
     if (!hexColor) return 'inherit';
@@ -295,7 +305,7 @@ export default function SlotAdminPage() {
         const data = d.data();
         const newRef = doc(slotsCol);
         batch.set(newRef, {
-          ...data,
+          ...(data as object),
           schoolSegmentId: copyDestType === 'segment' ? copyDestId : null,
           schoolClassId: copyDestType === 'class' ? copyDestId : null,
         });
@@ -404,7 +414,7 @@ export default function SlotAdminPage() {
   const uniqueTimesForGrid = useMemo(() => {
     if (!slots || !gridClassId) return [];
     const classSlots = slots.filter(s => s.schoolClassId === gridClassId);
-    const times = Array.from(new Set(classSlots.map(s => s.startTime))).sort();
+    const times: string[] = Array.from(new Set<string>(classSlots.map(s => s.startTime))).sort();
     return times;
   }, [slots, gridClassId]);
 
@@ -434,7 +444,7 @@ export default function SlotAdminPage() {
             batch.set(newRef, {
               dayOfWeek: dayId,
               startTime: timeStr,
-              durationMinutes: editingGridSlot.durationMinutes || 60,
+              durationMinutes: editingGridSlot.durationMinutes || 50,
               schoolClassId: gridClassId,
               schoolSegmentId: editingGridSlot.schoolSegmentId || null,
               subject: tempSubject,
@@ -460,132 +470,377 @@ export default function SlotAdminPage() {
       return;
     }
 
-    const rows = [
-      ['Dia da Semana', 'Horário', 'Duração (min)', 'Matéria', 'Vínculo', 'Status']
-    ];
-
-    slots.forEach(s => {
-      const day = DAYS_OF_WEEK.find(d => d.id === s.dayOfWeek)?.label || s.dayOfWeek;
-      const target = getTargetName(s);
-      rows.push([
-        day,
-        s.startTime,
-        s.durationMinutes.toString(),
-        s.subject || 'Sem matéria',
-        target,
-        s.isActive ? 'Ativo' : 'Inativo'
-      ]);
+    // 1. Filtrar se houver filtro ativo
+    const dataToExport = slots.filter(s => {
+      if (filterType === 'all') return true;
+      if (filterType === 'global') return !s.schoolSegmentId && !s.schoolClassId;
+      if (filterType === 'segment') return s.schoolSegmentId === filterId;
+      if (filterType === 'class') return s.schoolClassId === filterId;
+      return true;
     });
 
-    const csvContent = rows.map(e => e.join(';')).join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Grade_Horarios_${format(new Date(), 'dd_MM_yyyy')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: 'Exportação concluída!' });
+    if (dataToExport.length === 0) {
+      toast({ title: 'Nenhum horário encontrado para os filtros atuais', variant: 'destructive' });
+      return;
+    }
+
+    // 2. Agrupar por Alvo (Turma, Segmento ou Global)
+    const groupedByTarget: Record<string, Record<string, TimeSlot[]>> = {};
+    
+    dataToExport.forEach(s => {
+      const target = getTargetName(s);
+      if (!groupedByTarget[target]) groupedByTarget[target] = {};
+      if (!groupedByTarget[target][s.dayOfWeek]) groupedByTarget[target][s.dayOfWeek] = [];
+      groupedByTarget[target][s.dayOfWeek].push(s);
+    });
+
+    // 4. Preparar as linhas para o Excel
+    let finalRows: any[][] = [];
+
+    if (filterType === 'class' || filterType === 'segment') {
+      // FORMATO MATRIZ (IGUAL AO DA TELA): LINHAS = HORÁRIOS, COLUNAS = DIAS
+      const targetName = filterType === 'class' 
+        ? (sortedClasses.find(c => c.id === filterId)?.name || 'Turma')
+        : (sortedSegments.find(s => s.id === filterId)?.name || 'Segmento');
+
+      finalRows.push([filterType === 'class' ? 'Turma:' : 'Segmento:', targetName]);
+      finalRows.push([]); // Linha em branco
+
+      const headers = ['Horário', 'Duração (min)', ...DAYS_OF_WEEK.map(d => d.label)];
+      finalRows.push(headers);
+
+      // Obter todos os horários únicos ordenados
+      const uniqueTimes = Array.from(new Set(dataToExport.map(s => s.startTime))).sort();
+
+      uniqueTimes.forEach(time => {
+        // Para cada horário, pegamos a duração do primeiro slot encontrado (geralmente é a mesma para todos os dias no mesmo horário)
+        const sampleSlot = dataToExport.find(s => s.startTime === time);
+        const duration = sampleSlot?.durationMinutes || 50;
+
+        const row = [time, duration];
+        DAYS_OF_WEEK.forEach(day => {
+          const slot = dataToExport.find(s => s.startTime === time && s.dayOfWeek === day.id);
+          row.push(slot?.subject || '-');
+        });
+        finalRows.push(row);
+      });
+    } else {
+      // FORMATO RESUMO (TODOS): LINHAS = TURMAS, COLUNAS = DIAS
+      const headers = ['Vínculo', ...DAYS_OF_WEEK.map(d => d.label)];
+      finalRows.push(headers);
+
+      const groupedByTarget: Record<string, Record<string, any[]>> = {};
+      dataToExport.forEach(s => {
+        const target = getTargetName(s);
+        if (!groupedByTarget[target]) groupedByTarget[target] = {};
+        if (!groupedByTarget[target][s.dayOfWeek]) groupedByTarget[target][s.dayOfWeek] = [];
+        groupedByTarget[target][s.dayOfWeek].push(s);
+      });
+
+      Object.entries(groupedByTarget).forEach(([targetName, days]) => {
+        const row = [targetName];
+        DAYS_OF_WEEK.forEach(day => {
+          const daySlots = days[day.id] || [];
+          const cellValue = daySlots
+            .sort((a, b) => a.startTime.localeCompare(b.startTime))
+            .map(s => `${s.startTime} [${s.durationMinutes || 50}]${s.subject ? ` (${s.subject})` : ''}`)
+            .join(', ');
+          row.push(cellValue || '-');
+        });
+        finalRows.push(row);
+      });
+    }
+
+    // 5. Gerar XLSX
+    try {
+      const worksheet = XLSX.utils.aoa_to_sheet(finalRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Grade de Horários");
+      
+      // Nome dinâmico do arquivo
+      let fileName = `Grade_Horarios_${format(new Date(), 'dd_MM_yyyy')}`;
+      if (filterType === 'class' && filterId) {
+        const cls = sortedClasses.find(c => c.id === filterId);
+        if (cls) fileName += `_Turma_${cls.name.replace(/\s+/g, '_')}`;
+      } else if (filterType === 'segment' && filterId) {
+        const seg = sortedSegments.find(s => s.id === filterId);
+        if (seg) fileName += `_Seg_${seg.name.replace(/\s+/g, '_')}`;
+      }
+
+      XLSX.writeFile(workbook, `${fileName}.xlsx`);
+      toast({ title: 'Exportação (Matriz) concluída!' });
+    } catch (error) {
+      toast({ title: 'Erro ao gerar Excel', variant: 'destructive' });
+    }
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast({ title: "Formato inválido. Por favor, envie um arquivo .csv", variant: "destructive" });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    if (!db) {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-      return;
-    }
+    if (!file || !db) return;
 
     setIsSaving(true);
-    
-    try {
-      const text = await file.text();
-      
-      if (text.startsWith('PK') || text.includes('xl/worksheets')) {
-        toast({ title: "O arquivo parece ser um Excel (.xlsx). Salve como CSV para importar.", variant: "destructive" });
-        setIsSaving(false);
-        return;
-      }
+    const reader = new FileReader();
 
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-      
-      if (lines.length < 2) {
-        toast({ title: "Arquivo vazio ou inválido", variant: "destructive" });
-        setIsSaving(false);
-        return;
-      }
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-      const batch = writeBatch(db);
-      const slotsCol = collection(db, 'available_time_slots');
-      let count = 0;
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line) continue;
-        
-        const parts = line.split(';');
-        if (parts.length < 5) continue;
-
-        const [dayStr, startTime, durationStr, subjectStr, targetStr, statusStr] = parts;
-        
-        if (startTime.length > 20) continue; // safety check against garbage data
-
-        const dayObj = DAYS_OF_WEEK.find(d => d.label.toLowerCase() === dayStr.toLowerCase() || d.short.toLowerCase() === dayStr.toLowerCase() || d.id === dayStr);
-        const dayOfWeek = dayObj ? dayObj.id : '1'; 
-
-        let schoolSegmentId: string | null = null;
-        let schoolClassId: string | null = null;
-
-        if (targetStr.startsWith('Turma:')) {
-          const name = targetStr.replace('Turma:', '').trim();
-          const cls = sortedClasses.find(c => c.name.toLowerCase() === name.toLowerCase());
-          if (cls) schoolClassId = cls.id;
-        } else if (targetStr.startsWith('Seg:')) {
-          const name = targetStr.replace('Seg:', '').trim();
-          const seg = sortedSegments.find(s => s.name.toLowerCase() === name.toLowerCase());
-          if (seg) schoolSegmentId = seg.id;
+        if (jsonData.length < 2) {
+          toast({ title: "Arquivo vazio ou inválido", variant: "destructive" });
+          setIsSaving(false);
+          return;
         }
 
-        const durationMinutes = parseInt(durationStr, 10) || 60;
-        const subject = subjectStr === 'Sem matéria' ? '' : subjectStr;
-        const isActive = statusStr !== 'Inativo';
+        let count = 0;
+        const previewSlots: TimeSlot[] = [];
+        
+        let currentFileClassId: string | null = null;
+        let currentFileSegmentId: string | null = null;
+        let currentHeaders: string[] = [];
+        let inMatrixSection = false;
 
+        for (const row of jsonData) {
+          if (!row || row.length === 0) continue;
+
+          // 1. Verificar se a linha é um Marcador de Alvo (Turma: ou Segmento:)
+          let foundTargetInRow = false;
+          row.forEach((cell, cellIdx) => {
+            const val = cell?.toString().trim();
+            const nextVal = row[cellIdx + 1]?.toString().trim();
+            
+            if (val === 'Turma:' && nextVal) {
+              const cls = sortedClasses.find(c => c.name.toLowerCase() === nextVal.toLowerCase());
+              if (cls) {
+                currentFileClassId = cls.id;
+                currentFileSegmentId = null;
+                foundTargetInRow = true;
+              }
+            } else if (val === 'Segmento:' && nextVal) {
+              const seg = sortedSegments.find(s => s.name.toLowerCase() === nextVal.toLowerCase());
+              if (seg) {
+                currentFileSegmentId = seg.id;
+                currentFileClassId = null;
+                foundTargetInRow = true;
+              }
+            }
+          });
+
+          if (foundTargetInRow) {
+            inMatrixSection = false; // Reset section when new target found
+            continue;
+          }
+
+          // 2. Verificar se a linha é um Cabeçalho (Horário ou Vínculo)
+          const isHeaderRow = row.some(cell => {
+            const val = cell?.toString().trim().toUpperCase();
+            return val === 'HORÁRIO' || val === 'VÍNCULO';
+          });
+
+          if (isHeaderRow) {
+            currentHeaders = row.map(h => h?.toString().trim().toUpperCase() || '');
+            inMatrixSection = currentHeaders.includes('HORÁRIO');
+            continue;
+          }
+
+          // 3. Processar Dados
+          if (inMatrixSection) {
+            const startTime = rowIndexToStartTime(row[0]); 
+            if (!startTime) continue;
+
+            const hasDurationCol = currentHeaders.includes('DURAÇÃO (MIN)');
+            const duration = hasDurationCol ? (parseInt(row[currentHeaders.indexOf('DURAÇÃO (MIN)')], 10) || 50) : 50;
+            const startDayIdx = hasDurationCol ? 2 : 1;
+
+            DAYS_OF_WEEK.forEach((day, idx) => {
+              const cellValue = row[idx + startDayIdx]; 
+              if (cellValue && cellValue !== '-' && cellValue !== '') {
+                const subjects = cellValue.toString().split(',').map((s: string) => s.trim());
+                subjects.forEach((subj: string) => {
+                  let finalSubj = subj;
+                  let finalStartTime = startTime;
+                  let finalDuration = duration;
+                  
+                  const complexMatch = subj.match(/^(\d{2}:\d{2})\s*(?:\[(\d+)\])?\s*(?:\((.*)\))?$/);
+                  if (complexMatch) {
+                    finalStartTime = complexMatch[1];
+                    if (complexMatch[2]) finalDuration = parseInt(complexMatch[2], 10);
+                    finalSubj = complexMatch[3] || '';
+                  } else {
+                    const simpleMatch = subj.match(/^(\d{2}:\d{2})\s*\((.*)\)$/);
+                    if (simpleMatch) {
+                      finalStartTime = simpleMatch[1];
+                      finalSubj = simpleMatch[2];
+                    }
+                  }
+
+                  previewSlots.push({
+                    dayOfWeek: day.id,
+                    startTime: finalStartTime,
+                    durationMinutes: finalDuration,
+                    subject: finalSubj === '-' ? '' : finalSubj,
+                    schoolSegmentId: currentFileSegmentId || (filterType === 'segment' ? filterId : null),
+                    schoolClassId: currentFileClassId || (filterType === 'class' ? filterId : null),
+                  } as TimeSlot);
+                  count++;
+                });
+              }
+            });
+          } else if (currentHeaders.includes('VÍNCULO')) {
+            const targetStr = row[0]?.toString() || '';
+            let rowSegmentId = null;
+            let rowClassId = null;
+
+            if (targetStr.startsWith('Turma:')) {
+              const name = targetStr.replace('Turma:', '').trim();
+              const cls = sortedClasses.find(c => c.name.toLowerCase() === name.toLowerCase());
+              if (cls) rowClassId = cls.id;
+            } else if (targetStr.startsWith('Seg:')) {
+              const name = targetStr.replace('Seg:', '').trim();
+              const seg = sortedSegments.find(s => s.name.toLowerCase() === name.toLowerCase());
+              if (seg) rowSegmentId = seg.id;
+            }
+
+            DAYS_OF_WEEK.forEach((day, idx) => {
+              const cellValue = row[idx + 1];
+              if (cellValue && cellValue !== '-' && cellValue !== '') {
+                const entries = cellValue.toString().split(',').map((s: string) => s.trim());
+                entries.forEach((entry: string) => {
+                  const match = entry.match(/^(\d{2}:\d{2})\s*(?:\[(\d+)\])?\s*(?:\((.*)\))?$/);
+                  if (match) {
+                    previewSlots.push({
+                      dayOfWeek: day.id,
+                      startTime: match[1],
+                      durationMinutes: match[2] ? parseInt(match[2], 10) : 50,
+                      subject: match[3] || '',
+                      schoolSegmentId: rowSegmentId || (filterType === 'segment' ? filterId : null),
+                      schoolClassId: rowClassId || (filterType === 'class' ? filterId : null),
+                    } as TimeSlot);
+                    count++;
+                  }
+                });
+              }
+            });
+          }
+        }
+
+        if (count > 0) {
+          // Detectar novas disciplinas
+          const existingSubjectNames = new Set(sortedSubjects.map(s => s.name.trim().toLowerCase()));
+          const newSubjects = Array.from(new Set(
+            previewSlots
+              .map(s => s.subject?.trim() || '')
+              .filter(name => name !== '' && !existingSubjectNames.has(name.toLowerCase()))
+          ));
+
+          const initialColors: Record<string, string> = {};
+          newSubjects.forEach((name, idx) => {
+            initialColors[name] = PREDEFINED_COLORS[idx % PREDEFINED_COLORS.length].value;
+          });
+
+          const discoveredClassIds = Array.from(new Set(previewSlots.map(s => s.schoolClassId).filter(Boolean)));
+          const discoveredSegmentIds = Array.from(new Set(previewSlots.map(s => s.schoolSegmentId).filter(Boolean)));
+
+          setImportFileClassIds(discoveredClassIds as string[]);
+          setImportFileSegmentIds(discoveredSegmentIds as string[]);
+          setNewSubjectsToRegister(newSubjects);
+          setNewSubjectColorsMap(initialColors);
+          setImportPreviewData(previewSlots);
+          setIsImportPreviewOpen(true);
+          toast({ title: `${count} horários identificados. ${newSubjects.length} novas disciplinas.` });
+        } else {
+          toast({ title: "Nenhum horário válido encontrado no arquivo.", variant: "destructive" });
+        }
+      } catch (err) {
+        toast({ title: 'Erro ao importar arquivo', variant: 'destructive' });
+      } finally {
+        setIsSaving(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleConfirmImport = async (mode: 'append' | 'replace') => {
+    if (!db || importPreviewData.length === 0) return;
+    
+    setIsSaving(true);
+    try {
+      const batch = writeBatch(db);
+      const slotsCol = collection(db, 'available_time_slots');
+
+      if (mode === 'replace') {
+        // Encontrar slots existentes que colidem (mesma turma/segmento, mesmo dia e mesmo horário)
+        for (const newSlot of importPreviewData) {
+          const existing = slots?.find(s => 
+            s.dayOfWeek === newSlot.dayOfWeek && 
+            s.startTime === newSlot.startTime && 
+            s.schoolClassId === newSlot.schoolClassId && 
+            s.schoolSegmentId === newSlot.schoolSegmentId
+          );
+          
+          if (existing) {
+            batch.delete(doc(db, 'available_time_slots', existing.id));
+          }
+        }
+      }
+
+      // 1. Registrar novas disciplinas, se houver
+      if (newSubjectsToRegister.length > 0) {
+        for (const name of newSubjectsToRegister) {
+          const color = newSubjectColorsMap[name];
+          const newSubjRef = doc(collection(db, 'school_subjects'));
+          batch.set(newSubjRef, {
+            name,
+            color,
+            schoolSegmentIds: importFileSegmentIds.length > 0 ? importFileSegmentIds : (filterType === 'segment' ? [filterId] : []),
+            schoolClassIds: importFileClassIds.length > 0 ? importFileClassIds : (filterType === 'class' ? [filterId] : []),
+          });
+        }
+      }
+
+      // 2. Adicionar novos slots
+      importPreviewData.forEach(s => {
         const newRef = doc(slotsCol);
-        batch.set(newRef, {
-          dayOfWeek,
-          startTime,
-          durationMinutes,
-          subject,
-          schoolSegmentId,
-          schoolClassId,
-          isActive
-        });
-        count++;
-      }
+        batch.set(newRef, { ...s, isActive: true });
+      });
 
-      if (count > 0) {
-        await batch.commit();
-        toast({ title: `Importação concluída! ${count} horários inseridos.` });
-      } else {
-        toast({ title: "Nenhum horário válido encontrado no arquivo.", variant: "destructive" });
-      }
-
-    } catch (error) {
-      toast({ title: "Erro ao ler arquivo", variant: "destructive" });
+      await batch.commit();
+      toast({ title: mode === 'replace' ? "Horários substituídos com sucesso!" : "Horários acrescentados com sucesso!" });
+      setIsImportPreviewOpen(false);
+      setImportPreviewData([]);
+      setImportFileClassIds([]);
+      setImportFileSegmentIds([]);
+      setNewSubjectsToRegister([]);
+      setNewSubjectColorsMap({});
+    } catch (e) {
+      toast({ title: "Erro ao salvar horários", variant: "destructive" });
     } finally {
       setIsSaving(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
+  };
+
+  // Helper para limpar o tempo
+  const rowIndexToStartTime = (val: any): string | null => {
+    if (val === undefined || val === null) return null;
+    
+    // Se for número (Excel armazena tempo como fração do dia)
+    if (typeof val === 'number') {
+      const totalMinutes = Math.round(val * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+
+    const str = val.toString().trim();
+    const match = str.match(/^(\d{1,2}:\d{2})/);
+    if (!match) return null;
+    let time = match[1];
+    if (time.length === 4) time = '0' + time;
+    return time;
   };
 
   const handleCleanCorrupted = async () => {
@@ -732,7 +987,7 @@ export default function SlotAdminPage() {
           </Button>
           <input 
             type="file" 
-            accept=".csv" 
+            accept=".xlsx, .xls, .csv" 
             ref={fileInputRef} 
             className="hidden" 
             onChange={handleImportExcel} 
@@ -1090,7 +1345,7 @@ export default function SlotAdminPage() {
                                           id: 'new',
                                           dayOfWeek: day.id,
                                           startTime: time,
-                                          durationMinutes: 60,
+                                          durationMinutes: 50,
                                           schoolClassId: gridClassId,
                                           isActive: true
                                         } as TimeSlot);
@@ -1641,6 +1896,130 @@ export default function SlotAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsBulkImportOpen(false)} className="rounded-xl">Cancelar</Button>
             <Button onClick={handleProcessBulkText} className="rounded-xl">Identificar Datas</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview de Importação */}
+      <Dialog open={isImportPreviewOpen} onOpenChange={setIsImportPreviewOpen}>
+        <DialogContent className="rounded-3xl max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-primary text-white">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <Upload className="w-6 h-6" /> Pré-visualização da Importação
+            </DialogTitle>
+            <DialogDescription className="text-white/80">
+              Revise os horários encontrados no arquivo antes de salvar. {importPreviewData.length} itens identificados.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto p-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-bold">Dia</TableHead>
+                  <TableHead className="font-bold">Horário</TableHead>
+                  <TableHead className="font-bold">Matéria</TableHead>
+                  <TableHead className="font-bold">Vínculo</TableHead>
+                  <TableHead className="font-bold text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {importPreviewData.map((s, idx) => {
+                  const existing = slots?.find(ex => 
+                    ex.dayOfWeek === s.dayOfWeek && 
+                    ex.startTime === s.startTime && 
+                    ex.schoolClassId === s.schoolClassId && 
+                    ex.schoolSegmentId === s.schoolSegmentId
+                  );
+                  return (
+                    <TableRow key={idx}>
+                      <TableCell>{DAYS_OF_WEEK.find(d => d.id === s.dayOfWeek)?.label}</TableCell>
+                      <TableCell className="font-mono">{s.startTime}</TableCell>
+                      <TableCell className="font-bold text-primary">{s.subject || '-'}</TableCell>
+                      <TableCell>{getTargetName(s)}</TableCell>
+                      <TableCell className="text-center">
+                        {existing ? (
+                          <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Existe (Será atualizado)</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Novo</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+
+            {/* Novas Disciplinas */}
+            {newSubjectsToRegister.length > 0 && (
+              <div className="mt-8 bg-amber-50 border border-amber-200 rounded-3xl p-8 space-y-6">
+                <div className="flex items-center gap-3 text-amber-900 font-bold text-xl">
+                  <div className="bg-amber-200 p-2 rounded-xl">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  Novas Disciplinas Identificadas
+                </div>
+                <p className="text-amber-800 leading-relaxed">
+                  As seguintes disciplinas foram encontradas no arquivo mas não estão cadastradas no sistema. 
+                  O sistema irá cadastrá-las automaticamente. Escolha uma cor para cada uma:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {newSubjectsToRegister.map(name => (
+                    <Card key={name} className="border-amber-100 shadow-sm overflow-hidden rounded-2xl">
+                      <div className="p-5 flex flex-col gap-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-bold text-lg text-slate-800 truncate">{name}</span>
+                          <div 
+                            className="w-8 h-8 rounded-full border-4 border-white shadow-md ring-1 ring-slate-200" 
+                            style={{ backgroundColor: newSubjectColorsMap[name] }} 
+                          />
+                        </div>
+                        <div className="flex gap-2 flex-wrap justify-start">
+                          {PREDEFINED_COLORS.map(color => (
+                            <button
+                              key={color.value}
+                              onClick={() => setNewSubjectColorsMap(prev => ({ ...prev, [name]: color.value }))}
+                              className={cn(
+                                "w-7 h-7 rounded-lg border-2 transition-all hover:scale-110",
+                                newSubjectColorsMap[name] === color.value 
+                                  ? "border-slate-900 shadow-inner scale-105" 
+                                  : "border-transparent opacity-80"
+                              )}
+                              style={{ backgroundColor: color.value }}
+                              title={color.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-6 bg-muted/20 border-t flex-col sm:flex-row gap-4">
+            <div className="flex-1 text-sm text-muted-foreground">
+              Escolha como deseja lidar com os horários que já existem no sistema.
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setIsImportPreviewOpen(false)} disabled={isSaving}>Cancelar</Button>
+              <Button 
+                variant="outline" 
+                className="border-primary text-primary hover:bg-primary/5"
+                onClick={() => handleConfirmImport('append')}
+                disabled={isSaving}
+              >
+                Acrescentar Novos
+              </Button>
+              <Button 
+                className="bg-primary font-bold px-8 shadow-lg shadow-primary/20"
+                onClick={() => handleConfirmImport('replace')}
+                disabled={isSaving}
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Substituir e Salvar"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
