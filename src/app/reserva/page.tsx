@@ -147,9 +147,20 @@ export default function PublicBookingPage() {
       return [...rawClasses].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     if (!profile) return [];
+    
     const uClassIds = profile.classIds || [];
     const uSegIds = profile.segmentIds || [];
-    return rawClasses.filter(c => uClassIds.includes(c.id) || uSegIds.includes(c.schoolSegmentId)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    return rawClasses.filter(c => {
+      const belongsBySegment = Boolean(userPerms?.canViewSegmentAppointments) && uSegIds.includes(c.schoolSegmentId);
+      const belongsByClass = Boolean(userPerms?.canViewClassAppointments) && uClassIds.includes(c.id);
+      
+      // Se não houver permissões específicas definidas no papel (ex: novo cadastro),
+      // mas o usuário tem vínculos explicitos, tratamos como canViewClassAppointments base.
+      const hasDirectClassAccess = !userPerms && uClassIds.includes(c.id);
+
+      return belongsBySegment || belongsByClass || hasDirectClassAccess;
+    }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [rawClasses, profile, isMaster, userPerms]);
 
   const filteredLocations = useMemo(() => {
