@@ -48,11 +48,14 @@ const DEFAULT_PERMS: AppPermissions = {
   canViewClassAppointments: false,
   canCancelAppointments: false,
   canDeleteAppointments: false,
+  canEditAppointments: false,
   canCreateBookings: true,
   canChangeStatus: false,
   canStatusPending: false,
   canStatusConfirmed: false,
   canStatusCancelled: false,
+  canStatusRescheduled: false,
+  canStatusReScheduleRequest: false,
   canStatusCompleted: false,
 };
 
@@ -67,11 +70,14 @@ const ADMIN_PERMS: AppPermissions = {
   canViewClassAppointments: true,
   canCancelAppointments: true,
   canDeleteAppointments: true,
+  canEditAppointments: true,
   canCreateBookings: true,
   canChangeStatus: true,
   canStatusPending: true,
   canStatusConfirmed: true,
   canStatusCancelled: true,
+  canStatusRescheduled: true,
+  canStatusReScheduleRequest: true,
   canStatusCompleted: true,
 };
 
