@@ -135,7 +135,6 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
-        {/* CORRIGIDO: template literal com crases */}
         <h1 className="text-3xl font-bold tracking-tight text-primary">
           {isAdmin ? 'Painel Administrativo' : `Olá, ${profile?.name || 'Docente'}`}
         </h1>
@@ -155,7 +154,6 @@ export default function Dashboard() {
                   <p className="text-xs font-bold uppercase text-muted-foreground mb-1">{stat.title}</p>
                   <p className="text-3xl font-bold">{stat.value}</p>
                 </div>
-                {/* CORRIGIDO: className com template literal usando crases */}
                 <div className={`${stat.bg} ${stat.color} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
                   <stat.icon className="w-6 h-6" />
                 </div>
@@ -197,4 +195,65 @@ export default function Dashboard() {
                   <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl text-center shadow-lg">
                     <span className="block text-xl font-bold">{nextBooking.appointmentDate.split('-')[2]}</span>
                     <span className="text-[10px] uppercase font-bold tracking-tighter">
-                      {new Date(nextBooking.appointmentDate + 'T0
+                      {new Date(nextBooking.appointmentDate + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short' })}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 pt-4 border-t border-primary/10">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold">{nextBooking.startTime}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-green-600">CONFIRMADO</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-muted/20 rounded-3xl border-2 border-dashed border-muted">
+                <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-muted-foreground">Nenhuma sessão confirmada em breve.</p>
+                {!isAdmin && (
+                  <Link href="/reserva">
+                    <Button variant="link" className="mt-2 text-primary font-bold">Agendar agora</Button>
+                  </Link>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-md border-none bg-white">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              Links Úteis
+            </CardTitle>
+            <CardDescription>Acesse as funções do sistema rapidamente.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <Link href="/reserva" className="col-span-2">
+              <Button className="w-full h-16 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all gap-3 bg-primary hover:scale-[1.02]">
+                <CalendarDays className="w-6 h-6" />
+                Novo Agendamento
+              </Button>
+            </Link>
+            <Link href="/dashboard/appointments">
+              <Button variant="outline" className="w-full h-24 rounded-2xl flex-col gap-2 hover:bg-primary/5 border-slate-200 transition-all hover:border-primary/50">
+                <Camera className="w-6 h-6 text-primary" />
+                Ver Agenda
+              </Button>
+            </Link>
+            <Link href={isAdmin ? "/dashboard/admin/reports" : "/dashboard/appointments"}>
+              <Button variant="outline" className="w-full h-24 rounded-2xl flex-col gap-2 hover:bg-primary/5 border-slate-200 transition-all hover:border-primary/50">
+                <Camera className="w-6 h-6 text-primary" />
+                {isAdmin ? 'Relatórios' : 'Meu Histórico'}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
