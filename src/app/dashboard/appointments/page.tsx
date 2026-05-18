@@ -28,7 +28,10 @@ import {
   Archive,
   RotateCcw,
   Filter,
-  X
+  X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -120,6 +123,9 @@ type RolePermissions = AppPermissions & {
   canStatusCancelled?: boolean;
 };
 
+// NOVO: tipo para os campos ordenáveis
+type SortField = 'appointmentDate' | 'teacherName' | 'locationName' | 'status';
+
 const ADMIN_PERMS: RolePermissions = {
   canManageUsers: true,
   canConfigureSlots: true,
@@ -154,11 +160,15 @@ export default function AppointmentsPage() {
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<RolePermissions | null>(null);
 
-  // NOVOS ESTADOS: aba arquivados + filtros
+  // Estados de arquivados e filtros
   const [showArchived, setShowArchived] = useState(false);
   const [filterDate, setFilterDate] = useState('');
   const [filterTeacher, setFilterTeacher] = useState('');
   const [filterClass, setFilterClass] = useState('');
+
+  // NOVO: estado de ordenação
+  const [sortField, setSortField] = useState<SortField>('appointmentDate');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -277,10 +287,32 @@ export default function AppointmentsPage() {
     [db, profile]
   );
 
-  // NOVO: verifica se há algum filtro ativo (exceto searchTerm)
+  // NOVO: handler para clique no cabeçalho de ordenação
+  const handleSort = useCallback((field: SortField) => {
+    setSortField((prev) => {
+      if (prev === field) {
+        setSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDirection('asc');
+      return field;
+    });
+  }, []);
+
+  // NOVO: ícone de ordenação para o cabeçalho
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="ml-1 h-3 w-3 opacity-30" />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="ml-1 h-3 w-3 text-primary" />
+    ) : (
+      <ArrowDown className="ml-1 h-3 w-3 text-primary" />
+    );
+  };
+
   const hasActiveFilters = filterDate || filterTeacher || filterClass;
 
-  // NOVO: função para limpar todos os filtros
   const clearFilters = () => {
     setFilterDate('');
     setFilterTeacher('');
@@ -288,7 +320,7 @@ export default function AppointmentsPage() {
     setSearchTerm('');
   };
 
-  // MODIFICADO: filtered agora inclui arquivados E filtros novos
+  // MODIFICADO: filtered agora inclui ordenação por coluna
   const filtered = useMemo(() => {
     if (!safeList.length || !userPerms || !profile) return [];
 
@@ -297,8 +329,8 @@ export default function AppointmentsPage() {
       profile.roleId === 'ADMIN' ||
       Boolean(userPerms.canViewAllAppointments);
 
-    return safeList
-      // 1. Filtro de permissão (existente)
+    // Aplica todos os filtros primeiro
+    let result = safeList
       .filter((booking) => {
         if (isGlobalAdmin) return true;
         const cls = classMap[booking.schoolClassId];
@@ -312,29 +344,24 @@ export default function AppointmentsPage() {
         const isOwner = booking.teacherId === profile.id;
         return belongsBySegment || belongsByClass || isOwner;
       })
-      // 2. NOVO: Filtro de aba Ativos / Arquivados
       .filter((booking) => {
         if (showArchived) return booking.status === 'COMPLETED';
         return booking.status !== 'COMPLETED';
       })
-      // 3. NOVO: Filtro por data
       .filter((booking) => {
         if (!filterDate) return true;
         return booking.appointmentDate === filterDate;
       })
-      // 4. NOVO: Filtro por docente
       .filter((booking) => {
         if (!filterTeacher) return true;
         return booking.teacherName
           .toLowerCase()
           .includes(filterTeacher.toLowerCase());
       })
-      // 5. NOVO: Filtro por turma
       .filter((booking) => {
         if (!filterClass) return true;
         return booking.schoolClassId === filterClass;
       })
-      // 6. Filtro de busca textual (existente)
       .filter((booking) => {
         const term = searchTerm.trim().toLowerCase();
         if (!term) return true;
@@ -346,24 +373,58 @@ export default function AppointmentsPage() {
           appointmentDate.includes(term) ||
           className.includes(term)
         );
-      })
-      // 7. Ordenação (existente)
-      .sort((a, b) => {
-        const byDate = a.appointmentDate.localeCompare(b.appointmentDate);
-        if (byDate !== 0) return byDate;
-        return a.startTime.localeCompare(b.startTime);
       });
+
+    // NOVO: aplica a ordenação por coluna
+    result.sort((a, b) => {
+      let cmp = 0;
+
+      switch (sortField) {
+        case 'appointmentDate': {
+          const byDate = a.appointmentDate.localeCompare(b.appointmentDate);
+          if (byDate !== 0) {
+            cmp = byDate;
+          } else {
+            cmp = a.startTime.localeCompare(b.startTime);
+          }
+          break;
+        }
+        case 'teacherName': {
+          cmp = a.teacherName.localeCompare(b.teacherName);
+          break;
+        }
+        case 'locationName': {
+          const locA = locationMap[a.photoLocationId]?.name || '';
+          const locB = locationMap[b.photoLocationId]?.name || '';
+          cmp = locA.localeCompare(locB);
+          break;
+        }
+        case 'status': {
+          const labelA = STATUS_CONFIG[a.status as StatusKey]?.label || '';
+          const labelB = STATUS_CONFIG[b.status as StatusKey]?.label || '';
+          cmp = labelA.localeCompare(labelB);
+          break;
+        }
+      }
+
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
   }, [
     safeList,
     userPerms,
     profile,
     classMap,
+    locationMap,
     isMaster,
     searchTerm,
     showArchived,
     filterDate,
     filterTeacher,
-    filterClass
+    filterClass,
+    sortField,
+    sortDirection
   ]);
 
   const bookingsByDate = useMemo(() => {
@@ -409,7 +470,6 @@ export default function AppointmentsPage() {
           </p>
         </div>
         <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
-          {/* Campo de busca textual (existente) */}
           <div className="relative w-full sm:w-64">
             <Label htmlFor="search-app-input" className="sr-only">
               Buscar agendamentos
@@ -424,7 +484,6 @@ export default function AppointmentsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* Alternância Lista / Calendário (existente) */}
           <Tabs
             value={viewMode}
             onValueChange={(value) => setViewMode(value as 'list' | 'calendar')}
@@ -444,9 +503,8 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      {/* NOVO: Aba Ativos / Arquivados + Filtros */}
+      {/* Aba Ativos / Arquivados + Filtros */}
       <div className="flex flex-col gap-4">
-        {/* Toggle Ativos / Arquivados */}
         <Tabs
           value={showArchived ? 'archived' : 'active'}
           onValueChange={(value) => setShowArchived(value === 'archived')}
@@ -469,9 +527,8 @@ export default function AppointmentsPage() {
           </TabsList>
         </Tabs>
 
-        {/* NOVO: Barra de filtros */}
+        {/* Barra de filtros */}
         <div className="flex flex-wrap items-end gap-3">
-          {/* Filtro por data */}
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Data
@@ -484,7 +541,6 @@ export default function AppointmentsPage() {
             />
           </div>
 
-          {/* Filtro por docente */}
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Docente
@@ -497,34 +553,27 @@ export default function AppointmentsPage() {
             />
           </div>
 
-          {/* Filtro por turma */}
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Turma
             </Label>
-            <Select value={filterClass} onValueChange={(val) => setFilterClass(val)}>
+            <Select value={filterClass} onValueChange={(val) => setFilterClass(val === 'all' ? '' : val)}>
               <SelectTrigger className="h-10 w-[180px] rounded-xl border-none bg-white shadow-sm text-sm">
                 <SelectValue placeholder="Todas as turmas" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-none shadow-2xl">
-                <SelectItem value="all" onClick={() => setFilterClass('')}>
+                <SelectItem value="all">
                   Todas as turmas
                 </SelectItem>
                 {safeClasses.map((cls) => (
                   <SelectItem key={cls.id} value={cls.id}>
                     {cls.name}
-                    {cls.schoolSegmentId && (
-                      <span className="ml-1 text-[10px] text-muted-foreground">
-                        ({cls.schoolSegmentId})
-                      </span>
-                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Botão Limpar Filtros (só aparece se houver filtros ativos) */}
           {hasActiveFilters && (
             <Button
               variant="ghost"
@@ -537,7 +586,6 @@ export default function AppointmentsPage() {
             </Button>
           )}
 
-          {/* Indicador de quantos resultados */}
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             <Filter className="h-3 w-3" />
             {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
@@ -546,16 +594,48 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      {/* LIST VIEW */}
+      {/* LIST VIEW — MODIFICADO: cabeçalhos clicáveis */}
       {viewMode === 'list' ? (
         <Card className="overflow-hidden rounded-3xl border-none bg-white shadow-md">
           <Table>
             <TableHeader className="bg-muted/20">
               <TableRow>
-                <TableHead className="font-bold">Data / Hora</TableHead>
-                <TableHead className="font-bold">Docente / Turma</TableHead>
-                <TableHead className="font-bold">Local</TableHead>
-                <TableHead className="font-bold">Status</TableHead>
+                <TableHead
+                  className="font-bold cursor-pointer select-none hover:text-primary transition-colors"
+                  onClick={() => handleSort('appointmentDate')}
+                >
+                  <div className="flex items-center">
+                    Data / Hora
+                    <SortIcon field="appointmentDate" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="font-bold cursor-pointer select-none hover:text-primary transition-colors"
+                  onClick={() => handleSort('teacherName')}
+                >
+                  <div className="flex items-center">
+                    Docente / Turma
+                    <SortIcon field="teacherName" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="font-bold cursor-pointer select-none hover:text-primary transition-colors"
+                  onClick={() => handleSort('locationName')}
+                >
+                  <div className="flex items-center">
+                    Local
+                    <SortIcon field="locationName" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="font-bold cursor-pointer select-none hover:text-primary transition-colors"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center">
+                    Status
+                    <SortIcon field="status" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -736,7 +816,7 @@ export default function AppointmentsPage() {
           </Table>
         </Card>
       ) : (
-        /* CALENDAR VIEW */
+        /* CALENDAR VIEW (inalterado) */
         <Card className="overflow-hidden rounded-3xl border-none bg-white shadow-md">
           <div className="flex items-center justify-between border-b bg-primary/5 p-6">
             <h2 className="flex items-center gap-2 text-xl font-bold text-primary">
