@@ -1,5 +1,4 @@
-"use client";
-
+'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,7 +24,11 @@ import {
   LayoutList,
   Calendar as CalendarIcon,
   Edit3,
-  BookOpen
+  BookOpen,
+  Archive,
+  RotateCcw,
+  Filter,
+  X
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -36,6 +39,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import {
   Booking,
@@ -106,7 +116,6 @@ const STATUS_CONFIG = {
 } as const;
 
 type StatusKey = keyof typeof STATUS_CONFIG;
-
 type RolePermissions = AppPermissions & {
   canStatusCancelled?: boolean;
 };
@@ -136,16 +145,20 @@ const ADMIN_PERMS: RolePermissions = {
 export default function AppointmentsPage() {
   const db = useFirestore();
   const { user: authUser } = useUser();
-
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<RolePermissions | null>(null);
+
+  // NOVOS ESTADOS: aba arquivados + filtros
+  const [showArchived, setShowArchived] = useState(false);
+  const [filterDate, setFilterDate] = useState('');
+  const [filterTeacher, setFilterTeacher] = useState('');
+  const [filterClass, setFilterClass] = useState('');
 
   const isMaster = useMemo(() => {
     return authUser?.email?.toLowerCase().trim() === 'herbertpacheco@cvmsp.com.br';
@@ -154,7 +167,6 @@ export default function AppointmentsPage() {
   useEffect(() => {
     async function fetchPermissions() {
       if (!db || !authUser) return;
-
       try {
         if (isMaster) {
           setUserPerms(ADMIN_PERMS);
@@ -166,25 +178,19 @@ export default function AppointmentsPage() {
           } as User);
           return;
         }
-
         const userDoc = await getDoc(doc(db, 'users', authUser.uid));
-
         if (!userDoc.exists()) {
           setProfile(null);
           setUserPerms(null);
           return;
         }
-
         const userData = userDoc.data() as User;
         setProfile({ ...userData, id: authUser.uid });
-
         if (userData.roleId === 'ADMIN') {
           setUserPerms(ADMIN_PERMS);
           return;
         }
-
         const roleDoc = await getDoc(doc(db, 'roles_config', userData.roleId));
-
         if (roleDoc.exists()) {
           setUserPerms(roleDoc.data() as RolePermissions);
         } else {
@@ -195,7 +201,6 @@ export default function AppointmentsPage() {
         setUserPerms(null);
       }
     }
-
     fetchPermissions();
   }, [db, authUser, isMaster]);
 
@@ -221,14 +226,11 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     if (!selectedBooking || !safeList.length) return;
-
     const updated = safeList.find((b) => b.id === selectedBooking.id);
-
     if (!updated) {
       setSelectedBooking(null);
       return;
     }
-
     if (
       updated.status !== selectedBooking.status ||
       updated.appointmentDate !== selectedBooking.appointmentDate ||
@@ -258,9 +260,7 @@ export default function AppointmentsPage() {
   const handleUpdateStatus = useCallback(
     (booking: Booking, newStatus: StatusKey) => {
       if (!db || !profile) return;
-
       const statusCfg = STATUS_CONFIG[newStatus];
-
       const newHistoryEntry: HistoryEntry = {
         timestamp: new Date().toISOString(),
         userId: profile.id,
@@ -268,17 +268,27 @@ export default function AppointmentsPage() {
         action: 'ALTERACAO_DE_STATUS',
         details: `Status alterado para ${statusCfg.label}.`
       };
-
       updateDocumentNonBlocking(doc(db, 'appointments', booking.id), {
         status: newStatus,
         history: [...(booking.history || []), newHistoryEntry]
       });
-
       toast({ title: 'Status atualizado' });
     },
     [db, profile]
   );
 
+  // NOVO: verifica se há algum filtro ativo (exceto searchTerm)
+  const hasActiveFilters = filterDate || filterTeacher || filterClass;
+
+  // NOVO: função para limpar todos os filtros
+  const clearFilters = () => {
+    setFilterDate('');
+    setFilterTeacher('');
+    setFilterClass('');
+    setSearchTerm('');
+  };
+
+  // MODIFICADO: filtered agora inclui arquivados E filtros novos
   const filtered = useMemo(() => {
     if (!safeList.length || !userPerms || !profile) return [];
 
@@ -288,55 +298,82 @@ export default function AppointmentsPage() {
       Boolean(userPerms.canViewAllAppointments);
 
     return safeList
+      // 1. Filtro de permissão (existente)
       .filter((booking) => {
         if (isGlobalAdmin) return true;
-
         const cls = classMap[booking.schoolClassId];
         const schoolSegmentId = cls?.schoolSegmentId ?? '';
-
         const belongsBySegment =
           Boolean(userPerms.canViewSegmentAppointments) &&
           Boolean(profile.segmentIds?.includes(schoolSegmentId));
-
         const belongsByClass =
           Boolean(userPerms.canViewClassAppointments) &&
           Boolean(profile.classIds?.includes(booking.schoolClassId));
-
         const isOwner = booking.teacherId === profile.id;
-
         return belongsBySegment || belongsByClass || isOwner;
       })
+      // 2. NOVO: Filtro de aba Ativos / Arquivados
+      .filter((booking) => {
+        if (showArchived) return booking.status === 'COMPLETED';
+        return booking.status !== 'COMPLETED';
+      })
+      // 3. NOVO: Filtro por data
+      .filter((booking) => {
+        if (!filterDate) return true;
+        return booking.appointmentDate === filterDate;
+      })
+      // 4. NOVO: Filtro por docente
+      .filter((booking) => {
+        if (!filterTeacher) return true;
+        return booking.teacherName
+          .toLowerCase()
+          .includes(filterTeacher.toLowerCase());
+      })
+      // 5. NOVO: Filtro por turma
+      .filter((booking) => {
+        if (!filterClass) return true;
+        return booking.schoolClassId === filterClass;
+      })
+      // 6. Filtro de busca textual (existente)
       .filter((booking) => {
         const term = searchTerm.trim().toLowerCase();
         if (!term) return true;
-
         const className = classMap[booking.schoolClassId]?.name?.toLowerCase() || '';
         const teacherName = booking.teacherName?.toLowerCase() || '';
         const appointmentDate = booking.appointmentDate || '';
-
         return (
           teacherName.includes(term) ||
           appointmentDate.includes(term) ||
           className.includes(term)
         );
       })
+      // 7. Ordenação (existente)
       .sort((a, b) => {
         const byDate = a.appointmentDate.localeCompare(b.appointmentDate);
         if (byDate !== 0) return byDate;
         return a.startTime.localeCompare(b.startTime);
       });
-  }, [safeList, userPerms, profile, classMap, isMaster, searchTerm]);
+  }, [
+    safeList,
+    userPerms,
+    profile,
+    classMap,
+    isMaster,
+    searchTerm,
+    showArchived,
+    filterDate,
+    filterTeacher,
+    filterClass
+  ]);
 
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {};
-
     filtered.forEach((booking) => {
       if (!map[booking.appointmentDate]) {
         map[booking.appointmentDate] = [];
       }
       map[booking.appointmentDate].push(booking);
     });
-
     return map;
   }, [filtered]);
 
@@ -363,6 +400,7 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Header */}
       <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div className="flex flex-col">
           <h1 className="text-3xl font-bold tracking-tight text-primary">Agenda</h1>
@@ -370,15 +408,13 @@ export default function AppointmentsPage() {
             Visualize e gerencie as sessões de fotos escolares.
           </p>
         </div>
-
         <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
+          {/* Campo de busca textual (existente) */}
           <div className="relative w-full sm:w-64">
             <Label htmlFor="search-app-input" className="sr-only">
               Buscar agendamentos
             </Label>
-
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
             <Input
               id="search-app-input"
               name="search"
@@ -388,7 +424,7 @@ export default function AppointmentsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
+          {/* Alternância Lista / Calendário (existente) */}
           <Tabs
             value={viewMode}
             onValueChange={(value) => setViewMode(value as 'list' | 'calendar')}
@@ -399,7 +435,6 @@ export default function AppointmentsPage() {
                 <LayoutList className="h-4 w-4" />
                 Lista
               </TabsTrigger>
-
               <TabsTrigger value="calendar" className="gap-2 rounded-lg">
                 <CalendarIcon className="h-4 w-4" />
                 Calendário
@@ -409,6 +444,109 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
+      {/* NOVO: Aba Ativos / Arquivados + Filtros */}
+      <div className="flex flex-col gap-4">
+        {/* Toggle Ativos / Arquivados */}
+        <Tabs
+          value={showArchived ? 'archived' : 'active'}
+          onValueChange={(value) => setShowArchived(value === 'archived')}
+          className="w-full"
+        >
+          <TabsList className="h-11 rounded-xl border-none bg-white p-1 shadow-sm w-full sm:w-auto">
+            <TabsTrigger value="active" className="gap-2 rounded-lg">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              Ativos
+            </TabsTrigger>
+            <TabsTrigger value="archived" className="gap-2 rounded-lg">
+              <Archive className="h-4 w-4 text-slate-500" />
+              Arquivados
+              {safeList.filter(b => b.status === 'COMPLETED').length > 0 && (
+                <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                  {safeList.filter(b => b.status === 'COMPLETED').length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* NOVO: Barra de filtros */}
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Filtro por data */}
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Data
+            </Label>
+            <Input
+              type="date"
+              className="h-10 rounded-xl border-none bg-white shadow-sm text-sm"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
+          </div>
+
+          {/* Filtro por docente */}
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Docente
+            </Label>
+            <Input
+              placeholder="Nome do docente..."
+              className="h-10 rounded-xl border-none bg-white shadow-sm text-sm"
+              value={filterTeacher}
+              onChange={(e) => setFilterTeacher(e.target.value)}
+            />
+          </div>
+
+          {/* Filtro por turma */}
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Turma
+            </Label>
+            <Select value={filterClass} onValueChange={(val) => setFilterClass(val)}>
+              <SelectTrigger className="h-10 w-[180px] rounded-xl border-none bg-white shadow-sm text-sm">
+                <SelectValue placeholder="Todas as turmas" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-none shadow-2xl">
+                <SelectItem value="all" onClick={() => setFilterClass('')}>
+                  Todas as turmas
+                </SelectItem>
+                {safeClasses.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.name}
+                    {cls.schoolSegmentId && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">
+                        ({cls.schoolSegmentId})
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Botão Limpar Filtros (só aparece se houver filtros ativos) */}
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-10 gap-2 rounded-xl text-sm font-bold text-primary hover:bg-primary/10"
+            >
+              <X className="h-4 w-4" />
+              Limpar filtros
+            </Button>
+          )}
+
+          {/* Indicador de quantos resultados */}
+          <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+            <Filter className="h-3 w-3" />
+            {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+            {showArchived ? ' arquivado' + (filtered.length !== 1 ? 's' : '') : ''}
+          </div>
+        </div>
+      </div>
+
+      {/* LIST VIEW */}
       {viewMode === 'list' ? (
         <Card className="overflow-hidden rounded-3xl border-none bg-white shadow-md">
           <Table>
@@ -421,14 +559,12 @@ export default function AppointmentsPage() {
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
             </TableHeader>
-
             <TableBody>
               {filtered.length > 0 ? (
                 filtered.map((booking) => {
                   const statusCfg =
                     STATUS_CONFIG[booking.status as StatusKey] ?? STATUS_CONFIG.PENDING;
                   const StatusIcon = statusCfg.icon;
-
                   return (
                     <TableRow key={booking.id} className="hover:bg-accent/5">
                       <TableCell>
@@ -436,11 +572,10 @@ export default function AppointmentsPage() {
                           <div className="rounded-lg bg-primary/10 p-2 text-primary">
                             <CalendarDays className="h-4 w-4" />
                           </div>
-
                           <div className="flex flex-col">
                             <span className="font-bold">
                               {format(
-                                parseISO(`${booking.appointmentDate}T00:00:00`),
+                                parseISO(booking.appointmentDate + 'T00:00:00'),
                                 'dd/MM/yyyy'
                               )}
                             </span>
@@ -450,7 +585,6 @@ export default function AppointmentsPage() {
                           </div>
                         </div>
                       </TableCell>
-
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-bold">{booking.teacherName}</span>
@@ -465,7 +599,6 @@ export default function AppointmentsPage() {
                           )}
                         </div>
                       </TableCell>
-
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-sm">
                           <MapPin className="h-3 w-3 text-primary" />
@@ -475,7 +608,6 @@ export default function AppointmentsPage() {
                           </span>
                         </div>
                       </TableCell>
-
                       <TableCell>
                         {userPerms.canChangeStatus || isMaster ? (
                           <DropdownMenu>
@@ -490,7 +622,6 @@ export default function AppointmentsPage() {
                                 {statusCfg.label}
                               </Badge>
                             </DropdownMenuTrigger>
-
                             <DropdownMenuContent
                               align="start"
                               className="rounded-2xl border-none p-2 shadow-2xl"
@@ -499,11 +630,8 @@ export default function AppointmentsPage() {
                                 const hasPerm =
                                   isMaster ||
                                   Boolean(userPerms[cfg.permKey as keyof RolePermissions]);
-
                                 if (!hasPerm) return null;
-
                                 const ItemIcon = cfg.icon;
-
                                 return (
                                   <DropdownMenuItem
                                     key={key}
@@ -529,7 +657,6 @@ export default function AppointmentsPage() {
                           </Badge>
                         )}
                       </TableCell>
-
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -543,7 +670,6 @@ export default function AppointmentsPage() {
                           >
                             <Info className="h-4 w-4" />
                           </Button>
-
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -555,7 +681,6 @@ export default function AppointmentsPage() {
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-
                             <DropdownMenuContent
                               align="end"
                               className="rounded-2xl border-none p-2 shadow-2xl"
@@ -571,7 +696,6 @@ export default function AppointmentsPage() {
                                   Reagendar
                                 </DropdownMenuItem>
                               )}
-
                               {userPerms.canCancelAppointments && booking.status !== 'CANCELLED' && (
                                 <DropdownMenuItem
                                   onSelect={() => handleUpdateStatus(booking, 'CANCELLED')}
@@ -581,7 +705,6 @@ export default function AppointmentsPage() {
                                   Cancelar Sessão
                                 </DropdownMenuItem>
                               )}
-
                               {userPerms.canDeleteAppointments && (
                                 <DropdownMenuItem
                                   onSelect={() => {
@@ -603,7 +726,9 @@ export default function AppointmentsPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-48 text-center italic text-muted-foreground">
-                    Nenhum agendamento encontrado.
+                    {showArchived
+                      ? 'Nenhum agendamento arquivado encontrado.'
+                      : 'Nenhum agendamento ativo encontrado.'}
                   </TableCell>
                 </TableRow>
               )}
@@ -611,12 +736,12 @@ export default function AppointmentsPage() {
           </Table>
         </Card>
       ) : (
+        /* CALENDAR VIEW */
         <Card className="overflow-hidden rounded-3xl border-none bg-white shadow-md">
           <div className="flex items-center justify-between border-b bg-primary/5 p-6">
             <h2 className="flex items-center gap-2 text-xl font-bold text-primary">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
             </h2>
-
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -627,7 +752,6 @@ export default function AppointmentsPage() {
               >
                 Hoje
               </Button>
-
               <div className="flex items-center rounded-lg bg-white shadow-sm">
                 <Button
                   type="button"
@@ -638,7 +762,6 @@ export default function AppointmentsPage() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-
                 <Button
                   type="button"
                   variant="ghost"
@@ -651,7 +774,6 @@ export default function AppointmentsPage() {
               </div>
             </div>
           </div>
-
           <div className="grid grid-cols-7 border-b bg-muted/30">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dayLabel) => (
               <div
@@ -662,13 +784,11 @@ export default function AppointmentsPage() {
               </div>
             ))}
           </div>
-
           <div className="grid grid-cols-7 auto-rows-[120px]">
             {calendarDays.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const dayBookings = bookingsByDate[dateStr] || [];
               const isSelectedMonth = day.getMonth() === currentMonth.getMonth();
-
               return (
                 <div
                   key={dateStr}
@@ -688,12 +808,10 @@ export default function AppointmentsPage() {
                       {format(day, 'd')}
                     </span>
                   </div>
-
                   <div className="space-y-1">
                     {dayBookings.slice(0, 4).map((booking) => {
                       const cfg =
                         STATUS_CONFIG[booking.status as StatusKey] ?? STATUS_CONFIG.PENDING;
-
                       return (
                         <div
                           key={booking.id}
@@ -707,7 +825,6 @@ export default function AppointmentsPage() {
                         </div>
                       );
                     })}
-
                     {dayBookings.length > 4 && (
                       <div className="text-center text-[9px] font-bold text-muted-foreground">
                         + {dayBookings.length - 4} mais
@@ -728,7 +845,6 @@ export default function AppointmentsPage() {
         onStatusUpdate={handleUpdateStatus}
         onDelete={(id) => {
           setSelectedBooking(null);
-          // Pequeno intervalo para garantir que o backdrop do modal anterior limpe
           setTimeout(() => setDeletingId(id), 150);
         }}
         userPerms={userPerms}
@@ -736,7 +852,6 @@ export default function AppointmentsPage() {
         classMap={classMap}
         locationMap={locationMap}
       />
-
       <RescheduleDialog
         booking={rescheduleBooking}
         onClose={() => setRescheduleBooking(null)}
@@ -747,13 +862,11 @@ export default function AppointmentsPage() {
         appSettings={appSettings}
         profile={profile}
       />
-
       <DeleteConfirmationDialog
         isOpen={Boolean(deletingId)}
         onClose={() => setDeletingId(null)}
         onConfirm={() => {
           if (!deletingId || !db) return;
-
           deleteDocumentNonBlocking(doc(db, 'appointments', deletingId));
           setDeletingId(null);
           toast({ title: 'Agendamento removido.' });
