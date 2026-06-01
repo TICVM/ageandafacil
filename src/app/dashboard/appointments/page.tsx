@@ -192,6 +192,14 @@ const ADMIN_PERMS: RolePermissions = {
   canStatusPublished: true
 };
 
+// Função auxiliar para obter STATUS_CONFIG com fallback seguro
+const getStatusConfig = (status: string | undefined) => {
+  if (!status || !(status in STATUS_CONFIG)) {
+    return STATUS_CONFIG.PENDING;
+  }
+  return STATUS_CONFIG[status as StatusKey];
+};
+
 export default function AppointmentsPage() {
   const db = useFirestore();
   const { user: authUser } = useUser();
@@ -314,7 +322,7 @@ export default function AppointmentsPage() {
   const handleUpdateStatus = useCallback(
     (booking: Booking, newStatus: StatusKey) => {
       if (!db || !profile) return;
-      const statusCfg = STATUS_CONFIG[newStatus];
+      const statusCfg = getStatusConfig(newStatus);
       const newHistoryEntry: HistoryEntry = {
         timestamp: new Date().toISOString(),
         userId: profile.id,
@@ -444,8 +452,8 @@ export default function AppointmentsPage() {
           break;
         }
         case 'status': {
-          const labelA = STATUS_CONFIG[a.status as StatusKey]?.label || '';
-          const labelB = STATUS_CONFIG[b.status as StatusKey]?.label || '';
+          const labelA = getStatusConfig(a.status)?.label || '';
+          const labelB = getStatusConfig(b.status)?.label || '';
           cmp = labelA.localeCompare(labelB);
           break;
         }
@@ -686,8 +694,7 @@ export default function AppointmentsPage() {
             <TableBody>
               {filtered.length > 0 ? (
                 filtered.map((booking) => {
-                  const statusCfg =
-                    STATUS_CONFIG[booking.status as StatusKey] ?? STATUS_CONFIG.PENDING;
+                  const statusCfg = getStatusConfig(booking.status);
                   const StatusIcon = statusCfg.icon;
                   return (
                     <TableRow key={booking.id} className="hover:bg-accent/5">
@@ -934,8 +941,7 @@ export default function AppointmentsPage() {
                   </div>
                   <div className="space-y-1">
                     {dayBookings.slice(0, 4).map((booking) => {
-                      const cfg =
-                        STATUS_CONFIG[booking.status as StatusKey] ?? STATUS_CONFIG.PENDING;
+                      const cfg = getStatusConfig(booking.status);
                       return (
                         <div
                           key={booking.id}
