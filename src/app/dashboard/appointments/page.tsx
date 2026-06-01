@@ -212,8 +212,8 @@ export default function AppointmentsPage() {
   const [profile, setProfile] = useState<User | null>(null);
   const [userPerms, setUserPerms] = useState<RolePermissions | null>(null);
 
-  // Estados de arquivados e filtros
-  const [showArchived, setShowArchived] = useState(false);
+  // Estados de abas e filtros
+  const [activeTab, setActiveTab] = useState<StatusKey | 'all'>('all');
   const [filterDate, setFilterDate] = useState('');
   const [filterTeacher, setFilterTeacher] = useState('');
   const [filterClass, setFilterClass] = useState('');
@@ -319,6 +319,15 @@ export default function AppointmentsPage() {
     return map;
   }, [safeLocations]);
 
+  // Contagem de registros por status
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusKey | 'all', number> = { all: safeList.length };
+    (Object.keys(STATUS_CONFIG) as StatusKey[]).forEach((status) => {
+      counts[status] = safeList.filter((b) => b.status === status).length;
+    });
+    return counts;
+  }, [safeList]);
+
   const handleUpdateStatus = useCallback(
     (booking: Booking, newStatus: StatusKey) => {
       if (!db || !profile) return;
@@ -372,7 +381,7 @@ export default function AppointmentsPage() {
     setSearchTerm('');
   };
 
-  // MODIFICADO: filtered agora inclui ordenação por coluna
+  // MODIFICADO: filtered agora inclui filtro por aba e ordenação por coluna
   const filtered = useMemo(() => {
     if (!safeList.length || !userPerms || !profile) return [];
 
@@ -397,8 +406,9 @@ export default function AppointmentsPage() {
         return belongsBySegment || belongsByClass || isOwner;
       })
       .filter((booking) => {
-        if (showArchived) return booking.status === 'COMPLETED';
-        return booking.status !== 'COMPLETED';
+        // Filtro por aba de status
+        if (activeTab === 'all') return true;
+        return booking.status === activeTab;
       })
       .filter((booking) => {
         if (!filterDate) return true;
@@ -471,7 +481,7 @@ export default function AppointmentsPage() {
     locationMap,
     isMaster,
     searchTerm,
-    showArchived,
+    activeTab,
     filterDate,
     filterTeacher,
     filterClass,
@@ -555,29 +565,43 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      {/* Aba Ativos / Arquivados + Filtros */}
+      {/* Abas de Status + Filtros */}
       <div className="flex flex-col gap-4">
-        <Tabs
-          value={showArchived ? 'archived' : 'active'}
-          onValueChange={(value) => setShowArchived(value === 'archived')}
-          className="w-full"
-        >
-          <TabsList className="h-11 rounded-xl border-none bg-white p-1 shadow-sm w-full sm:w-auto">
-            <TabsTrigger value="active" className="gap-2 rounded-lg">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              Ativos
-            </TabsTrigger>
-            <TabsTrigger value="archived" className="gap-2 rounded-lg">
-              <Archive className="h-4 w-4 text-slate-500" />
-              Arquivados
-              {safeList.filter(b => b.status === 'COMPLETED').length > 0 && (
-                <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
-                  {safeList.filter(b => b.status === 'COMPLETED').length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Abas de Status */}
+        <div className="overflow-x-auto">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as StatusKey | 'all')}
+            className="w-full"
+          >
+            <TabsList className="h-11 rounded-xl border-none bg-white p-1 shadow-sm w-full inline-flex">
+              <TabsTrigger value="all" className="gap-2 rounded-lg">
+                Todos
+                {statusCounts.all > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                    {statusCounts.all}
+                  </span>
+                )}
+              </TabsTrigger>
+              {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((status) => {
+                const cfg = STATUS_CONFIG[status];
+                const count = statusCounts[status];
+                const IconComponent = cfg.icon;
+                return (
+                  <TabsTrigger key={status} value={status} className="gap-2 rounded-lg">
+                    <IconComponent className="h-4 w-4" />
+                    {cfg.label}
+                    {count > 0 && (
+                      <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                        {count}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
+        </div>
 
         {/* Barra de filtros */}
         <div className="flex flex-wrap items-end gap-3">
@@ -641,7 +665,6 @@ export default function AppointmentsPage() {
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             <Filter className="h-3 w-3" />
             {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
-            {showArchived ? ' arquivado' + (filtered.length !== 1 ? 's' : '') : ''}
           </div>
         </div>
       </div>
@@ -857,9 +880,7 @@ export default function AppointmentsPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-48 text-center italic text-muted-foreground">
-                    {showArchived
-                      ? 'Nenhum agendamento arquivado encontrado.'
-                      : 'Nenhum agendamento ativo encontrado.'}
+                    Nenhum agendamento encontrado nesta categoria.
                   </TableCell>
                 </TableRow>
               )}
