@@ -165,6 +165,14 @@ type RolePermissions = AppPermissions & {
 // NOVO: tipo para os campos ordenáveis
 type SortField = 'appointmentDate' | 'teacherName' | 'locationName' | 'status';
 
+// Categorias de abas
+type TabCategory = 'scheduled' | 'editing' | 'publishing' | 'archived';
+
+const SCHEDULED_STATUSES: StatusKey[] = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'RE_SCHEDULE_REQUEST'];
+const EDITING_STATUSES: StatusKey[] = ['EDIT', 'NO_TEXT', 'APPROVAL'];
+const PUBLISHING_STATUSES: StatusKey[] = ['APPROVED', 'PUBLISHED'];
+const ARCHIVED_STATUSES: StatusKey[] = ['COMPLETED', 'CANCELLED'];
+
 const ADMIN_PERMS: RolePermissions = {
   canManageUsers: true,
   canConfigureSlots: true,
@@ -213,7 +221,7 @@ export default function AppointmentsPage() {
   const [userPerms, setUserPerms] = useState<RolePermissions | null>(null);
 
   // Estados de abas e filtros
-  const [activeTab, setActiveTab] = useState<StatusKey | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<TabCategory>('scheduled');
   const [filterDate, setFilterDate] = useState('');
   const [filterTeacher, setFilterTeacher] = useState('');
   const [filterClass, setFilterClass] = useState('');
@@ -319,13 +327,14 @@ export default function AppointmentsPage() {
     return map;
   }, [safeLocations]);
 
-  // Contagem de registros por status
-  const statusCounts = useMemo(() => {
-    const counts: Record<StatusKey | 'all', number> = { all: safeList.length };
-    (Object.keys(STATUS_CONFIG) as StatusKey[]).forEach((status) => {
-      counts[status] = safeList.filter((b) => b.status === status).length;
-    });
-    return counts;
+  // Contagem de registros por categoria
+  const tabCounts = useMemo(() => {
+    return {
+      scheduled: safeList.filter((b) => SCHEDULED_STATUSES.includes(b.status as StatusKey)).length,
+      editing: safeList.filter((b) => EDITING_STATUSES.includes(b.status as StatusKey)).length,
+      publishing: safeList.filter((b) => PUBLISHING_STATUSES.includes(b.status as StatusKey)).length,
+      archived: safeList.filter((b) => ARCHIVED_STATUSES.includes(b.status as StatusKey)).length,
+    };
   }, [safeList]);
 
   const handleUpdateStatus = useCallback(
@@ -390,6 +399,13 @@ export default function AppointmentsPage() {
       profile.roleId === 'ADMIN' ||
       Boolean(userPerms.canViewAllAppointments);
 
+    // Determinar quais status incluir baseado na aba ativa
+    const statusesToInclude = 
+      activeTab === 'scheduled' ? SCHEDULED_STATUSES :
+      activeTab === 'editing' ? EDITING_STATUSES :
+      activeTab === 'publishing' ? PUBLISHING_STATUSES :
+      ARCHIVED_STATUSES;
+
     // Aplica todos os filtros primeiro
     let result = safeList
       .filter((booking) => {
@@ -406,9 +422,8 @@ export default function AppointmentsPage() {
         return belongsBySegment || belongsByClass || isOwner;
       })
       .filter((booking) => {
-        // Filtro por aba de status
-        if (activeTab === 'all') return true;
-        return booking.status === activeTab;
+        // Filtro por aba de categoria
+        return statusesToInclude.includes(booking.status as StatusKey);
       })
       .filter((booking) => {
         if (!filterDate) return true;
@@ -565,43 +580,53 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      {/* Abas de Status + Filtros */}
+      {/* Abas de Categorias + Filtros */}
       <div className="flex flex-col gap-4">
-        {/* Abas de Status */}
-        <div className="overflow-x-auto">
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as StatusKey | 'all')}
-            className="w-full"
-          >
-            <TabsList className="h-11 rounded-xl border-none bg-white p-1 shadow-sm w-full inline-flex">
-              <TabsTrigger value="all" className="gap-2 rounded-lg">
-                Todos
-                {statusCounts.all > 0 && (
-                  <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                    {statusCounts.all}
-                  </span>
-                )}
-              </TabsTrigger>
-              {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((status) => {
-                const cfg = STATUS_CONFIG[status];
-                const count = statusCounts[status];
-                const IconComponent = cfg.icon;
-                return (
-                  <TabsTrigger key={status} value={status} className="gap-2 rounded-lg">
-                    <IconComponent className="h-4 w-4" />
-                    {cfg.label}
-                    {count > 0 && (
-                      <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                        {count}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </Tabs>
-        </div>
+        {/* Abas de Categorias */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as TabCategory)}
+          className="w-full"
+        >
+          <TabsList className="h-11 rounded-xl border-none bg-white p-1 shadow-sm w-full sm:w-auto">
+            <TabsTrigger value="scheduled" className="gap-2 rounded-lg">
+              <Clock className="h-4 w-4" />
+              Agendados
+              {tabCounts.scheduled > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                  {tabCounts.scheduled}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="editing" className="gap-2 rounded-lg">
+              <Edit3 className="h-4 w-4" />
+              Edição
+              {tabCounts.editing > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                  {tabCounts.editing}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="publishing" className="gap-2 rounded-lg">
+              <Send className="h-4 w-4" />
+              Publicar
+              {tabCounts.publishing > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                  {tabCounts.publishing}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="archived" className="gap-2 rounded-lg">
+              <Archive className="h-4 w-4" />
+              Arquivados
+              {tabCounts.archived > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                  {tabCounts.archived}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Barra de filtros */}
         <div className="flex flex-wrap items-end gap-3">
