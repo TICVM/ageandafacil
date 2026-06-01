@@ -31,7 +31,11 @@ import {
   X,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  ThumbsUp,
+  AlertCircle,
+  FileText,
+  Send
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDoc } from 'firebase/firestore';
@@ -115,12 +119,47 @@ const STATUS_CONFIG = {
     color: 'bg-slate-600 text-white',
     icon: CheckCircle,
     permKey: 'canStatusCompleted'
+  },
+  APPROVAL: {
+    label: 'Aprovação',
+    color: 'bg-indigo-500 text-white',
+    icon: AlertCircle,
+    permKey: 'canStatusApproval'
+  },
+  APPROVED: {
+    label: 'Aprovado',
+    color: 'bg-emerald-600 text-white',
+    icon: ThumbsUp,
+    permKey: 'canStatusApproved'
+  },
+  EDIT: {
+    label: 'Editar',
+    color: 'bg-amber-500 text-white',
+    icon: Edit3,
+    permKey: 'canStatusEdit'
+  },
+  NO_TEXT: {
+    label: 'Sem Texto',
+    color: 'bg-gray-500 text-white',
+    icon: AlertCircle,
+    permKey: 'canStatusNoText'
+  },
+  PUBLISHED: {
+    label: 'Publicados',
+    color: 'bg-purple-600 text-white',
+    icon: Send,
+    permKey: 'canStatusPublished'
   }
 } as const;
 
 type StatusKey = keyof typeof STATUS_CONFIG;
 type RolePermissions = AppPermissions & {
   canStatusCancelled?: boolean;
+  canStatusApproval?: boolean;
+  canStatusApproved?: boolean;
+  canStatusEdit?: boolean;
+  canStatusNoText?: boolean;
+  canStatusPublished?: boolean;
 };
 
 // NOVO: tipo para os campos ordenáveis
@@ -145,7 +184,12 @@ const ADMIN_PERMS: RolePermissions = {
   canStatusCancelled: true,
   canStatusRescheduled: true,
   canStatusReScheduleRequest: true,
-  canStatusCompleted: true
+  canStatusCompleted: true,
+  canStatusApproval: true,
+  canStatusApproved: true,
+  canStatusEdit: true,
+  canStatusNoText: true,
+  canStatusPublished: true
 };
 
 export default function AppointmentsPage() {
