@@ -27,7 +27,12 @@ import {
   Edit3,
   Trash2,
   MoreHorizontal,
-  BookOpen
+  BookOpen,
+  ThumbsUp,
+  AlertCircle,
+  FileCheck,
+  FileX,
+  Send
 } from 'lucide-react';
 
 import { format, parseISO } from 'date-fns';
@@ -79,6 +84,36 @@ const STATUS_CONFIG = {
     color: 'bg-slate-600 text-white',
     icon: CheckCircle,
     permKey: 'canStatusCompleted'
+  },
+  APPROVAL: {
+    label: 'Aprovação',
+    color: 'bg-purple-500 text-white',
+    icon: AlertCircle,
+    permKey: 'canStatusApproval'
+  },
+  APPROVED: {
+    label: 'Aprovado',
+    color: 'bg-emerald-600 text-white',
+    icon: ThumbsUp,
+    permKey: 'canStatusApproved'
+  },
+  EDITING: {
+    label: 'Editar',
+    color: 'bg-indigo-500 text-white',
+    icon: Edit3,
+    permKey: 'canStatusEditing'
+  },
+  NO_TEXT: {
+    label: 'Sem texto',
+    color: 'bg-amber-500 text-white',
+    icon: FileX,
+    permKey: 'canStatusNoText'
+  },
+  PUBLISHED: {
+    label: 'Publicados',
+    color: 'bg-cyan-600 text-white',
+    icon: Send,
+    permKey: 'canStatusPublished'
   }
 } as const;
 
