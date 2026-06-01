@@ -97,7 +97,7 @@ const STATUS_CONFIG = {
     icon: ThumbsUp,
     permKey: 'canStatusApproved'
   },
-  EDITING: {
+  EDIT: {
     label: 'Editar',
     color: 'bg-indigo-500 text-white',
     icon: Edit3,
