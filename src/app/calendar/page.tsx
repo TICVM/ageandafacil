@@ -5,150 +5,53 @@ import { CalendarView } from '@/components/calendar/CalendarView';
 import { DashboardCards, UpcomingPublications } from '@/components/calendar/DashboardCards';
 import { Publication, Category, Holiday } from '@/lib/calendar/types';
 import { DEFAULT_CATEGORIES, DEFAULT_HOLIDAYS_2026 } from '@/lib/calendar/constants';
-
-// Dados de exemplo para demonstração
-const SAMPLE_PUBLICATIONS: Publication[] = [
-  {
-    id: 'pub-1',
-    title: 'Dia das Mães',
-    description: 'Publicação especial para o Dia das Mães',
-    categoryId: 'EVENTOS_PEDAGOGICOS',
-    seriesId: '',
-    status: 'EM_PRODUCAO',
-    priority: 'ALTA',
-    publicationDate: '2026-05-10',
-    plannedDate: '2026-04-28',
-    productionDays: 8,
-    responsibleName: 'Maria Silva',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-2',
-    title: 'Volta às Aulas',
-    description: 'Publicação de boas-vindas para o início do ano letivo',
-    categoryId: 'EVENTOS_PEDAGOGICOS',
-    seriesId: '',
-    status: 'PUBLICADO',
-    priority: 'MEDIA',
-    publicationDate: '2026-02-02',
-    plannedDate: '2026-01-20',
-    productionDays: 10,
-    responsibleName: 'João Santos',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-3',
-    title: 'Spelling Bee - 5º Ano',
-    description: 'Competição de ortografia do programa bilíngue',
-    categoryId: 'PROGRAMA_BILINGUE',
-    seriesId: '5ANO',
-    status: 'PLANEJAMENTO',
-    priority: 'ALTA',
-    publicationDate: '2026-08-15',
-    plannedDate: '2026-07-20',
-    productionDays: 11,
-    responsibleName: 'Ana Costa',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-4',
-    title: 'Mostra Cultural',
-    description: 'Divulgação da mostra cultural anual',
-    categoryId: 'ATIVIDADES_VARIADAS',
-    seriesId: '9ANO',
-    status: 'BRIEFING_SOLICITADO',
-    priority: 'MEDIA',
-    publicationDate: '2026-09-20',
-    plannedDate: '2026-09-01',
-    productionDays: 8,
-    responsibleName: 'Pedro Oliveira',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-5',
-    title: 'RT Publicity - Campanha Verão',
-    description: 'Campanha solicitada pela agência RT Publicity',
-    categoryId: 'RT_PUBLICITY',
-    seriesId: '',
-    status: 'AGUARDANDO_APROVACAO',
-    priority: 'URGENTE',
-    publicationDate: '2026-01-15',
-    plannedDate: '2026-01-05',
-    productionDays: 5,
-    responsibleName: 'Carla Mendes',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-6',
-    title: 'Festa Junina',
-    description: 'Convite e programação da festa junina',
-    categoryId: 'EVENTOS_PEDAGOGICOS',
-    seriesId: '',
-    status: 'PLANEJAMENTO',
-    priority: 'MEDIA',
-    publicationDate: '2026-06-24',
-    plannedDate: '2026-06-10',
-    productionDays: 10,
-    responsibleName: 'Maria Silva',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-7',
-    title: 'Dia do Estudante - 1º Médio',
-    description: 'Homenagem ao Dia do Estudante',
-    categoryId: 'ATIVIDADES_VARIADAS',
-    seriesId: '1MEDIO',
-    status: 'EM_REVISAO',
-    priority: 'BAIXA',
-    publicationDate: '2026-08-11',
-    plannedDate: '2026-07-28',
-    productionDays: 10,
-    responsibleName: 'Roberto Lima',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  },
-  {
-    id: 'pub-8',
-    title: 'Natal 2026',
-    description: 'Cartão de Natal institucional',
-    categoryId: 'EVENTOS_PEDAGOGICOS',
-    seriesId: '',
-    status: 'PLANEJAMENTO',
-    priority: 'ALTA',
-    publicationDate: '2026-12-20',
-    plannedDate: '2026-12-01',
-    productionDays: 15,
-    responsibleName: 'Maria Silva',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user-1',
-    updatedBy: 'user-1'
-  }
-];
+import { usePublications, useHolidays, useCategories } from '@/lib/calendar';
+import { Loader2 } from 'lucide-react';
 
 export default function CalendarPage() {
+  const [selectedYear, setSelectedYear] = React.useState(2026);
+  const [publications, setPublications] = React.useState<Publication[]>([]);
+  const [holidays, setHolidays] = React.useState<Holiday[]>(DEFAULT_HOLIDAYS_2026);
+  const [categories, setCategories] = React.useState<Category[]>(DEFAULT_CATEGORIES);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [selectedPublication, setSelectedPublication] = React.useState<Publication | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+
+  // Hooks do Firestore
+  const publicationsHook = usePublications();
+  const holidaysHook = useHolidays();
+  const categoriesHook = useCategories();
+
+  // Carregar dados ao montar o componente
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        // Carregar publicações do ano selecionado
+        const pubs = await publicationsHook.getPublicationsByYear(selectedYear);
+        setPublications(pubs);
+
+        // Carregar feriados do ano selecionado
+        const hols = await holidaysHook.getHolidaysByYear(selectedYear);
+        if (hols.length > 0) {
+          setHolidays(hols);
+        }
+
+        // Carregar categorias
+        const cats = await categoriesHook.getAllCategories();
+        if (cats.length > 0) {
+          setCategories(cats);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        // Em caso de erro, usa dados padrão para demonstração
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadData();
+  }, [selectedYear]);
 
   const handleAddPublication = () => {
     setIsDialogOpen(true);
@@ -167,22 +70,59 @@ export default function CalendarPage() {
     // Aqui abriria o formulário com a data pré-preenchida
   };
 
+  const handleYearChange = (year: number) => {
+    setSelectedYear(year);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Carregando calendário...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 p-6">
       {/* Cabeçalho */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">
-          Calendário de Publicações 2026
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Central de planejamento e acompanhamento das publicações da escola
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">
+            Calendário de Publicações {selectedYear}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Central de planejamento e acompanhamento das publicações da escola
+          </p>
+        </div>
+        
+        {/* Seletor de Ano */}
+        <div className="flex items-center gap-4">
+          <select
+            value={selectedYear}
+            onChange={(e) => handleYearChange(Number(e.target.value))}
+            className="px-4 py-2 border rounded-md bg-background"
+          >
+            {[2025, 2026, 2027, 2028, 2029].map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+          
+          <button
+            onClick={handleAddPublication}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            + Nova Publicação
+          </button>
+        </div>
       </div>
 
       {/* Cards do Dashboard */}
       <DashboardCards 
-        publications={SAMPLE_PUBLICATIONS}
-        categories={DEFAULT_CATEGORIES}
+        publications={publications}
+        categories={categories}
       />
 
       {/* Conteúdo Principal */}
@@ -190,9 +130,9 @@ export default function CalendarPage() {
         {/* Calendário - Ocupa 2 colunas */}
         <div className="lg:col-span-2">
           <CalendarView
-            publications={SAMPLE_PUBLICATIONS}
-            categories={DEFAULT_CATEGORIES}
-            holidays={DEFAULT_HOLIDAYS_2026}
+            publications={publications}
+            categories={categories}
+            holidays={holidays}
             onDateClick={handleDateClick}
             onPublicationClick={handlePublicationClick}
             onAddPublication={handleAddPublication}
@@ -202,8 +142,8 @@ export default function CalendarPage() {
         {/* Próximas Publicações - Ocupa 1 coluna */}
         <div>
           <UpcomingPublications
-            publications={SAMPLE_PUBLICATIONS}
-            categories={DEFAULT_CATEGORIES}
+            publications={publications}
+            categories={categories}
             limit={8}
             onPublicationClick={handlePublicationClick}
           />
@@ -213,7 +153,7 @@ export default function CalendarPage() {
       {/* Legenda */}
       <div className="flex flex-wrap gap-4 p-4 bg-muted/30 rounded-lg">
         <h3 className="font-semibold text-sm w-full mb-2">Categorias:</h3>
-        {DEFAULT_CATEGORIES.map(cat => (
+        {categories.map(cat => (
           <div key={cat.id} className="flex items-center gap-2">
             <div 
               className="w-4 h-4 rounded"
