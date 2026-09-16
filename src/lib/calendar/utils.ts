@@ -1,6 +1,200 @@
-import { addDays, isWeekend, parseISO, format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import { addDays, isWeekend, parseISO, format, startOfWeek, endOfWeek, eachDayOfInterval, getDate, getMonth, getYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Holiday } from './types';
+
+/**
+ * Calcula a data da Páscoa para um determinado ano (algoritmo de Gauss)
+ * @param year - Ano
+ * @returns Data da Páscoa (Domingo de Páscoa)
+ */
+function calculateEasterDate(year: number): Date {
+  const f = Math.floor,
+    G = year % 19,
+    C = f(year / 100),
+    H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
+    I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)),
+    J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
+    L = I - J,
+    month = 3 + f((L + 40) / 44),
+    day = L + 28 - 31 * f(month / 4);
+  
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Gera automaticamente os feriados nacionais, estaduais (SP) e municipais (São Paulo) para um ano
+ * @param year - Ano para gerar os feriados
+ * @returns Array de feriados automáticos de São Paulo
+ */
+export function generateSaoPauloHolidays(year: number): Omit<Holiday, 'id'>[] {
+  const easterDate = calculateEasterDate(year);
+  
+  // Calcula datas móveis baseadas na Páscoa
+  const carnavalDate = addDays(easterDate, -47); // Terça-feira de Carnaval
+  const paixaoCristoDate = addDays(easterDate, -2); // Sexta-feira Santa
+  const corpusChristiDate = addDays(easterDate, 60); // Corpus Christi (60 dias após Páscoa)
+  
+  const holidays: Omit<Holiday, 'id'>[] = [
+    // Feriado Nacional - Ano Novo
+    {
+      name: 'Ano Novo',
+      date: `${year}-01-01`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Celebração do início do novo ano'
+    },
+    // Feriado Municipal - Aniversário de São Paulo
+    {
+      name: 'Aniversário de São Paulo',
+      date: `${year}-01-25`,
+      type: 'MUNICIPAL',
+      recurring: true,
+      year,
+      description: 'Fundação da cidade de São Paulo'
+    },
+    // Feriado Nacional - Carnaval (ponto facultativo, mas amplamente observado)
+    {
+      name: 'Carnaval',
+      date: format(carnavalDate, 'yyyy-MM-dd'),
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Terça-feira de Carnaval'
+    },
+    // Feriado Nacional - Paixão de Cristo
+    {
+      name: 'Paixão de Cristo',
+      date: format(paixaoCristoDate, 'yyyy-MM-dd'),
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Sexta-feira Santa'
+    },
+    // Feriado Nacional - Tiradentes
+    {
+      name: 'Tiradentes',
+      date: `${year}-04-21`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Homenagem a Joaquim José da Silva Xavier'
+    },
+    // Feriado Nacional - Dia do Trabalho
+    {
+      name: 'Dia do Trabalho',
+      date: `${year}-05-01`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Dia Internacional do Trabalhador'
+    },
+    // Feriado Nacional - Corpus Christi
+    {
+      name: 'Corpus Christi',
+      date: format(corpusChristiDate, 'yyyy-MM-dd'),
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Festa litúrgica católica'
+    },
+    // Feriado Estadual (SP) - Revolução Constitucionalista
+    {
+      name: 'Revolução Constitucionalista de 1932',
+      date: `${year}-07-09`,
+      type: 'ESTADUAL',
+      recurring: true,
+      year,
+      description: 'Revolução Constitucionalista de São Paulo'
+    },
+    // Feriado Nacional - Independência do Brasil
+    {
+      name: 'Independência do Brasil',
+      date: `${year}-09-07`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Proclamação da Independência do Brasil'
+    },
+    // Feriado Nacional - Nossa Senhora Aparecida
+    {
+      name: 'Nossa Senhora Aparecida',
+      date: `${year}-10-12`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Dia de Nossa Senhora Aparecida, padroeira do Brasil'
+    },
+    // Feriado Nacional - Finados
+    {
+      name: 'Finados',
+      date: `${year}-11-02`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Dia de Finados'
+    },
+    // Feriado Nacional - Proclamação da República
+    {
+      name: 'Proclamação da República',
+      date: `${year}-11-15`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Proclamação da República Federativa do Brasil'
+    },
+    // Feriado Nacional - Dia da Consciência Negra
+    {
+      name: 'Dia da Consciência Negra',
+      date: `${year}-11-20`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Dia Nacional de Zumbi e da Consciência Negra'
+    },
+    // Feriado Nacional - Natal
+    {
+      name: 'Natal',
+      date: `${year}-12-25`,
+      type: 'NACIONAL',
+      recurring: true,
+      year,
+      description: 'Celebração do nascimento de Jesus Cristo'
+    }
+  ];
+  
+  return holidays;
+}
+
+/**
+ * Mescla feriados automáticos com feriados manuais, evitando duplicatas
+ * @param autoHolidays - Feriados automáticos gerados
+ * @param manualHolidays - Feriados manuais adicionados pelo usuário
+ * @returns Array completo de feriados sem duplicatas
+ */
+export function mergeHolidays(autoHolidays: Holiday[], manualHolidays: Holiday[]): Holiday[] {
+  // Cria um mapa de feriados automáticos por data para evitar duplicatas
+  const autoDatesMap = new Map<string, Holiday>();
+  autoHolidays.forEach(h => {
+    const key = h.recurring ? format(parseISO(h.date), 'MM-dd') : h.date;
+    autoDatesMap.set(key, h);
+  });
+  
+  // Filtra feriados manuais que não conflitam com automáticos
+  const uniqueManualHolidays = manualHolidays.filter(manualHoliday => {
+    const key = manualHoliday.recurring ? format(parseISO(manualHoliday.date), 'MM-dd') : manualHoliday.date;
+    
+    // Verifica se já existe um feriado automático com a mesma data
+    if (autoDatesMap.has(key)) {
+      return false; // Ignora feriado manual duplicado
+    }
+    
+    return true;
+  });
+  
+  // Combina feriados automáticos e manuais únicos
+  return [...autoHolidays, ...uniqueManualHolidays];
+}
 
 /**
  * Verifica se uma data é um dia útil (não é fim de semana e não é feriado)
