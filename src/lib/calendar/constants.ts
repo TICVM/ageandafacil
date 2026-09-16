@@ -116,6 +116,10 @@ export const DEFAULT_PRIORITIES = [
   { id: 'URGENTE', name: 'Urgente', color: '#E74C3C' }
 ];
 
+// Export for PublicationForm component
+export const STATUS_OPTIONS = DEFAULT_STATUSES.map(s => ({ value: s.id, label: s.name }));
+export const PRIORITY_OPTIONS = DEFAULT_PRIORITIES.map(p => ({ value: p.id, label: p.name }));
+
 export const DEFAULT_HOLIDAYS_2026 = [
   { id: 'ANO_NOVO', name: 'Ano Novo', date: '2026-01-01', type: 'NACIONAL', recurring: true },
   { id: 'ANIV_SP', name: 'Aniversário de São Paulo', date: '2026-01-25', type: 'MUNICIPAL', recurring: true },

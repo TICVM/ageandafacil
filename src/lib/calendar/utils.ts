@@ -1,4 +1,4 @@
-import { addDays, isWeekend, parseISO, format } from 'date-fns';
+import { addDays, isWeekend, parseISO, format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Holiday } from './types';
 
@@ -67,6 +67,78 @@ export function calculatePlannedDate(
   const pubDate = parseISO(publicationDate);
   const plannedDate = addBusinessDays(pubDate, productionDays, holidays, true);
   return format(plannedDate, 'yyyy-MM-dd');
+}
+
+/**
+ * Calcula dias úteis antes de uma data (versão simplificada com array de strings)
+ * @param publicationDate - Data da publicação
+ * @param businessDays - Dias úteis para subtrair
+ * @param holidayDates - Array de datas de feriados (YYYY-MM-DD)
+ */
+export function calculateBusinessDaysBefore(
+  publicationDate: Date,
+  businessDays: number,
+  holidayDates: string[] = []
+): Date {
+  let result = new Date(publicationDate);
+  let daysCounted = 0;
+  
+  while (daysCounted < businessDays) {
+    result = addDays(result, -1);
+    
+    const isWeekendDay = isWeekend(result);
+    const dateStr = format(result, 'yyyy-MM-dd');
+    const isHoliday = holidayDates.includes(dateStr);
+    
+    // Check recurring holidays (MM-DD)
+    const isRecurringHoliday = holidayDates.some(h => {
+      if (h.length === 5) { // MM-DD format
+        return format(result, 'MM-dd') === h;
+      }
+      return false;
+    });
+    
+    if (!isWeekendDay && !isHoliday && !isRecurringHoliday) {
+      daysCounted++;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Formata data para input date (YYYY-MM-DD)
+ */
+export function formatDateForInput(date: Date): string {
+  return format(date, 'yyyy-MM-dd');
+}
+
+/**
+ * Obtém os dias da semana para visão semanal
+ * @param currentDate - Data atual
+ * @returns Array de 7 datas representando a semana
+ */
+export function getWeekDays(currentDate: Date): (Date | null)[] {
+  const start = startOfWeek(currentDate, { weekStartsOn: 0 }); // Domingo como primeiro dia
+  const end = endOfWeek(currentDate, { weekStartsOn: 0 });
+  
+  const days = eachDayOfInterval({ start, end });
+  return days;
+}
+
+/**
+ * Obtém todos os meses do ano para visão anual
+ * @param year - Ano
+ * @returns Array de arrays representando os dias de cada mês
+ */
+export function getMonthsInYear(year: number): (number | null)[][] {
+  const months: (number | null)[][] = [];
+  
+  for (let month = 0; month < 12; month++) {
+    months.push(getDaysInMonth(year, month));
+  }
+  
+  return months;
 }
 
 /**

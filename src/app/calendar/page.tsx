@@ -3,24 +3,30 @@
 import React from 'react';
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { DashboardCards, UpcomingPublications } from '@/components/calendar/DashboardCards';
+import { PublicationForm } from '@/components/calendar/PublicationForm';
 import { Publication, Category, Holiday } from '@/lib/calendar/types';
-import { DEFAULT_CATEGORIES, DEFAULT_HOLIDAYS_2026 } from '@/lib/calendar/constants';
-import { usePublications, useHolidays, useCategories } from '@/lib/calendar';
-import { Loader2 } from 'lucide-react';
+import { DEFAULT_CATEGORIES, DEFAULT_HOLIDAYS_2026, DEFAULT_SERIES } from '@/lib/calendar/constants';
+import { usePublications, useHolidays, useCategories, useSeries } from '@/lib/calendar';
+import { Loader2, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function CalendarPage() {
   const [selectedYear, setSelectedYear] = React.useState(2026);
   const [publications, setPublications] = React.useState<Publication[]>([]);
   const [holidays, setHolidays] = React.useState<Holiday[]>(DEFAULT_HOLIDAYS_2026);
   const [categories, setCategories] = React.useState<Category[]>(DEFAULT_CATEGORIES);
+  const [series, setSeries] = React.useState(DEFAULT_SERIES);
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedPublication, setSelectedPublication] = React.useState<Publication | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
 
   // Hooks do Firestore
   const publicationsHook = usePublications();
   const holidaysHook = useHolidays();
   const categoriesHook = useCategories();
+  const seriesHook = useSeries();
 
   // Carregar dados ao montar o componente
   React.useEffect(() => {
@@ -42,9 +48,15 @@ export default function CalendarPage() {
         if (cats.length > 0) {
           setCategories(cats);
         }
+
+        // Carregar séries
+        const s = await seriesHook.getAllSeries();
+        if (s.length > 0) {
+          setSeries(s);
+        }
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
-        // Em caso de erro, usa dados padrão para demonstração
+        toast.error('Erro ao carregar dados do calendário');
       } finally {
         setIsLoading(false);
       }
@@ -54,24 +66,48 @@ export default function CalendarPage() {
   }, [selectedYear]);
 
   const handleAddPublication = () => {
-    setIsDialogOpen(true);
-    // Aqui abriria o formulário de nova publicação
-    console.log('Abrir formulário de nova publicação');
+    setIsEditing(false);
+    setSelectedPublication(null);
+    setIsFormOpen(true);
   };
 
   const handlePublicationClick = (publication: Publication) => {
     setSelectedPublication(publication);
-    // Aqui abriria o modal de detalhes
-    console.log('Detalhes da publicação:', publication);
+    setIsEditing(true);
+    setIsFormOpen(true);
   };
 
   const handleDateClick = (date: string) => {
-    console.log('Data clicada:', date);
-    // Aqui abriria o formulário com a data pré-preenchida
+    // Abre formulário com data pré-preenchida
+    setIsEditing(false);
+    setSelectedPublication({ publicationDate: date } as Partial<Publication> as Publication);
+    setIsFormOpen(true);
   };
 
   const handleYearChange = (year: number) => {
     setSelectedYear(year);
+  };
+
+  const handleSavePublication = async (publicationData: Omit<Publication, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'history'>) => {
+    try {
+      if (isEditing && selectedPublication?.id) {
+        // Editar publicação existente
+        await publicationsHook.updatePublication(selectedPublication.id, publicationData);
+        toast.success('Publicação atualizada com sucesso!');
+      } else {
+        // Criar nova publicação
+        await publicationsHook.createPublication(publicationData);
+        toast.success('Publicação criada com sucesso!');
+      }
+      
+      // Recarregar publicações
+      const pubs = await publicationsHook.getPublicationsByYear(selectedYear);
+      setPublications(pubs);
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error('Erro ao salvar publicação:', error);
+      toast.error('Erro ao salvar publicação');
+    }
   };
 
   if (isLoading) {
@@ -110,12 +146,10 @@ export default function CalendarPage() {
             ))}
           </select>
           
-          <button
-            onClick={handleAddPublication}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            + Nova Publicação
-          </button>
+          <Button onClick={handleAddPublication} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Nova Publicação
+          </Button>
         </div>
       </div>
 
@@ -163,6 +197,17 @@ export default function CalendarPage() {
           </div>
         ))}
       </div>
+
+      {/* Formulário de Publicação */}
+      <PublicationForm
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        onSave={handleSavePublication}
+        initialData={isEditing ? selectedPublication || undefined : undefined}
+        categories={categories}
+        series={series}
+        holidays={holidays}
+      />
     </div>
   );
 }

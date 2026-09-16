@@ -8,19 +8,10 @@ build/
 .next/
 out/
 
-# Logs
-*.log
-
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
 
 # Python
 __pycache__/
@@ -31,25 +22,47 @@ __pycache__/
 env/
 venv/
 .venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
+.ENV
 
-# Coverage reports
-coverage/
-*.gcov
-*.lcov
+# Logs
+*.log
 
-# OS generated files
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-Icon?
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Compressed
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
