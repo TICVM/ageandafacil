@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "publications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "isDeleted", "order": "ASCENDING"},
+        {"fieldPath": "publicationDate", "order": "ASCENDING"}
+      ]
+    }
+  ]
+}
