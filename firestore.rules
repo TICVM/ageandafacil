@@ -69,30 +69,30 @@ service cloud.firestore {
     }
     // Regras para a coleção de feriados
     match /holidays/{document=**} {
-      // Permite que qualquer pessoa leia os feriados
       allow read: if true;
-      
-      // Permite apenas usuários autenticados criarem, editarem ou excluírem feriados
-      allow write: if request.auth != null;
+      allow write: if isSignedIn();
+    }
+
+    // Regras para o Calendário de Publicações
+    match /publications/{pubId} {
+      allow read, write: if true;
+    }
+    match /publication_categories/{catId} {
+      allow read, write: if true;
+    }
+    match /publication_series/{seriesId} {
+      allow read, write: if true;
+    }
+    match /production_deadlines/{deadlineId} {
+      allow read, write: if true;
+    }
+    match /calendar_settings/{settingId} {
+      allow read, write: if true;
     }
 
     // Regra padrão para outras coleções
     match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
-    
-   // Regras para a coleção de feriados
-    match /holidays/{document=**} {
-      // Permite que qualquer pessoa leia os feriados
-      allow read: if true;
-      
-      // Permite apenas usuários autenticados criarem, editarem ou excluírem feriados
-      allow write: if request.auth != null;
-    }
-
-    // Regra padrão para outras coleções
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
   }
 }

@@ -1,3 +1,0 @@
-﻿b17cc29 Como fa├ºo a migra├º├úo dos meus projetos para o AI Studio.
-19365a3 monospace-pa.clients6.google.com/$rpc/google.internal.developerexperienc
-faee039 na configura├º├úo de hor├írio tem como colocar no filtro hor├írio global!
