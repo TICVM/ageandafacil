@@ -1,79 +1,59 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Dados públicos necessários para preencher o formulário de reserva
+    // Regras abertas para permitir leitura e gravação completa das coleções do sistema
     match /school_segments/{segmentId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /school_classes/{classId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /school_subjects/{subjectId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /photo_locations/{locationId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /available_time_slots/{slotId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /schedule_blocks/{blockId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
-    // Agendamentos: Qualquer pessoa pode criar e ver (para checar disponibilidade), 
-    // mas apenas logados editam no dashboard
     match /appointments/{appointmentId} {
-      allow read, create: if true;
-      allow update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
-    // Usuários: Leitura pública para permitir o Agendamento Rápido via e-mail
     match /users/{userId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
-    // Configurações de Perfis e Permissões
     match /roles_config/{roleId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
     
-    // Configurações globais do App
     match /app_settings/{settingsId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
     
-    // Legado (se houver)
     match /roles_admin/{adminId} {
-      allow read, write: if isSignedIn();
-    }
-    // Regras para a coleção de feriados
-    match /holidays/{document=**} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if true;
     }
 
-    // Regras para o Calendário de Publicações
+    match /holidays/{holidayId} {
+      allow read, write: if true;
+    }
+    match /holidays/{document=**} {
+      allow read, write: if true;
+    }
+
     match /publications/{pubId} {
       allow read, write: if true;
     }
@@ -90,9 +70,9 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Regra padrão para outras coleções
+    // Regra padrão
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
