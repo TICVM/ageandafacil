@@ -6,3 +6,5 @@ export const firebaseConfig = {
   "measurementId": "",
   "messagingSenderId": "415086473506"
 };
+
+export const firestoreDatabaseId = "ai-studio-ageandafacil-fd1beebf-0972-4b64-88c1-cfc46c4ff32e";

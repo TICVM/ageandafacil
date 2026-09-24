@@ -120,7 +120,7 @@ export function RescheduleDialog({
             timeToMin(s.startTime) + (s.durationMinutes || 60) > timeToMin(b.startTime)
         );
       })
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   }, [slots, newDate, booking, classMap, allAppointments, allBlocks, appSettings]);
 
   const selectedSlot = useMemo(() => 

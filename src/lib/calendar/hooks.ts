@@ -89,15 +89,24 @@ export function usePublications() {
     const startDate = `${year}-01-01`;
     const endDate = `${year}-12-31`;
     
-    const q = query(
-      collection(db, COLLECTIONS.PUBLICATIONS),
-      where('publicationDate', '>=', startDate),
-      where('publicationDate', '<=', endDate),
-      where('isDeleted', '==', false)
-    );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Publication);
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.PUBLICATIONS),
+        where('publicationDate', '>=', startDate),
+        where('publicationDate', '<=', endDate)
+      );
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => pub.isDeleted !== true);
+    } catch (err: any) {
+      console.warn('Fallback para getPublicationsByYear:', err);
+      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => pub.isDeleted !== true && pub.publicationDate >= startDate && pub.publicationDate <= endDate);
+    }
   };
 
   const getPublicationsByMonth = async (year: number, month: number): Promise<Publication[]> => {
@@ -106,55 +115,102 @@ export function usePublications() {
     const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const endDate = `${year}-${String(month + 1).padStart(2, '0')}-31`;
     
-    const q = query(
-      collection(db, COLLECTIONS.PUBLICATIONS),
-      where('publicationDate', '>=', startDate),
-      where('publicationDate', '<=', endDate),
-      where('isDeleted', '==', false)
-    );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Publication);
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.PUBLICATIONS),
+        where('publicationDate', '>=', startDate),
+        where('publicationDate', '<=', endDate)
+      );
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => pub.isDeleted !== true);
+    } catch (err: any) {
+      console.warn('Fallback para getPublicationsByMonth:', err);
+      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => pub.isDeleted !== true && pub.publicationDate >= startDate && pub.publicationDate <= endDate);
+    }
   };
 
   const getPublicationsByCategory = async (categoryId: string, year?: number): Promise<Publication[]> => {
     if (!db) throw new Error('Firestore não inicializado');
     
-    const constraints: QueryConstraint[] = [
-      where('categoryId', '==', categoryId),
-      where('isDeleted', '==', false)
-    ];
-    
-    if (year) {
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
-      constraints.push(where('publicationDate', '>=', startDate));
-      constraints.push(where('publicationDate', '<=', endDate));
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.PUBLICATIONS),
+        where('categoryId', '==', categoryId)
+      );
+      const snapshot = await getDocs(q);
+      const startDate = year ? `${year}-01-01` : null;
+      const endDate = year ? `${year}-12-31` : null;
+
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => {
+          if (pub.isDeleted) return false;
+          if (startDate && endDate) {
+            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
+          }
+          return true;
+        });
+    } catch (err: any) {
+      console.warn('Fallback para getPublicationsByCategory:', err);
+      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
+      const startDate = year ? `${year}-01-01` : null;
+      const endDate = year ? `${year}-12-31` : null;
+
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => {
+          if (pub.isDeleted || pub.categoryId !== categoryId) return false;
+          if (startDate && endDate) {
+            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
+          }
+          return true;
+        });
     }
-    
-    const q = query(collection(db, COLLECTIONS.PUBLICATIONS), ...constraints);
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Publication);
   };
 
   const getPublicationsBySeries = async (seriesId: string, year?: number): Promise<Publication[]> => {
     if (!db) throw new Error('Firestore não inicializado');
     
-    const constraints: QueryConstraint[] = [
-      where('seriesId', '==', seriesId),
-      where('isDeleted', '==', false)
-    ];
-    
-    if (year) {
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
-      constraints.push(where('publicationDate', '>=', startDate));
-      constraints.push(where('publicationDate', '<=', endDate));
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.PUBLICATIONS),
+        where('seriesId', '==', seriesId)
+      );
+      const snapshot = await getDocs(q);
+      const startDate = year ? `${year}-01-01` : null;
+      const endDate = year ? `${year}-12-31` : null;
+
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => {
+          if (pub.isDeleted) return false;
+          if (startDate && endDate) {
+            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
+          }
+          return true;
+        });
+    } catch (err: any) {
+      console.warn('Fallback para getPublicationsBySeries:', err);
+      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
+      const startDate = year ? `${year}-01-01` : null;
+      const endDate = year ? `${year}-12-31` : null;
+
+      return snapshot.docs
+        .map(doc => doc.data() as Publication)
+        .filter(pub => {
+          if (pub.isDeleted || pub.seriesId !== seriesId) return false;
+          if (startDate && endDate) {
+            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
+          }
+          return true;
+        });
     }
-    
-    const q = query(collection(db, COLLECTIONS.PUBLICATIONS), ...constraints);
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Publication);
   };
 
   const addHistoryEntry = async (
@@ -192,16 +248,15 @@ export function usePublications() {
     
     const plannedDate = calculatePlannedDate(newPublicationDate, sourcePub.productionDays || 0, holidays);
     
+    const { id: _unusedId, createdAt: _unusedCreated, updatedAt: _unusedUpdated, ...restSource } = sourcePub;
+    
     return createPublication({
-      ...sourcePub,
-      id: '',
+      ...restSource,
       title: `${sourcePub.title} (Cópia)`,
       publicationDate: newPublicationDate,
       plannedDate,
       status: 'PLANEJAMENTO',
       isRecurring: false,
-      createdAt: '',
-      updatedAt: '',
       createdBy,
       updatedBy: createdBy,
       history: []

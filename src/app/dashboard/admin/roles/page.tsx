@@ -38,6 +38,7 @@ const DEFAULT_PERMISSIONS: AppPermissions = {
   canStatusRescheduled: false,
   canStatusReScheduleRequest: false,
   canStatusCompleted: false,
+  canStatusCancelled: false,
 };
 
 export default function RolesAdminPage() {

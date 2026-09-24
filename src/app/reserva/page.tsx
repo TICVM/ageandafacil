@@ -206,7 +206,7 @@ export default function PublicBookingPage() {
       if (sDT < minLimit) return false;
       if (allAppointments?.some(app => app.appointmentDate === dateStr && app.startTime === s.startTime && app.status !== 'CANCELLED')) return false;
       return !allBlocks?.some(b => b.date === dateStr && timeToMin(s.startTime) < timeToMin(b.endTime) && (timeToMin(s.startTime) + (s.durationMinutes || 60)) > timeToMin(b.startTime));
-    }).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   }, [slots, date, selectedClassId, rawClasses, allAppointments, allBlocks, appSettings]);
 
   const handleGenerateAI = async () => {

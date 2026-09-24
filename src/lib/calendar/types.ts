@@ -53,7 +53,7 @@ export interface Series {
   id: string;
   name: string;
   order: number;
-  isActive: boolean;
+  isActive?: boolean;
 }
 
 export interface ProductionDeadline {

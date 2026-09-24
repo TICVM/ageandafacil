@@ -458,16 +458,22 @@ export default function AppointmentsPage() {
 
       switch (sortField) {
         case 'appointmentDate': {
-          const byDate = a.appointmentDate.localeCompare(b.appointmentDate);
+          const dateA = a.appointmentDate || '';
+          const dateB = b.appointmentDate || '';
+          const byDate = dateA.localeCompare(dateB);
           if (byDate !== 0) {
             cmp = byDate;
           } else {
-            cmp = a.startTime.localeCompare(b.startTime);
+            const timeA = a.startTime || '';
+            const timeB = b.startTime || '';
+            cmp = timeA.localeCompare(timeB);
           }
           break;
         }
         case 'teacherName': {
-          cmp = a.teacherName.localeCompare(b.teacherName);
+          const nameA = a.teacherName || '';
+          const nameB = b.teacherName || '';
+          cmp = nameA.localeCompare(nameB);
           break;
         }
         case 'locationName': {

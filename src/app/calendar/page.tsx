@@ -7,6 +7,7 @@ import { PublicationForm } from '@/components/calendar/PublicationForm';
 import { Publication, Category, Holiday } from '@/lib/calendar/types';
 import { DEFAULT_CATEGORIES, DEFAULT_HOLIDAYS_2026, DEFAULT_SERIES } from '@/lib/calendar/constants';
 import { usePublications, useHolidays, useCategories, useSeries } from '@/lib/calendar';
+import { generateSaoPauloHolidays, mergeHolidays } from '@/lib/calendar/utils';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -14,7 +15,9 @@ import { toast } from 'sonner';
 export default function CalendarPage() {
   const [selectedYear, setSelectedYear] = React.useState(2026);
   const [publications, setPublications] = React.useState<Publication[]>([]);
-  const [holidays, setHolidays] = React.useState<Holiday[]>(DEFAULT_HOLIDAYS_2026);
+  const [autoHolidays, setAutoHolidays] = React.useState<Holiday[]>([]);
+  const [manualHolidays, setManualHolidays] = React.useState<Holiday[]>([]);
+  const [allHolidays, setAllHolidays] = React.useState<Holiday[]>([]);
   const [categories, setCategories] = React.useState<Category[]>(DEFAULT_CATEGORIES);
   const [series, setSeries] = React.useState(DEFAULT_SERIES);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -28,6 +31,23 @@ export default function CalendarPage() {
   const categoriesHook = useCategories();
   const seriesHook = useSeries();
 
+  // Gera feriados automáticos de São Paulo quando o ano muda
+  React.useEffect(() => {
+    const generatedHolidays = generateSaoPauloHolidays(selectedYear).map((h, index) => ({
+      ...h,
+      id: `AUTO_${selectedYear}_${index}`
+    }));
+    setAutoHolidays(generatedHolidays as Holiday[]);
+  }, [selectedYear]);
+
+  // Mescla feriados automáticos e manuais
+  React.useEffect(() => {
+    if (autoHolidays.length > 0 || manualHolidays.length > 0) {
+      const merged = mergeHolidays(autoHolidays, manualHolidays);
+      setAllHolidays(merged);
+    }
+  }, [autoHolidays, manualHolidays]);
+
   // Carregar dados ao montar o componente
   React.useEffect(() => {
     async function loadData() {
@@ -37,10 +57,12 @@ export default function CalendarPage() {
         const pubs = await publicationsHook.getPublicationsByYear(selectedYear);
         setPublications(pubs);
 
-        // Carregar feriados do ano selecionado
-        const hols = await holidaysHook.getHolidaysByYear(selectedYear);
-        if (hols.length > 0) {
-          setHolidays(hols);
+        // Carregar feriados manuais do ano selecionado (salvos no Firestore)
+        const manualHols = await holidaysHook.getHolidaysByYear(selectedYear);
+        if (manualHols.length > 0) {
+          setManualHolidays(manualHols);
+        } else {
+          setManualHolidays([]);
         }
 
         // Carregar categorias
@@ -88,7 +110,7 @@ export default function CalendarPage() {
     setSelectedYear(year);
   };
 
-  const handleSavePublication = async (publicationData: Omit<Publication, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'history'>) => {
+  const handleSavePublication = async (publicationData: Omit<Publication, 'id' | 'createdAt' | 'updatedAt' | 'history'>) => {
     try {
       if (isEditing && selectedPublication?.id) {
         // Editar publicação existente
@@ -166,7 +188,7 @@ export default function CalendarPage() {
           <CalendarView
             publications={publications}
             categories={categories}
-            holidays={holidays}
+            holidays={allHolidays}
             onDateClick={handleDateClick}
             onPublicationClick={handlePublicationClick}
             onAddPublication={handleAddPublication}
@@ -206,7 +228,7 @@ export default function CalendarPage() {
         initialData={isEditing ? selectedPublication || undefined : undefined}
         categories={categories}
         series={series}
-        holidays={holidays}
+        holidays={allHolidays}
       />
     </div>
   );

@@ -64,13 +64,17 @@ export default function Dashboard() {
   const { data: classes } = useCollection<Class>(classesRef);
   const { data: locations } = useCollection<PhotoLocation>(locationsRef);
 
-  // CORRIGIDO: ordena por data E horário
+  // CORRIGIDO: ordena por data E horário com proteção contra valores indefinidos
   const userBookings = useMemo(() => {
     if (!rawBookings) return [];
     return [...rawBookings].sort((a, b) => {
-      const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
+      const dateA = a.appointmentDate || '';
+      const dateB = b.appointmentDate || '';
+      const dateCompare = dateA.localeCompare(dateB);
       if (dateCompare !== 0) return dateCompare;
-      return a.startTime.localeCompare(b.startTime);
+      const timeA = a.startTime || '';
+      const timeB = b.startTime || '';
+      return timeA.localeCompare(timeB);
     });
   }, [rawBookings]);
 
@@ -82,16 +86,20 @@ export default function Dashboard() {
     const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
     const confirmedSorted = [...userBookings]
-      .filter(b => b.status === 'CONFIRMED')
+      .filter(b => b.status === 'CONFIRMED' && b.appointmentDate)
       .sort((a, b) => {
-        const dateCompare = a.appointmentDate.localeCompare(b.appointmentDate);
+        const dateA = a.appointmentDate || '';
+        const dateB = b.appointmentDate || '';
+        const dateCompare = dateA.localeCompare(dateB);
         if (dateCompare !== 0) return dateCompare;
-        return a.startTime.localeCompare(b.startTime);
+        const timeA = a.startTime || '';
+        const timeB = b.startTime || '';
+        return timeA.localeCompare(timeB);
       });
 
     return confirmedSorted.find(b => {
       if (b.appointmentDate > todayStr) return true;
-      if (b.appointmentDate === todayStr && b.startTime >= currentTime) return true;
+      if (b.appointmentDate === todayStr && (b.startTime || '') >= currentTime) return true;
       return false;
     });
   }, [userBookings, now]);

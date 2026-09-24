@@ -1,0 +1,8 @@
+{
+  "name": "SchoolLens",
+  "description": "Sistema inteligente de agendamento de sessões de fotos escolares e calendário de publicações.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

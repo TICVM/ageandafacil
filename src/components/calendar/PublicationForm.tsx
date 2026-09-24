@@ -34,7 +34,7 @@ import { calculateBusinessDaysBefore, formatDateForInput } from '@/lib/calendar/
 interface PublicationFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (publication: Omit<Publication, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'history'>) => void;
+  onSave: (publication: Omit<Publication, 'id' | 'createdAt' | 'updatedAt' | 'history'>) => void;
   initialData?: Partial<Publication>;
   categories?: Category[];
   series?: Series[];

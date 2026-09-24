@@ -1,0 +1,7 @@
+﻿H:\App1\Crach-Inteligente\src\app\(dashboard)\page.tsx
+H:\App1\Crach-Inteligente\src\app\(dashboard)\carometro\page.tsx
+H:\App1\Crach-Inteligente\src\app\(dashboard)\fichas\page.tsx
+H:\App1\Crach-Inteligente\src\app\(dashboard)\fichas\bulk\page.tsx
+H:\App1\Crach-Inteligente\src\app\(dashboard)\gerenciador\page.tsx
+H:\App1\Crach-Inteligente\src\app\(dashboard)\gestao\page.tsx
+H:\App1\Crach-Inteligente\src\app\(dashboard)\portal\page.tsx
