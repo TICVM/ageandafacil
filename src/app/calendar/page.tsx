@@ -10,7 +10,7 @@ import { usePublications, useHolidays, useCategories, useSeries } from '@/lib/ca
 import { generateSaoPauloHolidays, mergeHolidays } from '@/lib/calendar/utils';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { toast } from "sonner";
 
 export default function CalendarPage() {
   const [selectedYear, setSelectedYear] = React.useState(2026);
