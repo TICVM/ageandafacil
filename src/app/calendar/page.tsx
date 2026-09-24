@@ -31,22 +31,16 @@ import { Button } from '@/components/ui/button';
 
 export default function CalendarPage() {
 const [selectedYear, setSelectedYear] = React.useState(2026);
-
 const [publications, setPublications] = React.useState<Publication[]>([]);
 const [autoHolidays, setAutoHolidays] = React.useState<Holiday[]>([]);
 const [manualHolidays, setManualHolidays] = React.useState<Holiday[]>([]);
 const [allHolidays, setAllHolidays] = React.useState<Holiday[]>([]);
-
 const [categories, setCategories] =
 React.useState<Category[]>(DEFAULT_CATEGORIES);
-
 const [series, setSeries] = React.useState(DEFAULT_SERIES);
-
 const [isLoading, setIsLoading] = React.useState(true);
-
 const [selectedPublication, setSelectedPublication] =
 React.useState<Publication | null>(null);
-
 const [isFormOpen, setIsFormOpen] = React.useState(false);
 const [isEditing, setIsEditing] = React.useState(false);
 
@@ -55,17 +49,13 @@ const holidaysHook = useHolidays();
 const categoriesHook = useCategories();
 const seriesHook = useSeries();
 
-/*
-
-* Gera os feriados automáticos conforme o ano selecionado.
-  */
-  React.useEffect(() => {
-  const generatedHolidays = generateSaoPauloHolidays(selectedYear).map(
-  (holiday, index) => ({
-  ...holiday,
-  id: `AUTO_${selectedYear}_${index}`,
-  })
-  );
+React.useEffect(() => {
+const generatedHolidays = generateSaoPauloHolidays(selectedYear).map(
+(holiday, index) => ({
+...holiday,
+id: `AUTO_${selectedYear}_${index}`,
+})
+);
 
 ```
 setAutoHolidays(generatedHolidays as Holiday[]);
@@ -73,46 +63,24 @@ setAutoHolidays(generatedHolidays as Holiday[]);
 
 }, [selectedYear]);
 
-/*
-
-* Junta os feriados automáticos com os cadastrados manualmente.
-  */
-  React.useEffect(() => {
-  const merged = mergeHolidays(
-  autoHolidays,
-  manualHolidays
-  );
-
-```
+React.useEffect(() => {
+const merged = mergeHolidays(autoHolidays, manualHolidays);
 setAllHolidays(merged);
-```
-
 }, [autoHolidays, manualHolidays]);
 
-/*
-
-* Carrega os dados do calendário.
-  */
-  React.useEffect(() => {
-  let isMounted = true;
+React.useEffect(() => {
+let isMounted = true;
 
 ```
 async function loadData() {
-```
-
-```
   setIsLoading(true);
 
   try {
     const pubs =
-      await publicationsHook.getPublicationsByYear(
-        selectedYear
-      );
+      await publicationsHook.getPublicationsByYear(selectedYear);
 
     const manualHols =
-      await holidaysHook.getHolidaysByYear(
-        selectedYear
-      );
+      await holidaysHook.getHolidaysByYear(selectedYear);
 
     const cats =
       await categoriesHook.getAllCategories();
@@ -159,84 +127,62 @@ categoriesHook,
 seriesHook,
 ]);
 
-/*
+const handleAddPublication = React.useCallback(() => {
+setIsEditing(false);
+setSelectedPublication(null);
+setIsFormOpen(true);
+}, []);
 
-* Abre o formulário para criar uma nova publicação.
-  */
-  const handleAddPublication = React.useCallback(() => {
-  setIsEditing(false);
-  setSelectedPublication(null);
-  setIsFormOpen(true);
-  }, []);
+const handlePublicationClick = React.useCallback(
+(publication: Publication) => {
+setSelectedPublication(publication);
+setIsEditing(true);
+setIsFormOpen(true);
+},
+[]
+);
 
-/*
+const handleDateClick = React.useCallback(
+(date: string) => {
+setIsEditing(false);
 
-* Abre o formulário para editar uma publicação.
-  */
-  const handlePublicationClick = React.useCallback(
-  (publication: Publication) => {
-  setSelectedPublication(publication);
-  setIsEditing(true);
-  setIsFormOpen(true);
-  },
-  []
-  );
-
-/*
-
-* Abre o formulário a partir de uma data específica.
-  */
-  const handleDateClick = React.useCallback(
-  (date: string) => {
-  setIsEditing(false);
-
+```
   setSelectedPublication({
-  publicationDate: date,
+    publicationDate: date,
   } as Publication);
 
   setIsFormOpen(true);
-  },
-  []
-  );
-
-/*
-
-* Altera o ano do calendário.
-  */
-  const handleYearChange = React.useCallback(
-  (year: number) => {
-  setSelectedYear(year);
-  },
-  []
-  );
-
-/*
-
-* Salva ou atualiza uma publicação.
-  */
-  const handleSavePublication = React.useCallback(
-  async (
-  publicationData: Omit<
-  Publication,
-  'id' | 'createdAt' | 'updatedAt' | 'history'
-
-  >
-
+},
+[]
 ```
+
+);
+
+const handleYearChange = React.useCallback(
+(year: number) => {
+setSelectedYear(year);
+},
+[]
+);
+
+const handleSavePublication = React.useCallback(
+async (
+publicationData: Omit<
+Publication,
+'id' | 'createdAt' | 'updatedAt' | 'history'
+>
 ) => {
-```
+try {
+if (
+isEditing &&
+selectedPublication?.id
+) {
+await publicationsHook.updatePublication(
+selectedPublication.id,
+publicationData
+);
 
 ```
-  try {
-    if (
-      isEditing &&
-      selectedPublication?.id
-    ) {
-      await publicationsHook.updatePublication(
-        selectedPublication.id,
-        publicationData
-      );
-
       console.log(
         'Publicação atualizada com sucesso!'
       );
@@ -275,37 +221,29 @@ seriesHook,
 
 );
 
-/*
-
-* Tela de carregamento.
-  */
-  if (isLoading) {
-  return (
-
-   <div className="min-h-screen flex items-center justify-center">
-     <div className="flex flex-col items-center gap-4">
-       <Loader2 className="w-10 h-10 animate-spin text-primary" />
-
-  ```
-   <p className="text-sm font-medium text-muted-foreground">
-     Carregando calendário...
-   </p>
-  ```
-
-     </div>
-   </div>
+if (isLoading) {
+return ( <div className="min-h-screen flex items-center justify-center"> <div className="flex flex-col items-center gap-4"> <Loader2 className="w-10 h-10 animate-spin text-primary" />
 
 ```
+      <p className="text-sm font-medium text-muted-foreground">
+        Carregando calendário...
+      </p>
+    </div>
+  </div>
 );
 ```
 
 }
 
 return ( <div className="space-y-8 p-4 md:p-6">
-{/* Cabeçalho */} <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"> <div> <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">
-Calendário de Publicações {selectedYear} </h1>
 
 ```
+  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+      <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">
+        Calendário de Publicações {selectedYear}
+      </h1>
+
       <p className="text-muted-foreground mt-1">
         Central de planejamento e acompanhamento das
         publicações da escola
@@ -345,13 +283,11 @@ Calendário de Publicações {selectedYear} </h1>
     </div>
   </div>
 
-  {/* Cards do Dashboard */}
   <DashboardCards
     publications={publications}
     categories={categories}
   />
 
-  {/* Calendário + Próximas publicações */}
   <div className="grid gap-8 lg:grid-cols-3">
     <div className="lg:col-span-2 min-w-0">
       <CalendarView
@@ -359,12 +295,8 @@ Calendário de Publicações {selectedYear} </h1>
         categories={categories}
         holidays={allHolidays}
         onDateClick={handleDateClick}
-        onPublicationClick={
-          handlePublicationClick
-        }
-        onAddPublication={
-          handleAddPublication
-        }
+        onPublicationClick={handlePublicationClick}
+        onAddPublication={handleAddPublication}
       />
     </div>
 
@@ -373,14 +305,11 @@ Calendário de Publicações {selectedYear} </h1>
         publications={publications}
         categories={categories}
         limit={8}
-        onPublicationClick={
-          handlePublicationClick
-        }
+        onPublicationClick={handlePublicationClick}
       />
     </div>
   </div>
 
-  {/* Legenda das categorias */}
   <div className="flex flex-wrap gap-4 p-4 bg-muted/30 rounded-lg">
     <h3 className="font-semibold text-sm w-full mb-2">
       Categorias:
@@ -394,8 +323,7 @@ Calendário de Publicações {selectedYear} </h1>
         <div
           className="w-4 h-4 rounded"
           style={{
-            backgroundColor:
-              category.color,
+            backgroundColor: category.color,
           }}
         />
 
@@ -406,7 +334,6 @@ Calendário de Publicações {selectedYear} </h1>
     ))}
   </div>
 
-  {/* Formulário de publicação */}
   <PublicationForm
     open={isFormOpen}
     onOpenChange={(open) => {
@@ -427,8 +354,7 @@ Calendário de Publicações {selectedYear} </h1>
     series={series}
     holidays={allHolidays}
   />
-</div>
-```
 
+</div>
 );
 }
