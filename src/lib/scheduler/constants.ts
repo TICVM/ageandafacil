@@ -43,34 +43,3 @@ export const DEFAULT_TIME_SLOTS = [
   { startTime: "14:30", endTime: "15:20" },
   { startTime: "15:40", endTime: "16:30" },
 ];
-
-export const SAMPLE_APPOINTMENTS: Appointment[] = [
-  {
-    id: "app-01",
-    schoolClassId: "cls-mat-a",
-    className: "Maternal A",
-    teacherId: "t-01",
-    teacherName: "Profª Helena Ramos",
-    photoLocationId: "loc-2",
-    locationName: "Pátio Central & Jardim",
-    appointmentDate: "2026-03-10",
-    startTime: "09:00",
-    endTime: "09:50",
-    status: "CONFIRMED",
-    observations: "Sessão lúdica com brinquedos de madeira e interação com a natureza.",
-  },
-  {
-    id: "app-02",
-    schoolClassId: "cls-med3",
-    className: "3º Terceirão (Formandos)",
-    teacherId: "t-02",
-    teacherName: "Prof. Marcos Andrade",
-    photoLocationId: "loc-1",
-    locationName: "Estúdio Principal (Sala Maker)",
-    appointmentDate: "2026-03-15",
-    startTime: "10:10",
-    endTime: "11:00",
-    status: "CONFIRMED",
-    observations: "Fotos com camiseta da turma e elementos dos seus futuros cursos universitários.",
-  },
-];
