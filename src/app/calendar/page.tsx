@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { Navbar } from "@/components/Navbar";
 import { DashboardCards, UpcomingPublicationsList } from "@/components/calendar/DashboardCards";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { PublicationModal } from "@/components/calendar/PublicationModal";
