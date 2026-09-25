@@ -43,3 +43,8 @@ export const DEFAULT_TIME_SLOTS = [
   { startTime: "14:30", endTime: "15:20" },
   { startTime: "15:40", endTime: "16:30" },
 ];
+
+export const INITIAL_SAMPLE_PUBLICATIONS = [
+  },
+];  
+  
