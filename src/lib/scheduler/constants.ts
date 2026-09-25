@@ -45,6 +45,8 @@ export const DEFAULT_TIME_SLOTS = [
 ];
 
 export const SAMPLE_APPOINTMENTS: Appointment[] = [
+  {
+    // ... valid Appointment properties
   },
-];  
+];
   
