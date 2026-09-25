@@ -73,18 +73,4 @@ export const SAMPLE_APPOINTMENTS: Appointment[] = [
     status: "CONFIRMED",
     observations: "Fotos com camiseta da turma e elementos dos seus futuros cursos universitários.",
   },
-  {
-    id: "app-03",
-    schoolClassId: "cls-5ano",
-    className: "5º Ano A",
-    teacherId: "t-03",
-    teacherName: "Profª Beatriz Lima",
-    photoLocationId: "loc-3",
-    locationName: "Biblioteca & Espaço Leitura",
-    appointmentDate: "2026-03-18",
-    startTime: "14:30",
-    endTime: "15:20",
-    status: "PENDING",
-    observations: "Fotos com livros favoritos para a feira literária da escola.",
-  },
 ];
