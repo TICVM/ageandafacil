@@ -44,7 +44,7 @@ export const DEFAULT_TIME_SLOTS = [
   { startTime: "15:40", endTime: "16:30" },
 ];
 
-export const INITIAL_SAMPLE_PUBLICATIONS = [
+export const SAMPLE_APPOINTMENTS: Appointment[] 
   },
 ];  
   
