@@ -1,51 +1,46 @@
-// Tipos para o Calendário de Publicações 2026
-
-export type PublicationCategory = 
-  | 'RT_PUBLICITY'
-  | 'ATIVIDADES_VARIADAS'
-  | 'PROGRAMA_BILINGUE'
-  | 'EVENTOS_PEDAGOGICOS'
-  | 'FERIADOS';
+export type PublicationCategoryType =
+  | "RT_PUBLICITY"
+  | "ATIVIDADES_VARIADAS"
+  | "PROGRAMA_BILINGUE"
+  | "EVENTOS_PEDAGOGICOS"
+  | "FERIADOS";
 
 export type PublicationStatus =
-  | 'PLANEJAMENTO'
-  | 'BRIEFING_SOLICITADO'
-  | 'BRIEFING_RECEBIDO'
-  | 'EM_PRODUCAO'
-  | 'EM_REVISAO'
-  | 'AGUARDANDO_APROVACAO'
-  | 'APROVADO'
-  | 'AGENDADO'
-  | 'PUBLICADO'
-  | 'CANCELADO'
-  | 'REPROGRAMADO';
+  | "PLANEJAMENTO"
+  | "BRIEFING"
+  | "PRODUCAO_CONTEUDO"
+  | "DESIGN_ARTE"
+  | "REVISAO_APROVACAO"
+  | "AGENDADO"
+  | "PUBLICADO"
+  | "ATRASADO"
+  | "CANCELADO"
+  | "PAUSADO"
+  | "REPROGRAMADO";
 
-export type Priority = 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE';
+export type Priority = "BAIXA" | "MEDIA" | "ALTA" | "URGENTE";
 
-export type SchoolSeries =
-  | 'Maternal'
-  | 'Jardim'
-  | 'Pré'
-  | '1º Ano'
-  | '2º Ano'
-  | '3º Ano'
-  | '4º Ano'
-  | '5º Ano'
-  | '6º Ano'
-  | '7º Ano'
-  | '8º Ano'
-  | '9º Ano'
-  | '1º Médio'
-  | '2º Médio'
-  | '3º Médio';
-
-export type EventType = 'UNICO' | 'ANUAL' | 'MENSAL' | 'SEMANAL';
+export type SchoolSeriesType =
+  | "MATERNAL"
+  | "JARDIM"
+  | "PRE"
+  | "ANO_1"
+  | "ANO_2"
+  | "ANO_3"
+  | "ANO_4"
+  | "ANO_5"
+  | "ANO_6"
+  | "ANO_7"
+  | "ANO_8"
+  | "ANO_9"
+  | "MEDIO_1"
+  | "MEDIO_2"
+  | "MEDIO_3";
 
 export interface Category {
   id: string;
   name: string;
   color: string;
-  description?: string;
   isActive: boolean;
 }
 
@@ -53,7 +48,7 @@ export interface Series {
   id: string;
   name: string;
   order: number;
-  isActive?: boolean;
+  isActive: boolean;
 }
 
 export interface ProductionDeadline {
@@ -68,29 +63,28 @@ export interface Holiday {
   id: string;
   name: string;
   date: string; // YYYY-MM-DD
-  type: string;
-  recurring: boolean;
-  description?: string;
   year?: number;
+  type: "NACIONAL" | "ESCOLAR" | "FACULTATIVO";
+  recurring: boolean;
 }
 
-export interface User {
+export interface PedagogicalEvent {
   id: string;
-  name: string;
-  email: string;
-  roleId: string;
-  isActive?: boolean;
+  title: string;
+  date: string; // YYYY-MM-DD
+  category: string;
+  recurring: boolean;
 }
 
 export interface PublicationHistoryEntry {
+  id: string;
   timestamp: string;
   userId: string;
   userName: string;
-  action: 'CRIACAO' | 'ALTERACAO' | 'EXCLUSAO' | 'ALTERACAO_STATUS' | 'ALTERACAO_DATA';
-  field?: string;
-  oldValue?: any;
-  newValue?: any;
+  action: "CRIACAO" | "ALTERACAO" | "EXCLUSAO" | "ALTERACAO_STATUS" | "ALTERACAO_DATA";
   details: string;
+  previousValue?: string;
+  newValue?: string;
 }
 
 export interface Publication {
@@ -98,79 +92,34 @@ export interface Publication {
   title: string;
   description?: string;
   categoryId: string;
-  subcategoryId?: string;
   seriesId?: string;
-  campaignId?: string;
-  responsibleId?: string;
-  responsibleName?: string;
   status: PublicationStatus;
   priority: Priority;
-  
-  // Datas
   publicationDate: string; // YYYY-MM-DD
-  plannedDate?: string; // Data prevista para produção
-  productionStartDate?: string;
-  deliveryDate?: string;
-  publishedAt?: string;
-  
-  // Configuração de prazo
+  plannedDate?: string; // YYYY-MM-DD
   productionDays?: number;
-  
-  // Classificação
-  segmentId?: string;
-  unit?: string;
-  contentType?: string;
-  channel?: string;
-  
-  // Produção
-  briefing?: string;
-  creativeResponsible?: string;
-  reviewResponsible?: string;
-  agency?: string;
-  briefingUrl?: string;
-  materialUrl?: string;
-  publicationUrl?: string;
-  
-  // Recorrência
-  isRecurring?: boolean;
-  recurrenceType?: EventType;
-  recurrenceYear?: number;
-  
-  notes?: string;
-  
-  // Metadados
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string;
+  responsibleName?: string;
+  responsibleEmail?: string;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
   history?: PublicationHistoryEntry[];
   isDeleted?: boolean;
 }
 
-export interface CalendarSettings {
-  id: string;
-  currentYear: number;
-  availableYears: number[];
-  defaultProductionDays: number;
-  considerWeekends: boolean;
-  considerHolidays: boolean;
+export interface DashboardStats {
+  total: number;
+  thisMonth: number;
+  planned: number;
+  completed: number;
+  delayed: number;
+  next7Days: number;
 }
 
 export interface ConflictAlert {
-  type: 'MULTIPLAS_PUBLICACOES' | 'FERIADO' | 'FINAL_DE_SEMANA' | 'PRAZO_INSUFICIENTE' | 'DATA_PREVISTA_POSTERIOR';
-  message: string;
-  severity: 'WARNING' | 'ERROR' | 'INFO';
-  publicationIds?: string[];
-  date?: string;
-}
-
-export interface DashboardStats {
-  totalPublications: number;
-  publicationsThisMonth: number;
-  plannedPublications: number;
-  completedPublications: number;
-  delayedPublications: number;
-  nextWeekPublications: number;
-  upcomingEvents: number;
-  upcomingHolidays: number;
+  date: string;
+  count: number;
+  publications: Publication[];
 }

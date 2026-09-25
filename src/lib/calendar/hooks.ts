@@ -1,621 +1,492 @@
-import { useFirestore } from '@/firebase';
-import { collection, doc, setDoc, getDoc, updateDoc, deleteDoc, query, where, Timestamp, orderBy, getDocs, QueryConstraint } from 'firebase/firestore';
-import { Publication, Holiday, Category, Series, ProductionDeadline, PublicationHistoryEntry } from '@/lib/calendar/types';
-import { COLLECTIONS } from '@/lib/calendar/db-config';
+"use client";
 
-/**
- * Hook para operações de publicações no Firestore
- */
+import { useState, useEffect, useCallback } from "react";
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
+import {
+  Publication,
+  Holiday,
+  Category,
+  Series,
+  ProductionDeadline,
+  PublicationHistoryEntry,
+  DashboardStats,
+} from "./types";
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_SERIES,
+  DEFAULT_PRODUCTION_DEADLINES,
+  DEFAULT_HOLIDAYS_2026,
+  INITIAL_SAMPLE_PUBLICATIONS,
+} from "./constants";
+import { calculatePlannedDate } from "./utils";
+
+const DELETED_PUBLICATIONS_KEY = "schoollens_deleted_publications_v1";
+const CUSTOM_PUBLICATIONS_KEY = "schoollens_custom_publications_v1";
+const DELETED_HOLIDAYS_KEY = "schoollens_deleted_holidays_v1";
+
+function getDeletedPublicationIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(DELETED_PUBLICATIONS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function recordDeletedPublicationId(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getDeletedPublicationIds();
+    current.add(id);
+    localStorage.setItem(
+      DELETED_PUBLICATIONS_KEY,
+      JSON.stringify(Array.from(current))
+    );
+  } catch {}
+}
+
+function getCustomPublications(): Publication[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_PUBLICATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomPublication(pub: Publication) {
+  if (typeof window === "undefined") return;
+  try {
+    const list = getCustomPublications();
+    const idx = list.findIndex((p) => p.id === pub.id);
+    if (idx >= 0) {
+      list[idx] = pub;
+    } else {
+      list.unshift(pub);
+    }
+    localStorage.setItem(CUSTOM_PUBLICATIONS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+function removeCustomPublication(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const list = getCustomPublications().filter((p) => p.id !== id);
+    localStorage.setItem(CUSTOM_PUBLICATIONS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+function getDeletedHolidayIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(DELETED_HOLIDAYS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function recordDeletedHolidayId(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getDeletedHolidayIds();
+    current.add(id);
+    localStorage.setItem(
+      DELETED_HOLIDAYS_KEY,
+      JSON.stringify(Array.from(current))
+    );
+  } catch {}
+}
+
 export function usePublications() {
-  const db = useFirestore();
+  const [publications, setPublications] = useState<Publication[]>(() => {
+    const deleted = getDeletedPublicationIds();
+    const custom = getCustomPublications().filter((p) => !deleted.has(p.id));
+    const customIds = new Set(custom.map((c) => c.id));
+    const samples = INITIAL_SAMPLE_PUBLICATIONS.filter(
+      (p) => !deleted.has(p.id) && !customIds.has(p.id)
+    );
+    return [...custom, ...samples];
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const createPublication = async (publication: Omit<Publication, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    try {
+      const pubsCol = collection(db, "publications");
+      unsubscribe = onSnapshot(
+        pubsCol,
+        (snapshot) => {
+          const deleted = getDeletedPublicationIds();
+          const custom = getCustomPublications().filter((p) => !deleted.has(p.id));
+          const customMap = new Map(custom.map((c) => [c.id, c]));
 
-    const id = doc(collection(db, COLLECTIONS.PUBLICATIONS)).id;
-    const now = Timestamp.now();
-    
+          if (!snapshot.empty) {
+            const list: Publication[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as Publication;
+              if (!deleted.has(docSnap.id) && !data.isDeleted) {
+                list.push({ ...data, id: docSnap.id });
+              }
+            });
+
+            const firestoreIds = new Set(list.map((p) => p.id));
+            const remainingCustom = custom.filter((c) => !firestoreIds.has(c.id));
+            const remainingSamples = INITIAL_SAMPLE_PUBLICATIONS.filter(
+              (s) => !deleted.has(s.id) && !firestoreIds.has(s.id) && !customMap.has(s.id)
+            );
+
+            setPublications([...list, ...remainingCustom, ...remainingSamples]);
+          } else {
+            const remainingSamples = INITIAL_SAMPLE_PUBLICATIONS.filter(
+              (p) => !deleted.has(p.id) && !customMap.has(p.id)
+            );
+            setPublications([...custom, ...remainingSamples]);
+          }
+          setLoading(false);
+        },
+        (err) => {
+          console.warn("Firestore snapshot publications fallback:", err);
+          const deleted = getDeletedPublicationIds();
+          const custom = getCustomPublications().filter((p) => !deleted.has(p.id));
+          const customIds = new Set(custom.map((c) => c.id));
+          const samples = INITIAL_SAMPLE_PUBLICATIONS.filter(
+            (p) => !deleted.has(p.id) && !customIds.has(p.id)
+          );
+          setPublications([...custom, ...samples]);
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      console.warn("Error setting up publications listener:", err);
+      setLoading(false);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  const createPublication = async (
+    pubData: Omit<Publication, "id" | "createdAt" | "updatedAt">,
+    userName = "Usuário"
+  ): Promise<string> => {
     const historyEntry: PublicationHistoryEntry = {
-      timestamp: now.toDate().toISOString(),
-      userId: publication.createdBy,
-      userName: '',
-      action: 'CRIACAO',
-      details: 'Publicação criada'
+      id: "hist-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      userId: "user-1",
+      userName,
+      action: "CRIACAO",
+      details: `Publicação "${pubData.title}" criada.`,
     };
 
-    await setDoc(doc(db, COLLECTIONS.PUBLICATIONS, id), {
-      ...publication,
-      id,
-      createdAt: now,
-      updatedAt: now,
+    const tempId = "pub-" + Date.now();
+    const newPub: Publication = {
+      ...pubData,
+      id: tempId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       history: [historyEntry],
-      isDeleted: false
-    });
+      isDeleted: false,
+    };
 
-    return id;
+    // 1. Optimistic local persistence (resilient against Firestore rate limits)
+    saveCustomPublication(newPub);
+    setPublications((prev) => [newPub, ...prev]);
+
+    // 2. Fire-and-forget sync to Firestore with timeout
+    try {
+      const docPromise = addDoc(collection(db, "publications"), {
+        ...pubData,
+        createdAt: newPub.createdAt,
+        updatedAt: newPub.updatedAt,
+        history: newPub.history,
+        isDeleted: false,
+        serverTime: serverTimestamp(),
+      });
+      const docRef = await Promise.race([
+        docPromise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      if (docRef && docRef.id) {
+        const syncedPub = { ...newPub, id: docRef.id };
+        removeCustomPublication(tempId);
+        saveCustomPublication(syncedPub);
+        setPublications((prev) =>
+          prev.map((p) => (p.id === tempId ? syncedPub : p))
+        );
+        return docRef.id;
+      }
+    } catch (err) {
+      console.warn("Firestore sync error or rate limit, using local item:", err);
+    }
+
+    return tempId;
   };
 
-  const updatePublication = async (id: string, updates: Partial<Publication>, userId?: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
+  const updatePublication = async (
+    id: string,
+    updates: Partial<Publication>,
+    userName = "Usuário"
+  ): Promise<void> => {
+    const existing = publications.find((p) => p.id === id);
+    const existingHistory = existing?.history || [];
 
-    const now = Timestamp.now();
     const historyEntry: PublicationHistoryEntry = {
-      timestamp: now.toDate().toISOString(),
-      userId: userId || '',
-      userName: '',
-      action: 'ALTERACAO',
-      details: 'Publicação atualizada',
-      oldValue: {},
-      newValue: updates
+      id: "hist-" + Date.now(),
+      timestamp: new Date().toISOString(),
+      userId: "user-1",
+      userName,
+      action: updates.status && updates.status !== existing?.status ? "ALTERACAO_STATUS" : "ALTERACAO",
+      details: updates.status && updates.status !== existing?.status
+        ? `Status alterado de "${existing?.status}" para "${updates.status}".`
+        : `Publicação atualizada.`,
     };
 
-    // Obter publicação atual para merge do histórico
-    const pubSnap = await getDoc(doc(db, COLLECTIONS.PUBLICATIONS, id));
-    if (!pubSnap.exists()) throw new Error('Publicação não encontrada');
-    
-    const currentPub = pubSnap.data() as Publication;
-    const updatedHistory = [...(currentPub.history || []), historyEntry];
-
-    await updateDoc(doc(db, COLLECTIONS.PUBLICATIONS, id), {
+    const fullUpdates = {
       ...updates,
-      updatedAt: now,
-      history: updatedHistory
-    });
+      updatedAt: new Date().toISOString(),
+      history: [...existingHistory, historyEntry],
+    };
+
+    const updatedPub: Publication = existing
+      ? { ...existing, ...fullUpdates }
+      : ({ id, ...fullUpdates } as Publication);
+
+    // 1. Update local storage and state immediately
+    saveCustomPublication(updatedPub);
+    setPublications((prev) =>
+      prev.map((p) => (p.id === id ? updatedPub : p))
+    );
+
+    // 2. Background Firestore update with timeout protection
+    try {
+      const docRef = doc(db, "publications", id);
+      await Promise.race([
+        updateDoc(docRef, fullUpdates),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ]);
+    } catch (err) {
+      console.warn("Firestore updateDoc rate limit or fallback:", err);
+    }
   };
 
   const deletePublication = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    // Soft delete
-    await updateDoc(doc(db, COLLECTIONS.PUBLICATIONS, id), {
-      isDeleted: true,
-      updatedAt: Timestamp.now()
-    });
-  };
-
-  const hardDeletePublication = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await deleteDoc(doc(db, COLLECTIONS.PUBLICATIONS, id));
-  };
-
-  const getPublication = async (id: string): Promise<Publication | null> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    const snap = await getDoc(doc(db, COLLECTIONS.PUBLICATIONS, id));
-    return snap.exists() ? snap.data() as Publication : null;
-  };
-
-  const getPublicationsByYear = async (year: number): Promise<Publication[]> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
-    
+    // 1. Mark as deleted in local storage immediately
+    recordDeletedPublicationId(id);
+    removeCustomPublication(id);
+    // 2. Immediately remove from local state so UI updates instantaneously
+    setPublications((prev) => prev.filter((p) => p.id !== id));
+    // 3. Fire Firestore delete in background with timeout protection to prevent freezing
     try {
-      const q = query(
-        collection(db, COLLECTIONS.PUBLICATIONS),
-        where('publicationDate', '>=', startDate),
-        where('publicationDate', '<=', endDate)
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => pub.isDeleted !== true);
-    } catch (err: any) {
-      console.warn('Fallback para getPublicationsByYear:', err);
-      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => pub.isDeleted !== true && pub.publicationDate >= startDate && pub.publicationDate <= endDate);
+      const docRef = doc(db, "publications", id);
+      await Promise.race([
+        deleteDoc(docRef),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
+    } catch (err) {
+      console.warn("deleteDoc firestore fallback:", err);
     }
   };
 
-  const getPublicationsByMonth = async (year: number, month: number): Promise<Publication[]> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-31`;
-    
-    try {
-      const q = query(
-        collection(db, COLLECTIONS.PUBLICATIONS),
-        where('publicationDate', '>=', startDate),
-        where('publicationDate', '<=', endDate)
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => pub.isDeleted !== true);
-    } catch (err: any) {
-      console.warn('Fallback para getPublicationsByMonth:', err);
-      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => pub.isDeleted !== true && pub.publicationDate >= startDate && pub.publicationDate <= endDate);
-    }
-  };
+  const duplicatePublication = async (
+    sourceId: string,
+    newDate: string,
+    holidays: Holiday[],
+    userName = "Usuário"
+  ): Promise<string> => {
+    const source = publications.find((p) => p.id === sourceId);
+    if (!source) throw new Error("Publicação de origem não encontrada.");
 
-  const getPublicationsByCategory = async (categoryId: string, year?: number): Promise<Publication[]> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    
-    try {
-      const q = query(
-        collection(db, COLLECTIONS.PUBLICATIONS),
-        where('categoryId', '==', categoryId)
-      );
-      const snapshot = await getDocs(q);
-      const startDate = year ? `${year}-01-01` : null;
-      const endDate = year ? `${year}-12-31` : null;
+    const plannedDate = calculatePlannedDate(newDate, source.productionDays || 7, holidays);
 
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => {
-          if (pub.isDeleted) return false;
-          if (startDate && endDate) {
-            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
-          }
-          return true;
-        });
-    } catch (err: any) {
-      console.warn('Fallback para getPublicationsByCategory:', err);
-      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
-      const startDate = year ? `${year}-01-01` : null;
-      const endDate = year ? `${year}-12-31` : null;
-
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => {
-          if (pub.isDeleted || pub.categoryId !== categoryId) return false;
-          if (startDate && endDate) {
-            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
-          }
-          return true;
-        });
-    }
-  };
-
-  const getPublicationsBySeries = async (seriesId: string, year?: number): Promise<Publication[]> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    
-    try {
-      const q = query(
-        collection(db, COLLECTIONS.PUBLICATIONS),
-        where('seriesId', '==', seriesId)
-      );
-      const snapshot = await getDocs(q);
-      const startDate = year ? `${year}-01-01` : null;
-      const endDate = year ? `${year}-12-31` : null;
-
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => {
-          if (pub.isDeleted) return false;
-          if (startDate && endDate) {
-            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
-          }
-          return true;
-        });
-    } catch (err: any) {
-      console.warn('Fallback para getPublicationsBySeries:', err);
-      const snapshot = await getDocs(collection(db, COLLECTIONS.PUBLICATIONS));
-      const startDate = year ? `${year}-01-01` : null;
-      const endDate = year ? `${year}-12-31` : null;
-
-      return snapshot.docs
-        .map(doc => doc.data() as Publication)
-        .filter(pub => {
-          if (pub.isDeleted || pub.seriesId !== seriesId) return false;
-          if (startDate && endDate) {
-            return pub.publicationDate >= startDate && pub.publicationDate <= endDate;
-          }
-          return true;
-        });
-    }
-  };
-
-  const addHistoryEntry = async (
-    publicationId: string,
-    entry: Omit<PublicationHistoryEntry, 'timestamp'>
-  ): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-
-    const pubSnap = await getDoc(doc(db, COLLECTIONS.PUBLICATIONS, publicationId));
-    if (!pubSnap.exists()) return;
-
-    const pub = pubSnap.data() as Publication;
-    const newHistory: PublicationHistoryEntry = {
-      ...entry,
-      timestamp: new Date().toISOString()
+    const duplicateData: Omit<Publication, "id" | "createdAt" | "updatedAt"> = {
+      title: `${source.title} (Cópia)`,
+      description: source.description,
+      categoryId: source.categoryId,
+      seriesId: source.seriesId,
+      status: "PLANEJAMENTO",
+      priority: source.priority,
+      publicationDate: newDate,
+      plannedDate,
+      productionDays: source.productionDays,
+      responsibleName: source.responsibleName,
+      responsibleEmail: source.responsibleEmail,
+      tags: source.tags ? [...source.tags] : [],
     };
 
-    await updateDoc(doc(db, COLLECTIONS.PUBLICATIONS, publicationId), {
-      history: [...(pub.history || []), newHistory],
-      updatedAt: Timestamp.now()
-    });
+    return createPublication(duplicateData, userName);
   };
 
-  const duplicatePublication = async (sourceId: string, newPublicationDate: string, createdBy: string): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    
-    const sourcePub = await getPublication(sourceId);
-    if (!sourcePub) throw new Error('Publicação original não encontrada');
-    
-    // Calcular nova data prevista baseada no novo prazo
-    const { calculatePlannedDate } = await import('@/lib/calendar/utils');
-    const holidaysRef = collection(db, COLLECTIONS.HOLIDAYS);
-    const holidaysSnap = await getDocs(holidaysRef);
-    const holidays = holidaysSnap.docs.map(doc => doc.data() as Holiday);
-    
-    const plannedDate = calculatePlannedDate(newPublicationDate, sourcePub.productionDays || 0, holidays);
-    
-    const { id: _unusedId, createdAt: _unusedCreated, updatedAt: _unusedUpdated, ...restSource } = sourcePub;
-    
-    return createPublication({
-      ...restSource,
-      title: `${sourcePub.title} (Cópia)`,
-      publicationDate: newPublicationDate,
-      plannedDate,
-      status: 'PLANEJAMENTO',
-      isRecurring: false,
-      createdBy,
-      updatedBy: createdBy,
-      history: []
-    });
-  };
+  const getStats = useCallback((year = 2026): DashboardStats => {
+    const active = publications.filter((p) => !p.isDeleted);
+    const now = new Date();
+    const currentMonthStr = String(now.getMonth() + 1).padStart(2, "0");
+    const yearMonthStr = `${year}-${currentMonthStr}`;
+
+    const next7DaysLimit = new Date();
+    next7DaysLimit.setDate(next7DaysLimit.getDate() + 7);
+    const next7DaysStr = next7DaysLimit.toISOString().split("T")[0];
+    const todayStr = now.toISOString().split("T")[0];
+
+    const thisMonth = active.filter((p) => p.publicationDate.startsWith(yearMonthStr)).length;
+    const planned = active.filter((p) => p.status === "PLANEJAMENTO").length;
+    const completed = active.filter((p) => p.status === "PUBLICADO").length;
+    const delayed = active.filter((p) => p.status === "ATRASADO" || (p.status !== "PUBLICADO" && p.publicationDate < todayStr)).length;
+    const next7Days = active.filter((p) => p.publicationDate >= todayStr && p.publicationDate <= next7DaysStr).length;
+
+    return {
+      total: active.length,
+      thisMonth,
+      planned,
+      completed,
+      delayed,
+      next7Days,
+    };
+  }, [publications]);
 
   return {
+    publications,
+    loading,
+    error,
     createPublication,
     updatePublication,
     deletePublication,
-    hardDeletePublication,
-    getPublication,
-    getPublicationsByYear,
-    getPublicationsByMonth,
-    getPublicationsByCategory,
-    getPublicationsBySeries,
-    addHistoryEntry,
-    duplicatePublication
+    duplicatePublication,
+    getStats,
   };
 }
 
-/**
- * Hook para operações de feriados no Firestore
- */
 export function useHolidays() {
-  const db = useFirestore();
+  const [holidays, setHolidays] = useState<Holiday[]>(() => {
+    const deleted = getDeletedHolidayIds();
+    return DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id));
+  });
+  const [loading, setLoading] = useState(true);
 
-  const createHoliday = async (holiday: Omit<Holiday, 'id'>): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    try {
+      const colRef = collection(db, "holidays");
+      unsubscribe = onSnapshot(
+        colRef,
+        (snapshot) => {
+          const deleted = getDeletedHolidayIds();
+          if (!snapshot.empty) {
+            const list: Holiday[] = [];
+            snapshot.forEach((docSnap) => {
+              if (!deleted.has(docSnap.id)) {
+                list.push({ ...(docSnap.data() as Holiday), id: docSnap.id });
+              }
+            });
+            const firestoreIds = new Set(list.map((h) => h.id));
+            const remainingSamples = DEFAULT_HOLIDAYS_2026.filter(
+              (h) => !deleted.has(h.id) && !firestoreIds.has(h.id)
+            );
+            setHolidays([...list, ...remainingSamples]);
+          } else {
+            const remaining = DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id));
+            setHolidays(remaining);
+          }
+          setLoading(false);
+        },
+        (err) => {
+          console.warn("Firestore holidays snapshot fallback:", err);
+          const deleted = getDeletedHolidayIds();
+          setHolidays(DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id)));
+          setLoading(false);
+        }
+      );
+    } catch {
+      setLoading(false);
+    }
 
-    const id = doc(collection(db, COLLECTIONS.HOLIDAYS)).id;
-    await setDoc(doc(db, COLLECTIONS.HOLIDAYS, id), {
-      ...holiday,
-      id
-    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
-    return id;
+  const createHoliday = async (holidayData: Omit<Holiday, "id">) => {
+    try {
+      const ref = await addDoc(collection(db, "holidays"), holidayData);
+      return ref.id;
+    } catch {
+      const id = "h-" + Date.now();
+      setHolidays((prev) => [...prev, { ...holidayData, id }]);
+      return id;
+    }
   };
 
-  const updateHoliday = async (id: string, updates: Partial<Holiday>): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await updateDoc(doc(db, COLLECTIONS.HOLIDAYS, id), updates);
+  const deleteHoliday = async (id: string) => {
+    recordDeletedHolidayId(id);
+    setHolidays((prev) => prev.filter((h) => h.id !== id));
+    try {
+      await Promise.race([
+        deleteDoc(doc(db, "holidays", id)),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
+    } catch (err) {
+      console.warn("deleteDoc holiday fallback:", err);
+    }
   };
 
-  const deleteHoliday = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await deleteDoc(doc(db, COLLECTIONS.HOLIDAYS, id));
-  };
-
-  const getHolidaysByYear = async (year: number): Promise<Holiday[]> => {
-    if (!db) return [];
-    
-    const q = query(
-      collection(db, COLLECTIONS.HOLIDAYS),
-      where('year', '==', year)
-    );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Holiday);
-  };
-
-  const getAllHolidays = async (): Promise<Holiday[]> => {
-    if (!db) return [];
-    
-    const q = query(collection(db, COLLECTIONS.HOLIDAYS));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Holiday);
-  };
-
-  const getRecurringHolidays = async (): Promise<Holiday[]> => {
-    if (!db) return [];
-    
-    const q = query(
-      collection(db, COLLECTIONS.HOLIDAYS),
-      where('recurring', '==', true)
-    );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Holiday);
-  };
-
-  return {
-    createHoliday,
-    updateHoliday,
-    deleteHoliday,
-    getHolidaysByYear,
-    getAllHolidays,
-    getRecurringHolidays
-  };
+  return { holidays, loading, createHoliday, deleteHoliday };
 }
 
-/**
- * Hook para operações de categorias no Firestore
- */
 export function useCategories() {
-  const db = useFirestore();
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
 
-  const createCategory = async (category: Omit<Category, 'id'>): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    try {
+      const colRef = collection(db, "publication_categories");
+      unsubscribe = onSnapshot(
+        colRef,
+        (snap) => {
+          if (!snap.empty) {
+            const list: Category[] = [];
+            snap.forEach((d) => list.push({ ...(d.data() as Category), id: d.id }));
+            setCategories(list);
+          }
+        },
+        () => {}
+      );
+    } catch {}
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
-    const id = doc(collection(db, COLLECTIONS.CATEGORIES)).id;
-    await setDoc(doc(db, COLLECTIONS.CATEGORIES, id), {
-      ...category,
-      id
-    });
-
-    return id;
-  };
-
-  const updateCategory = async (id: string, updates: Partial<Category>): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await updateDoc(doc(db, COLLECTIONS.CATEGORIES, id), updates);
-  };
-
-  const deleteCategory = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await deleteDoc(doc(db, COLLECTIONS.CATEGORIES, id));
-  };
-
-  const getAllCategories = async (): Promise<Category[]> => {
-    if (!db) return [];
-    
-    const q = query(collection(db, COLLECTIONS.CATEGORIES));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Category);
-  };
-
-  const getCategoryById = async (id: string): Promise<Category | null> => {
-    if (!db) return null;
-    
-    const snap = await getDoc(doc(db, COLLECTIONS.CATEGORIES, id));
-    return snap.exists() ? snap.data() as Category : null;
-  };
-
-  return {
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    getAllCategories,
-    getCategoryById
-  };
+  return { categories };
 }
 
-/**
- * Hook para operações de prazos de produção no Firestore
- */
-export function useProductionDeadlines() {
-  const db = useFirestore();
-
-  const createDeadline = async (deadline: Omit<ProductionDeadline, 'id'>): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
-
-    const id = doc(collection(db, COLLECTIONS.PRODUCTION_DEADLINES)).id;
-    await setDoc(doc(db, COLLECTIONS.PRODUCTION_DEADLINES, id), {
-      ...deadline,
-      id
-    });
-
-    return id;
-  };
-
-  const updateDeadline = async (id: string, updates: Partial<ProductionDeadline>): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await updateDoc(doc(db, COLLECTIONS.PRODUCTION_DEADLINES, id), updates);
-  };
-
-  const deleteDeadline = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await deleteDoc(doc(db, COLLECTIONS.PRODUCTION_DEADLINES, id));
-  };
-
-  const getDeadlinesByCategory = async (categoryId: string): Promise<ProductionDeadline[]> => {
-    if (!db) return [];
-    
-    const q = query(
-      collection(db, COLLECTIONS.PRODUCTION_DEADLINES),
-      where('categoryId', '==', categoryId),
-      where('active', '==', true)
-    );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as ProductionDeadline);
-  };
-
-  const getDeadlineByCategoryAndSeries = async (categoryId: string, seriesId: string): Promise<ProductionDeadline | null> => {
-    if (!db) return null;
-    
-    const q = query(
-      collection(db, COLLECTIONS.PRODUCTION_DEADLINES),
-      where('categoryId', '==', categoryId),
-      where('seriesId', '==', seriesId),
-      where('active', '==', true)
-    );
-    
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
-    return snapshot.docs[0].data() as ProductionDeadline;
-  };
-
-  const getAllDeadlines = async (): Promise<ProductionDeadline[]> => {
-    if (!db) return [];
-    
-    const q = query(collection(db, COLLECTIONS.PRODUCTION_DEADLINES));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as ProductionDeadline);
-  };
-
-  return {
-    createDeadline,
-    updateDeadline,
-    deleteDeadline,
-    getDeadlinesByCategory,
-    getDeadlineByCategoryAndSeries,
-    getAllDeadlines
-  };
-}
-
-/**
- * Hook para operações de séries no Firestore
- */
 export function useSeries() {
-  const db = useFirestore();
-
-  const createSeries = async (series: Omit<Series, 'id'>): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
-
-    const id = doc(collection(db, COLLECTIONS.SERIES)).id;
-    await setDoc(doc(db, COLLECTIONS.SERIES, id), {
-      ...series,
-      id
-    });
-
-    return id;
-  };
-
-  const updateSeries = async (id: string, updates: Partial<Series>): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await updateDoc(doc(db, COLLECTIONS.SERIES, id), updates);
-  };
-
-  const deleteSeries = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await deleteDoc(doc(db, COLLECTIONS.SERIES, id));
-  };
-
-  const getAllSeries = async (): Promise<Series[]> => {
-    if (!db) return [];
-    
-    const q = query(
-      collection(db, COLLECTIONS.SERIES),
-      orderBy('order')
-    );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as Series);
-  };
-
-  const getSeriesById = async (id: string): Promise<Series | null> => {
-    if (!db) return null;
-    
-    const snap = await getDoc(doc(db, COLLECTIONS.SERIES, id));
-    return snap.exists() ? snap.data() as Series : null;
-  };
-
-  return {
-    createSeries,
-    updateSeries,
-    deleteSeries,
-    getAllSeries,
-    getSeriesById
-  };
+  const [series] = useState<Series[]>(DEFAULT_SERIES);
+  return { series };
 }
 
-/**
- * Hook para operações de eventos pedagógicos no Firestore
- */
-export function usePedagogicalEvents() {
-  const db = useFirestore();
+export function useProductionDeadlines() {
+  const [deadlines, setDeadlines] = useState<ProductionDeadline[]>(DEFAULT_PRODUCTION_DEADLINES);
 
-  const createEvent = async (event: any): Promise<string> => {
-    if (!db) throw new Error('Firestore não inicializado');
-
-    const id = doc(collection(db, COLLECTIONS.PEDAGOGICAL_EVENTS)).id;
-    await setDoc(doc(db, COLLECTIONS.PEDAGOGICAL_EVENTS, id), {
-      ...event,
-      id,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    });
-
-    return id;
-  };
-
-  const updateEvent = async (id: string, updates: any): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await updateDoc(doc(db, COLLECTIONS.PEDAGOGICAL_EVENTS, id), {
-      ...updates,
-      updatedAt: Timestamp.now()
-    });
-  };
-
-  const deleteEvent = async (id: string): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await deleteDoc(doc(db, COLLECTIONS.PEDAGOGICAL_EVENTS, id));
-  };
-
-  const getEventsByYear = async (year: number): Promise<any[]> => {
-    if (!db) return [];
-    
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
-    
-    const q = query(
-      collection(db, COLLECTIONS.PEDAGOGICAL_EVENTS),
-      where('date', '>=', startDate),
-      where('date', '<=', endDate)
+  const getDeadline = useCallback((categoryId: string, seriesId?: string): number => {
+    if (!seriesId) return 7;
+    const match = deadlines.find(
+      (d) => d.categoryId === categoryId && d.seriesId === seriesId && d.active
     );
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data());
-  };
+    return match ? match.daysBefore : 7;
+  }, [deadlines]);
 
-  const getAllEvents = async (): Promise<any[]> => {
-    if (!db) return [];
-    
-    const q = query(collection(db, COLLECTIONS.PEDAGOGICAL_EVENTS));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data());
-  };
-
-  return {
-    createEvent,
-    updateEvent,
-    deleteEvent,
-    getEventsByYear,
-    getAllEvents
-  };
-}
-
-/**
- * Hook para operações de configurações do calendário
- */
-export function useCalendarSettings() {
-  const db = useFirestore();
-
-  const getSettings = async (): Promise<any | null> => {
-    if (!db) return null;
-    
-    const snap = await getDoc(doc(db, COLLECTIONS.SETTINGS, 'default'));
-    return snap.exists() ? snap.data() : null;
-  };
-
-  const updateSettings = async (settings: any): Promise<void> => {
-    if (!db) throw new Error('Firestore não inicializado');
-    await setDoc(doc(db, COLLECTIONS.SETTINGS, 'default'), settings);
-  };
-
-  return {
-    getSettings,
-    updateSettings
-  };
+  return { deadlines, getDeadline };
 }
