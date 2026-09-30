@@ -11,7 +11,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { Appointment, AppointmentStatus } from "./types";
+import { Appointment, AppointmentStatus, PhotoLocation } from "./types";
 import {
   SAMPLE_APPOINTMENTS,
   DEFAULT_LOCATIONS,
@@ -86,10 +86,51 @@ export function useScheduler() {
     );
     return [...custom, ...samples];
   });
-  const [locations] = useState(DEFAULT_LOCATIONS);
+  const [locations, setLocations] = useState<PhotoLocation[]>(DEFAULT_LOCATIONS);
   const [classes] = useState(DEFAULT_CLASSES);
   const [segments] = useState(DEFAULT_SEGMENTS);
   const [loading, setLoading] = useState(true);
+
+  // Load photo locations from the Firestore "photo_locations" collection
+  // (managed in Admin > Locais de Foto), keeping DEFAULT_LOCATIONS only as a
+  // fallback while offline / when the collection is empty.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    try {
+      const colRef = collection(db, "photo_locations");
+      unsubscribe = onSnapshot(
+        colRef,
+        (snap) => {
+          if (snap.empty) {
+            setLocations(DEFAULT_LOCATIONS);
+            return;
+          }
+          const list: PhotoLocation[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as Omit<PhotoLocation, "id">;
+            list.push({
+              id: d.id,
+              name: data.name ?? "",
+              description: data.description ?? "",
+              color: data.color,
+              isActive: data.isActive !== false,
+            });
+          });
+          // Only show active locations in the booking flow/list filters.
+          setLocations(list.filter((l) => l.isActive));
+        },
+        (err) => {
+          console.warn("photo_locations listener fallback:", err);
+          setLocations(DEFAULT_LOCATIONS);
+        }
+      );
+    } catch {
+      setLocations(DEFAULT_LOCATIONS);
+    }
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
