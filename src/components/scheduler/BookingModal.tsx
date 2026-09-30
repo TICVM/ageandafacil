@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Camera, Clock, MapPin, Users, AlertCircle, CheckCircle2 } from "lucide-react";
 import { PhotoLocation, SchoolClass, SchoolSegment, Appointment } from "@/lib/scheduler/types";
 import { DEFAULT_TIME_SLOTS } from "@/lib/scheduler/constants";
@@ -27,6 +27,15 @@ export function BookingModal({
 }: BookingModalProps) {
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "");
   const [selectedLocationId, setSelectedLocationId] = useState(locations[0]?.id || "");
+
+  // Keep the selected location in sync when the locations list is loaded
+  // from Firestore (photo_locations) after the modal initial render.
+  useEffect(() => {
+    if (locations.length === 0) return;
+    if (!locations.some((l) => l.id === selectedLocationId)) {
+      setSelectedLocationId(locations[0].id);
+    }
+  }, [locations, selectedLocationId]);
   const [appointmentDate, setAppointmentDate] = useState(
     new Date().toISOString().split("T")[0]
   );
