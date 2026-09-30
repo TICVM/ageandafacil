@@ -17,7 +17,7 @@ import {
   useProductionDeadlines,
 } from "@/lib/calendar";
 import { useScheduler } from "@/lib/scheduler/hooks";
-import { Publication } from "@/lib/calendar/types";
+import { Publication, PublicationStatus } from "@/lib/calendar/types";
 import { formatDateToISO } from "@/lib/calendar/utils";
 
 export function AppHome() {
@@ -31,6 +31,7 @@ export function AppHome() {
   const [initialDateForPub, setInitialDateForPub] = useState<string | undefined>(undefined);
   const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
   const [isDeadlinesModalOpen, setIsDeadlinesModalOpen] = useState(false);
+  const [isUpcomingCollapsed, setIsUpcomingCollapsed] = useState(false);
 
   // Scheduler State
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -108,9 +109,16 @@ export function AppHome() {
               onNewPublication={() => handleOpenNewPublication()}
             />
 
-            {/* Calendar & Upcoming Layout (2/3 + 1/3) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
+            {/* Calendar and Upcoming layout (2/3 + 1/3). When the list is
+                collapsed, the calendar expands to occupy all available space */}
+            <div
+              className={`grid grid-cols-1 gap-6 ${
+                isUpcomingCollapsed
+                  ? "lg:grid-cols-1"
+                  : "lg:grid-cols-3"
+              }`}
+            >
+              <div className={isUpcomingCollapsed ? "" : "lg:col-span-2"}>
                 <CalendarView
                   publications={publications}
                   holidays={holidays}
@@ -126,7 +134,7 @@ export function AppHome() {
                 />
               </div>
 
-              <div className="lg:col-span-1">
+              <div className={isUpcomingCollapsed ? "lg:w-14 lg:justify-self-end" : "lg:col-span-1"}>
                 <UpcomingPublicationsList
                   upcoming={upcomingSorted}
                   allPublications={sortedAllPublications}
@@ -134,6 +142,11 @@ export function AppHome() {
                   onSelectPublication={handleSelectPublication}
                   onNewPublication={() => handleOpenNewPublication()}
                   onDeletePublication={deletePublication}
+                  onStatusChange={async (id, status: string) => {
+                    await updatePublication(id, { status: status as PublicationStatus });
+                  }}
+                  collapsed={isUpcomingCollapsed}
+                  onToggleCollapsed={() => setIsUpcomingCollapsed((v) => !v)}
                 />
               </div>
             </div>
