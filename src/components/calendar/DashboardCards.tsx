@@ -10,6 +10,8 @@ import {
   Flame,
   ArrowRight,
   Trash2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { DashboardStats, Publication, Category } from "@/lib/calendar/types";
 import { DEFAULT_STATUSES, DEFAULT_PRIORITIES } from "@/lib/calendar/constants";
@@ -148,18 +150,23 @@ export function DashboardCards({
 
 export function UpcomingPublicationsList({
   upcoming,
+  allPublications = [],
   categories,
   onSelectPublication,
   onNewPublication,
   onDeletePublication,
 }: {
   upcoming: Publication[];
+  allPublications?: Publication[];
   categories: Category[];
   onSelectPublication: (pub: Publication) => void;
   onNewPublication: () => void;
   onDeletePublication?: (id: string) => Promise<void>;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const displayed = showAll ? allPublications : upcoming;
 
   const getCategoryColor = (catId: string) => {
     return categories.find((c) => c.id === catId)?.color || "#6B7280";
@@ -202,10 +209,14 @@ export function UpcomingPublicationsList({
         </button>
       </div>
 
-      {upcoming.length === 0 ? (
+      {displayed.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
           <Calendar className="w-8 h-8 stroke-1 mb-2 opacity-40" />
-          <p className="text-sm">Nenhuma publicação agendada</p>
+          <p className="text-sm">
+            {showAll
+              ? "Nenhuma publicação cadastrada"
+              : "Nenhuma publicação futura agendada"}
+          </p>
           <button
             onClick={onNewPublication}
             className="mt-2 text-xs font-medium text-primary hover:underline"
@@ -214,8 +225,9 @@ export function UpcomingPublicationsList({
           </button>
         </div>
       ) : (
-        <div className="space-y-2.5 overflow-y-auto max-h-[460px] pr-1">
-          {upcoming.map((pub) => {
+        <>
+          <div className="space-y-2.5 overflow-y-auto max-h-[460px] pr-1">
+          {displayed.map((pub) => {
             const catColor = getCategoryColor(pub.categoryId);
             return (
               <div
@@ -301,7 +313,23 @@ export function UpcomingPublicationsList({
               </div>
             );
           })}
-        </div>
+          </div>
+
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+          >
+            {showAll ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" /> Ver apenas as próximas
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5" /> Ver todas ({allPublications.length})
+              </>
+            )}
+          </button>
+        </>
       )}
     </div>
   );
