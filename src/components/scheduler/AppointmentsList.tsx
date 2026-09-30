@@ -12,6 +12,7 @@ import {
   Filter,
   Plus,
   Trash2,
+  Images,
 } from "lucide-react";
 import { Appointment, AppointmentStatus, PhotoLocation } from "@/lib/scheduler/types";
 import { formatDateForDisplay } from "@/lib/calendar/utils";
@@ -23,6 +24,8 @@ interface AppointmentsListProps {
   onUpdateStatus: (id: string, status: AppointmentStatus) => Promise<void>;
   onCancel: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  /** Optional handler for the "Publicar" action (marks the session as PUBLICADO). */
+  onPublish?: (id: string) => Promise<void>;
 }
 
 export function AppointmentsList({
@@ -32,11 +35,29 @@ export function AppointmentsList({
   onUpdateStatus,
   onCancel,
   onDelete,
+  onPublish,
 }: AppointmentsListProps) {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [locationFilter, setLocationFilter] = useState<string>("ALL");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Resolve the location name for a card. Reservations created through other
+  // screens (e.g. /reserva) may store only the photoLocationId (or no
+  // locationName at all), so we always prefer the up-to-date name from the
+  // "photo_locations" database and fall back to the stored name/identifier.
+  const getLocationName = (apt: Appointment): string => {
+    const byId = locations.find((l) => l.id === apt.photoLocationId)?.name;
+    if (byId) return byId;
+    if (apt.locationName && apt.locationName !== "Não informado") {
+      return apt.locationName;
+    }
+    // Some bookings store the free-text location identifier instead.
+    const alt = (apt as unknown as { locationIdentifier?: string | null })
+      .locationIdentifier;
+    if (alt) return alt;
+    return "Local não informado";
+  };
 
   const filtered = appointments.filter((a) => {
     if (statusFilter !== "ALL" && a.status !== statusFilter) return false;
@@ -64,12 +85,46 @@ export function AppointmentsList({
             <XCircle className="w-3 h-3" /> Cancelado
           </span>
         );
-      default:
+      case "PUBLICADO":
         return (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            {status}
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <Images className="w-3 h-3" /> Publicado
           </span>
         );
+      case "COMPLETED":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800">
+            <CheckCircle2 className="w-3 h-3" /> Concluído
+          </span>
+        );
+      case "RESCHEDULED":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+            <Calendar className="w-3 h-3" /> Reagendado
+          </span>
+        );
+      case "RE_SCHEDULE_REQUEST":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800">
+            <AlertCircle className="w-3 h-3" /> Pedido de reagendamento
+          </span>
+        );
+      default: {
+        const labels: Record<string, string> = {
+          PENDING: "Pendente",
+          CONFIRMED: "Confirmado",
+          CANCELLED: "Cancelado",
+          PUBLICADO: "Publicado",
+          COMPLETED: "Concluído",
+          RESCHEDULED: "Reagendado",
+          RE_SCHEDULE_REQUEST: "Pedido de reagendamento",
+        };
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+            {labels[status] ?? status}
+          </span>
+        );
+      }
     }
   };
 
@@ -95,8 +150,12 @@ export function AppointmentsList({
             className="h-8 px-2.5 text-xs font-medium rounded-lg border border-border bg-background text-foreground"
           >
             <option value="ALL">Todos os Status</option>
-            <option value="CONFIRMED">Confirmados</option>
             <option value="PENDING">Pendentes</option>
+            <option value="CONFIRMED">Confirmados</option>
+            <option value="RESCHEDULED">Reagendados</option>
+            <option value="RE_SCHEDULE_REQUEST">Pedidos de reagendamento</option>
+            <option value="COMPLETED">Concluídos</option>
+            <option value="PUBLICADO">Publicados</option>
             <option value="CANCELLED">Cancelados</option>
           </select>
 
@@ -160,8 +219,8 @@ export function AppointmentsList({
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
-                    <span className="line-clamp-1">{apt.locationName}</span>
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                    <span className="line-clamp-1">{getLocationName(apt)}</span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -220,7 +279,20 @@ export function AppointmentsList({
                           Confirmar
                         </button>
                       )}
-                      {apt.status !== "CANCELLED" && (
+                      {(apt.status === "CONFIRMED" || apt.status === "COMPLETED") && (
+                        <button
+                          onClick={() =>
+                            (onPublish ?? ((id: string) => onUpdateStatus(id, "PUBLICADO")))(
+                              apt.id
+                            )
+                          }
+                          className="px-2.5 py-1 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1"
+                          title="Marcar esta sessão como publicada"
+                        >
+                          <Images className="w-3.5 h-3.5" /> Publicar
+                        </button>
+                      )}
+                      {apt.status !== "CANCELLED" && apt.status !== "PUBLICADO" && (
                         <button
                           onClick={() => onCancel(apt.id)}
                           className="px-2.5 py-1 text-xs font-semibold rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
