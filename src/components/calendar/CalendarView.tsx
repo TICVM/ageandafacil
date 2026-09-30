@@ -8,6 +8,9 @@ import {
   Calendar as CalendarIcon,
   Sparkles,
   Filter,
+  PanelRightClose,
+  PanelRightOpen,
+  Check,
 } from "lucide-react";
 import { Publication, Holiday, Category } from "@/lib/calendar/types";
 import {
@@ -45,6 +48,7 @@ export function CalendarView({
   onOpenHolidays,
 }: CalendarViewProps) {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
+  const [listCollapsed, setListCollapsed] = useState(false);
 
   const daysGrid = getDaysInMonthGrid(selectedYear, selectedMonth, holidays);
 
@@ -124,9 +128,14 @@ export function CalendarView({
             onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
             className="h-8 px-2.5 text-xs font-semibold rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary"
           >
-            <option value={2025}>2025</option>
-            <option value={2026}>2026</option>
-            <option value={2027}>2027</option>
+            {Array.from(
+              { length: 5 },
+              (_, i) => new Date().getFullYear() - 2 + i
+            ).map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
           </select>
 
           <button
@@ -142,9 +151,28 @@ export function CalendarView({
           >
             Feriados ({holidays.length})
           </button>
+
+          <button
+            onClick={() => setListCollapsed((v) => !v)}
+            className="px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors flex items-center gap-1.5"
+            title={listCollapsed ? "Estender lista de publicações" : "Recolher lista de publicações"}
+          >
+            {listCollapsed ? (
+              <>
+                <PanelRightOpen className="w-3.5 h-3.5" /> Estender
+              </>
+            ) : (
+              <>
+                <PanelRightClose className="w-3.5 h-3.5" /> Recolher
+              </>
+            )}
+          </button>
         </div>
       </div>
 
+      {/* Publications List (collapsible) */}
+      {!listCollapsed && (
+        <>
       {/* Categories Filter Bar */}
       <div className="px-4 py-2.5 bg-background border-b border-border flex items-center gap-2 overflow-x-auto text-xs">
         <span className="font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
@@ -178,6 +206,8 @@ export function CalendarView({
           </button>
         ))}
       </div>
+        </>
+      )}
 
       {/* Week Day Header */}
       <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider py-2">
@@ -260,6 +290,13 @@ export function CalendarView({
                       title={`${pub.title} (${pub.status})`}
                     >
                       <span className="truncate">{pub.title}</span>
+                      {pub.status === "PUBLICADO" && (
+                        <Check
+                          className="w-3 h-3 shrink-0 text-emerald-600 font-extrabold"
+                          strokeWidth={3.5}
+                          aria-label="Publicação já realizada"
+                        />
+                      )}
                     </div>
                   );
                 })}
