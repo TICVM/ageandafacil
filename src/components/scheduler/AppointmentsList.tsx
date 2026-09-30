@@ -14,12 +14,13 @@ import {
   Trash2,
   Images,
 } from "lucide-react";
-import { Appointment, AppointmentStatus, PhotoLocation } from "@/lib/scheduler/types";
+import { Appointment, AppointmentStatus, PhotoLocation, SchoolClass } from "@/lib/scheduler/types";
 import { formatDateForDisplay } from "@/lib/calendar/utils";
 
 interface AppointmentsListProps {
   appointments: Appointment[];
   locations: PhotoLocation[];
+  classes?: SchoolClass[];
   onOpenBooking: () => void;
   onUpdateStatus: (id: string, status: AppointmentStatus) => Promise<void>;
   onCancel: (id: string) => Promise<void>;
@@ -31,6 +32,7 @@ interface AppointmentsListProps {
 export function AppointmentsList({
   appointments,
   locations,
+  classes = [],
   onOpenBooking,
   onUpdateStatus,
   onCancel,
@@ -57,6 +59,21 @@ export function AppointmentsList({
       .locationIdentifier;
     if (alt) return alt;
     return "Local não informado";
+  };
+
+  // Resolve the class (turma) name for a card. Sessions created through other
+  // screens store only the schoolClassId, so we resolve the up-to-date name
+  // from the "school_classes" database first and fall back to the stored
+  // className when it is present and not a placeholder.
+  const getClassName = (apt: Appointment): string => {
+    const byId = apt.schoolClassId
+      ? classes.find((c) => c.id === apt.schoolClassId)?.name
+      : undefined;
+    if (byId) return byId;
+    if (apt.className && apt.className !== "Turma" && apt.className !== "Não informada") {
+      return apt.className;
+    }
+    return "Turma não informada";
   };
 
   const filtered = appointments.filter((a) => {
@@ -200,7 +217,7 @@ export function AppointmentsList({
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="font-bold text-base text-foreground line-clamp-1">
-                    {apt.className}
+                    {getClassName(apt)}
                   </span>
                   {getStatusBadge(apt.status)}
                 </div>
