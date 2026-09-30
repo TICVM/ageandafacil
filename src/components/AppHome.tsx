@@ -18,13 +18,14 @@ import {
 } from "@/lib/calendar";
 import { useScheduler } from "@/lib/scheduler/hooks";
 import { Publication } from "@/lib/calendar/types";
+import { formatDateToISO } from "@/lib/calendar/utils";
 
 export function AppHome() {
   const [currentTab, setCurrentTab] = useState<"calendar" | "scheduler">("calendar");
 
-  // Calendar State
-  const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedMonth, setSelectedMonth] = useState(2); // March 2026
+  // Calendar State (starts on the current month)
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth());
   const [selectedPubForModal, setSelectedPubForModal] = useState<Publication | null>(null);
   const [isPubModalOpen, setIsPubModalOpen] = useState(false);
   const [initialDateForPub, setInitialDateForPub] = useState<string | undefined>(undefined);
@@ -75,9 +76,13 @@ export function AppHome() {
     setIsPubModalOpen(true);
   };
 
-  const upcomingSorted = [...publications]
+  const sortedAllPublications = [...publications]
     .filter((p) => !p.isDeleted)
-    .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate))
+    .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate));
+
+  const todayStr = formatDateToISO(new Date());
+  const upcomingSorted = sortedAllPublications
+    .filter((p) => p.publicationDate >= todayStr && p.status !== "CANCELADO")
     .slice(0, 10);
 
   return (
@@ -124,6 +129,7 @@ export function AppHome() {
               <div className="lg:col-span-1">
                 <UpcomingPublicationsList
                   upcoming={upcomingSorted}
+                  allPublications={sortedAllPublications}
                   categories={categories}
                   onSelectPublication={handleSelectPublication}
                   onNewPublication={() => handleOpenNewPublication()}
