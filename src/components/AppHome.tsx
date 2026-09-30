@@ -167,6 +167,7 @@ export function AppHome() {
             <AppointmentsList
               appointments={appointments}
               locations={locations}
+              classes={classes}
               onOpenBooking={() => setIsBookingModalOpen(true)}
               onUpdateStatus={updateStatus}
               onCancel={(id) => cancelAppointment(id)}
