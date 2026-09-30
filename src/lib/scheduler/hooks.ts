@@ -11,7 +11,13 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { Appointment, AppointmentStatus, PhotoLocation } from "./types";
+import {
+  Appointment,
+  AppointmentStatus,
+  PhotoLocation,
+  SchoolClass,
+  SchoolSegment,
+} from "./types";
 import {
   SAMPLE_APPOINTMENTS,
   DEFAULT_LOCATIONS,
@@ -87,9 +93,80 @@ export function useScheduler() {
     return [...custom, ...samples];
   });
   const [locations, setLocations] = useState<PhotoLocation[]>(DEFAULT_LOCATIONS);
-  const [classes] = useState(DEFAULT_CLASSES);
-  const [segments] = useState(DEFAULT_SEGMENTS);
+  const [classes, setClasses] = useState<SchoolClass[]>(DEFAULT_CLASSES);
+  const [segments, setSegments] = useState<SchoolSegment[]>(DEFAULT_SEGMENTS);
   const [loading, setLoading] = useState(true);
+
+  // Load school classes/segments from the Firestore "school_classes" and
+  // "school_segments" collections (managed in Admin > Turmas e Segmentos),
+  // keeping DEFAULT_CLASSES/DEFAULT_SEGMENTS only as a fallback while offline
+  // or when the collections are empty. Without this, sessions booked through
+  // other screens store class IDs that don't exist in the hardcoded list and
+  // the turma cannot be resolved on the cards.
+  useEffect(() => {
+    let unsubClasses: (() => void) | undefined;
+    let unsubSegments: (() => void) | undefined;
+    try {
+      unsubClasses = onSnapshot(
+        collection(db, "school_classes"),
+        (snap) => {
+          if (snap.empty) {
+            setClasses(DEFAULT_CLASSES);
+            return;
+          }
+          const list: SchoolClass[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as {
+              name?: string;
+              schoolSegmentId?: string;
+              order?: number;
+              isActive?: boolean;
+            };
+            if (data.isActive === false) return;
+            list.push({
+              id: d.id,
+              name: data.name ?? "",
+              segmentId: data.schoolSegmentId ?? "",
+              order: data.order ?? 0,
+            });
+          });
+          list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          setClasses(list);
+        },
+        (err) => {
+          console.warn("school_classes listener fallback:", err);
+          setClasses(DEFAULT_CLASSES);
+        }
+      );
+      unsubSegments = onSnapshot(
+        collection(db, "school_segments"),
+        (snap) => {
+          if (snap.empty) {
+            setSegments(DEFAULT_SEGMENTS);
+            return;
+          }
+          const list: SchoolSegment[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as { name?: string; isActive?: boolean };
+            if (data.isActive === false) return;
+            list.push({ id: d.id, name: data.name ?? "" });
+          });
+          setSegments(list);
+        },
+        (err) => {
+          console.warn("school_segments listener fallback:", err);
+          setSegments(DEFAULT_SEGMENTS);
+        }
+      );
+    } catch {
+      setClasses(DEFAULT_CLASSES);
+      setSegments(DEFAULT_SEGMENTS);
+    }
+    return () => {
+      if (unsubClasses) unsubClasses();
+      if (unsubSegments) unsubSegments();
+    };
+  }, []);
 
   // Load photo locations from the Firestore "photo_locations" collection
   // (managed in Admin > Locais de Foto), keeping DEFAULT_LOCATIONS only as a
