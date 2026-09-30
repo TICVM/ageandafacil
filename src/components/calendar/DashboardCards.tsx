@@ -12,6 +12,8 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { DashboardStats, Publication, Category } from "@/lib/calendar/types";
 import { DEFAULT_STATUSES, DEFAULT_PRIORITIES } from "@/lib/calendar/constants";
@@ -155,6 +157,9 @@ export function UpcomingPublicationsList({
   onSelectPublication,
   onNewPublication,
   onDeletePublication,
+  onStatusChange,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   upcoming: Publication[];
   allPublications?: Publication[];
@@ -162,11 +167,32 @@ export function UpcomingPublicationsList({
   onSelectPublication: (pub: Publication) => void;
   onNewPublication: () => void;
   onDeletePublication?: (id: string) => Promise<void>;
+  onStatusChange?: (id: string, status: string) => Promise<void> | void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const displayed = showAll ? allPublications : upcoming;
+
+  const handleMarkAsPublished = async (
+    e: React.MouseEvent,
+    pub: Publication
+  ) => {
+    e.stopPropagation();
+    if (!onStatusChange || pub.status === "PUBLICADO" || updatingId === pub.id)
+      return;
+    setUpdatingId(pub.id);
+    try {
+      await onStatusChange(pub.id, "PUBLICADO");
+    } catch (err) {
+      console.error("Error updating publication status:", err);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const getCategoryColor = (catId: string) => {
     return categories.find((c) => c.id === catId)?.color || "#6B7280";
@@ -189,6 +215,26 @@ export function UpcomingPublicationsList({
     );
   };
 
+  // Painel recolhido: mostra apenas uma barra fina com botão para estender,
+  // permitindo que o calendário ocupe todo o espaço disponível.
+  if (collapsed && onToggleCollapsed) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-2 shadow-xs flex flex-col items-center justify-start gap-2 h-full min-h-[120px]">
+        <button
+          onClick={onToggleCollapsed}
+          title="Estender lista de publicações"
+          className="w-full flex flex-col items-center gap-1.5 py-2 px-1 rounded-lg text-primary hover:bg-accent/60 transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          <Calendar className="w-4 h-4 opacity-60" />
+        </button>
+        <p className="text-[10px] font-semibold text-muted-foreground [writing-mode:vertical-lr] rotate-180 whitespace-nowrap">
+          Próximas Publicações ({upcoming.length})
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-xs flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
@@ -201,12 +247,23 @@ export function UpcomingPublicationsList({
             Cronograma editorial agendado
           </p>
         </div>
-        <button
-          onClick={onNewPublication}
-          className="text-xs font-semibold text-primary hover:underline"
-        >
-          + Adicionar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onNewPublication}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            + Adicionar
+          </button>
+          {onToggleCollapsed && (
+            <button
+              onClick={onToggleCollapsed}
+              title="Recolher lista (calendário ocupa todo o espaço)"
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {displayed.length === 0 ? (
@@ -295,8 +352,21 @@ export function UpcomingPublicationsList({
                     {getCategoryName(pub.categoryId)}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {getStatusBadge(pub.status)}
-                  </div>
+                  {onStatusChange && pub.status !== "PUBLICADO" ? (
+                    <button
+                      onClick={(e) => handleMarkAsPublished(e, pub)}
+                      disabled={updatingId === pub.id}
+                      title="Clique para marcar como Publicado"
+                      className={`group/status cursor-pointer ${
+                        updatingId === pub.id ? "opacity-50" : ""
+                      }`}
+                    >
+                      {getStatusBadge(pub.status)}
+                    </button>
+                  ) : (
+                    getStatusBadge(pub.status)
+                  )}
+                </div>
                 </div>
 
                 {pub.plannedDate && (
