@@ -21,7 +21,10 @@ export type AppointmentStatus =
   | "PENDING"
   | "CONFIRMED"
   | "CANCELLED"
-  | "RESCHEDULED";
+  | "RESCHEDULED"
+  | "RE_SCHEDULE_REQUEST"
+  | "COMPLETED"
+  | "PUBLICADO";
 
 export interface AppointmentHistoryEntry {
   timestamp: string;
