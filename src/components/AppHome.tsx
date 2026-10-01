@@ -198,6 +198,7 @@ export function AppHome() {
             onSelectPublication={handleSelectPublication}
             appointments={appointments}
             classes={classes}
+            onUpdateAppointmentStatus={updateStatus}
           />
         ) : (
           <div className="space-y-6">
