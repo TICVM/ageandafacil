@@ -156,7 +156,8 @@ export function PublicationModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !publicationDate) return;
+    // Publicações obrigatórias geradas podem ser salvas sem título
+    if (!publicationDate) return;
     setIsSaving(true);
 
     try {
@@ -330,11 +331,10 @@ export function PublicationModal({
             {/* Title */}
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
-                Título da Publicação *
+                Título da Publicação
               </label>
               <input
                 type="text"
-                required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Ex: Projeto Robótica &amp; Inovação"

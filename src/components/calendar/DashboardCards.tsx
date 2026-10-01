@@ -16,8 +16,20 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { DashboardStats, Publication, Category } from "@/lib/calendar/types";
-import { DEFAULT_STATUSES, DEFAULT_PRIORITIES } from "@/lib/calendar/constants";
+import { DEFAULT_STATUSES, DEFAULT_PRIORITIES, DEFAULT_SERIES } from "@/lib/calendar/constants";
 import { formatDateForDisplay } from "@/lib/calendar/utils";
+
+const SERIES_NAME: Record<string, string> = Object.fromEntries(
+  DEFAULT_SERIES.map((s) => [s.id, s.name])
+);
+
+/** Título exibido: publicações obrigatórias geradas não têm título — mostra a série */
+export function getPublicationLabel(pub: Publication, categoryName?: string): string {
+  if (pub.title && pub.title.trim()) return pub.title;
+  const seriesName = pub.seriesId ? SERIES_NAME[pub.seriesId] : undefined;
+  if (seriesName) return `(Sem título) ${seriesName}${categoryName ? " • " + categoryName : ""}`;
+  return "(Sem título)";
+}
 
 interface DashboardCardsProps {
   stats: DashboardStats;
@@ -297,7 +309,7 @@ export function UpcomingPublicationsList({
                     onClick={() => onSelectPublication(pub)}
                     className="text-sm font-semibold text-foreground hover:text-primary transition-colors line-clamp-1 cursor-pointer flex-1"
                   >
-                    {pub.title}
+                    {getPublicationLabel(pub, getCategoryName(pub.categoryId))}
                   </h4>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap">
