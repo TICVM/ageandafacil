@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { X, Wand2, AlertTriangle, CheckCircle2, CalendarDays } from "lucide-react";
+import { X, Wand2, AlertTriangle, CheckCircle2, CalendarDays, ArrowDownUp } from "lucide-react";
 import { Holiday, Publication } from "@/lib/calendar/types";
 import { DEFAULT_SERIES } from "@/lib/calendar/constants";
 import { generateMandatoryPublications, findOutdatedGenerated } from "@/lib/calendar/generate-mandatory";
@@ -33,17 +33,23 @@ export function GeneratePlanModal({
   const [year, setYear] = useState(currentYear);
   const [startDate, setStartDate] = useState(`${year}-02-10`);
   const [endDate, setEndDate] = useState(`${year}-09-30`);
+  // Direção das séries em cada categoria (o usuário pode inverter)
+  const [avOrder, setAvOrder] = useState<"asc" | "desc">("asc");
+  const [pbOrder, setPbOrder] = useState<"asc" | "desc">("desc");
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const result = useMemo(() => {
     if (!isOpen) return null;
     try {
-      return generateMandatoryPublications({ year, startDate, endDate }, holidays);
+      return generateMandatoryPublications(
+        { year, startDate, endDate, avOrder, pbOrder },
+        holidays
+      );
     } catch {
       return null;
     }
-  }, [isOpen, year, startDate, endDate, holidays]);
+  }, [isOpen, year, startDate, endDate, avOrder, pbOrder, holidays]);
 
   const outdated = useMemo(
     () => (result ? findOutdatedGenerated(existingPublications, year) : []),
@@ -75,6 +81,12 @@ export function GeneratePlanModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  // Inverte a direção das séries nas DUAS categorias de uma só vez
+  const invertBothOrders = () => {
+    setAvOrder((o) => (o === "asc" ? "desc" : "asc"));
+    setPbOrder((o) => (o === "asc" ? "desc" : "asc"));
   };
 
   return (
@@ -135,6 +147,47 @@ export function GeneratePlanModal({
                 onChange={(e) => setEndDate(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               />
+            </div>
+          </div>
+
+          {/* Ordem das séries (o usuário pode inverter) */}
+          <div className="rounded-xl border border-border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Ordem das séries no plano
+              </p>
+              <button
+                type="button"
+                onClick={invertBothOrders}
+                className="px-2.5 py-1 text-xs font-semibold rounded-md border border-border hover:bg-accent flex items-center gap-1.5 text-primary"
+                title="Inverte a direção das duas categorias"
+              >
+                <ArrowDownUp className="w-3.5 h-3.5" /> Inverter ambas
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="block text-xs font-semibold text-teal-600 mb-1">Atividades Variadas</span>
+                <select
+                  value={avOrder}
+                  onChange={(e) => setAvOrder(e.target.value as "asc" | "desc")}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="asc">Maternal → 3º Médio</option>
+                  <option value="desc">3º Médio → Maternal</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-xs font-semibold text-purple-600 mb-1">Programa Bilíngue</span>
+                <select
+                  value={pbOrder}
+                  onChange={(e) => setPbOrder(e.target.value as "asc" | "desc")}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="desc">9º Ano → Maternal</option>
+                  <option value="asc">Maternal → 9º Ano</option>
+                </select>
+              </label>
             </div>
           </div>
 
