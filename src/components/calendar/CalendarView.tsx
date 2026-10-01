@@ -13,12 +13,24 @@ import {
   Check,
 } from "lucide-react";
 import { Publication, Holiday, Category } from "@/lib/calendar/types";
+import { DEFAULT_SERIES } from "@/lib/calendar/constants";
 import {
   getDaysInMonthGrid,
   getMonthName,
   formatDateForDisplay,
   formatDateToISO,
 } from "@/lib/calendar/utils";
+
+const SERIES_NAME: Record<string, string> = Object.fromEntries(
+  DEFAULT_SERIES.map((s) => [s.id, s.name])
+);
+
+/** Publicações obrigatórias geradas não têm título — exibe a série no lugar */
+function getPubLabel(pub: Publication): string {
+  if (pub.title && pub.title.trim()) return pub.title;
+  const seriesName = pub.seriesId ? SERIES_NAME[pub.seriesId] : undefined;
+  return seriesName ? `(Sem título) ${seriesName}` : "(Sem título)";
+}
 
 interface CalendarViewProps {
   publications: Publication[];
@@ -287,9 +299,9 @@ export function CalendarView({
                       onClick={() => onSelectPublication(pub)}
                       className="text-[11px] p-1 rounded font-medium border border-border/60 bg-background hover:scale-[1.02] cursor-pointer transition-all truncate flex items-center gap-1 shadow-2xs"
                       style={{ borderLeftWidth: "3px", borderLeftColor: catColor }}
-                      title={`${pub.title} (${pub.status})`}
+                      title={`${getPubLabel(pub)} (${pub.status})`}
                     >
-                      <span className="truncate">{pub.title}</span>
+                      <span className="truncate">{getPubLabel(pub)}</span>
                       {pub.status === "PUBLICADO" && (
                         <Check
                           className="w-3 h-3 shrink-0 text-emerald-600 font-extrabold"
