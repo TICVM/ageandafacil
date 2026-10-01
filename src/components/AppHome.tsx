@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { Navbar } from "@/components/Navbar";
+import { Navbar, AppTab } from "@/components/Navbar";
 import { DashboardCards, UpcomingPublicationsList } from "@/components/calendar/DashboardCards";
 import { CalendarView } from "@/components/calendar/CalendarView";
+import { ControlTables } from "@/components/calendar/ControlTables";
 import { PublicationModal } from "@/components/calendar/PublicationModal";
 import { HolidaysModal } from "@/components/calendar/HolidaysModal";
 import { DeadlinesModal } from "@/components/calendar/DeadlinesModal";
@@ -22,7 +23,7 @@ import { Publication, PublicationStatus } from "@/lib/calendar/types";
 import { formatDateToISO } from "@/lib/calendar/utils";
 
 export function AppHome() {
-  const [currentTab, setCurrentTab] = useState<"calendar" | "scheduler">("calendar");
+  const [currentTab, setCurrentTab] = useState<AppTab>("calendar");
 
   // Calendar State (starts on the current month)
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
@@ -177,6 +178,14 @@ export function AppHome() {
               </div>
             </div>
           </>
+        ) : currentTab === "control" ? (
+          <ControlTables
+            publications={publications}
+            seriesList={series}
+            categories={categories}
+            onUpdatePublication={updatePublication}
+            onSelectPublication={handleSelectPublication}
+          />
         ) : (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

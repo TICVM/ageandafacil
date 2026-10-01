@@ -1,11 +1,13 @@
 "use client";
 
 import React from "react";
-import { Camera, Calendar, Plus, Sparkles } from "lucide-react";
+import { Camera, Calendar, Plus, Sparkles, Table2 } from "lucide-react";
+
+export type AppTab = "calendar" | "control" | "scheduler";
 
 interface NavbarProps {
-  currentTab: "calendar" | "scheduler";
-  onTabChange: (tab: "calendar" | "scheduler") => void;
+  currentTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
   onNewPublication: () => void;
   onNewBooking: () => void;
   onGeneratePlan?: () => void;
@@ -57,6 +59,19 @@ export function Navbar({
             </button>
 
             <button
+              onClick={() => onTabChange("control")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                currentTab === "control"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Table2 className="w-4 h-4 text-emerald-600" />
+              <span className="hidden md:inline">Controle de Publicações</span>
+              <span className="md:hidden">Controle</span>
+            </button>
+
+            <button
               onClick={() => onTabChange("scheduler")}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 currentTab === "scheduler"
@@ -71,7 +86,28 @@ export function Navbar({
 
           {/* Action Button */}
           <div className="flex items-center gap-2">
-            {currentTab === "calendar" ? (
+            {currentTab === "control" ? (
+              <>
+                {onGeneratePlan && (
+                  <button
+                    onClick={onGeneratePlan}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition-all flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Gerar Plano Anual</span>
+                    <span className="sm:hidden">Plano</span>
+                  </button>
+                )}
+                <button
+                  onClick={onNewPublication}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1.5 shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nova Publicação</span>
+                  <span className="sm:hidden">Publicação</span>
+                </button>
+              </>
+            ) : currentTab === "calendar" ? (
               <>
                 {onGeneratePlan && (
                   <button
