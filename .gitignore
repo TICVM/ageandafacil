@@ -1,2 +1,2 @@
-# TypeScript build artifacts
-*.tsbuildinfo
+# Build artifacts
+tsconfig.tsbuildinfo
