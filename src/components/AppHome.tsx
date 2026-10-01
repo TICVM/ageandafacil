@@ -19,6 +19,7 @@ import {
   useProductionDeadlines,
 } from "@/lib/calendar";
 import { useScheduler } from "@/lib/scheduler/hooks";
+import { useAppointmentPublicationLink } from "@/lib/scheduler/useAppointmentPublicationLink";
 import { Publication, PublicationStatus } from "@/lib/calendar/types";
 import { formatDateToISO } from "@/lib/calendar/utils";
 
@@ -66,6 +67,16 @@ export function AppHome() {
     cancelAppointment,
     deleteAppointment,
   } = useScheduler();
+
+  // Associação automática: sessões fotográficas confirmadas/publicadas
+  // atualizam o status das publicações obrigatórias correspondentes
+  // (Programa Bilíngue para disciplinas de idioma, Atividades Variadas p/ as demais).
+  useAppointmentPublicationLink({
+    appointments,
+    classes,
+    publications,
+    onUpdatePublication: updatePublication,
+  });
 
   const stats = getStats(selectedYear);
 
@@ -185,6 +196,8 @@ export function AppHome() {
             categories={categories}
             onUpdatePublication={updatePublication}
             onSelectPublication={handleSelectPublication}
+            appointments={appointments}
+            classes={classes}
           />
         ) : (
           <div className="space-y-6">
