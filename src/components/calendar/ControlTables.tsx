@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Table2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Link2, Table2 } from "lucide-react";
 import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
+import { Appointment, SchoolClass } from "@/lib/scheduler/types";
+import { resolveClassName } from "@/lib/scheduler/association";
 import { DEFAULT_SERIES, DEFAULT_STATUSES } from "@/lib/calendar/constants";
 
 /**
@@ -25,11 +27,15 @@ interface ControlTablesProps {
   categories?: Category[];
   onUpdatePublication: (id: string, updates: Partial<Publication>) => Promise<void> | void;
   onSelectPublication?: (pub: Publication) => void;
+  /** Sessões fotográficas — usadas para exibir o vínculo automático por publicação. */
+  appointments?: Appointment[];
+  classes?: SchoolClass[];
 }
 
 interface RowData {
   pub: Publication;
   seriesName: string;
+  linkedSessions: Appointment[];
 }
 
 function isMandatory(p: Publication): boolean {
@@ -83,6 +89,7 @@ function PublicationTable({
   accentClass,
   rows,
   year,
+  classes,
   onUpdateDate,
   onCycleStatus,
   onSelect,
@@ -91,6 +98,7 @@ function PublicationTable({
   accentClass: string;
   rows: RowData[];
   year: number;
+  classes?: SchoolClass[];
   onUpdateDate: (pub: Publication, dateISO: string) => void;
   onCycleStatus: (pub: Publication) => void;
   onSelect?: (pub: Publication) => void;
@@ -137,10 +145,12 @@ function PublicationTable({
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Data da Publicação</th>
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Título da Publicação</th>
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Status</th>
+                  <th className="px-4 sm:px-5 py-2.5 font-bold">Sessões vinculadas</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ pub, seriesName }) => {
+                {rows.map((row) => {
+                  const { pub, seriesName } = row;
                   const published = pub.status === "PUBLICADO";
                   return (
                     <tr
@@ -187,6 +197,24 @@ function PublicationTable({
                           )}
                         </div>
                       </td>
+                      <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
+                        {row.linkedSessions.length > 0 ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200"
+                            title={
+                              "Sessões fotográficas vinculadas: " +
+                              row.linkedSessions
+                                .map((a) => `${resolveClassName(a, classes ?? []) || a.className} (${a.appointmentDate})`)
+                                .join(", ")
+                            }
+                          >
+                            <Link2 className="w-3 h-3" />
+                            {row.linkedSessions.length} sessão{row.linkedSessions.length > 1 ? "ões" : ""}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -204,6 +232,8 @@ export function ControlTables({
   categories,
   onUpdatePublication,
   onSelectPublication,
+  appointments,
+  classes,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
 
@@ -241,6 +271,13 @@ export function ControlTables({
     return map;
   }, [categories]);
 
+  // Mapa id da sessão → objeto, para exibir as sessões vinculadas na tabela.
+  const aptById = useMemo(() => {
+    const map = new Map<string, Appointment>();
+    (appointments ?? []).forEach((a) => map.set(a.id, a));
+    return map;
+  }, [appointments]);
+
   const buildRows = (categoryId: string): RowData[] =>
     publications
       .filter(
@@ -254,6 +291,10 @@ export function ControlTables({
       .map((pub) => ({
         pub,
         seriesName: seriesNameById.get(pub.seriesId ?? "") ?? pub.seriesId ?? "—",
+        linkedSessions: (pub.tags ?? [])
+          .filter((t) => t.startsWith("apt:"))
+          .map((t) => aptById.get(t.slice(4)))
+          .filter((a): a is Appointment => !!a),
       }));
 
   const avRows = buildRows(AV_CATEGORY_ID);
@@ -317,6 +358,7 @@ export function ControlTables({
         accentClass="bg-blue-50 dark:bg-blue-950/30"
         rows={avRows}
         year={activeYear}
+        classes={classes}
         onUpdateDate={handleUpdateDate}
         onCycleStatus={handleCycleStatus}
         onSelect={onSelectPublication}
@@ -327,6 +369,7 @@ export function ControlTables({
         accentClass="bg-emerald-50 dark:bg-emerald-950/30"
         rows={pbRows}
         year={activeYear}
+        classes={classes}
         onUpdateDate={handleUpdateDate}
         onCycleStatus={handleCycleStatus}
         onSelect={onSelectPublication}
