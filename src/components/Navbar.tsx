@@ -8,6 +8,7 @@ interface NavbarProps {
   onTabChange: (tab: "calendar" | "scheduler") => void;
   onNewPublication: () => void;
   onNewBooking: () => void;
+  onGeneratePlan?: () => void;
 }
 
 export function Navbar({
@@ -15,6 +16,7 @@ export function Navbar({
   onTabChange,
   onNewPublication,
   onNewBooking,
+  onGeneratePlan,
 }: NavbarProps) {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-card/90 backdrop-blur-md">
@@ -70,14 +72,26 @@ export function Navbar({
           {/* Action Button */}
           <div className="flex items-center gap-2">
             {currentTab === "calendar" ? (
-              <button
-                onClick={onNewPublication}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Nova Publicação</span>
-                <span className="sm:hidden">Publicação</span>
-              </button>
+              <>
+                {onGeneratePlan && (
+                  <button
+                    onClick={onGeneratePlan}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition-all flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Gerar Plano Anual</span>
+                    <span className="sm:hidden">Plano</span>
+                  </button>
+                )}
+                <button
+                  onClick={onNewPublication}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1.5 shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nova Publicação</span>
+                  <span className="sm:hidden">Publicação</span>
+                </button>
+              </>
             ) : (
               <button
                 onClick={onNewBooking}

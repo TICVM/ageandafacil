@@ -7,6 +7,7 @@ import { CalendarView } from "@/components/calendar/CalendarView";
 import { PublicationModal } from "@/components/calendar/PublicationModal";
 import { HolidaysModal } from "@/components/calendar/HolidaysModal";
 import { DeadlinesModal } from "@/components/calendar/DeadlinesModal";
+import { GeneratePlanModal } from "@/components/calendar/GeneratePlanModal";
 import { BookingModal } from "@/components/scheduler/BookingModal";
 import { AppointmentsList } from "@/components/scheduler/AppointmentsList";
 import {
@@ -31,6 +32,7 @@ export function AppHome() {
   const [initialDateForPub, setInitialDateForPub] = useState<string | undefined>(undefined);
   const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
   const [isDeadlinesModalOpen, setIsDeadlinesModalOpen] = useState(false);
+  const [isGeneratePlanOpen, setIsGeneratePlanOpen] = useState(false);
   const [isUpcomingCollapsed, setIsUpcomingCollapsed] = useState(false);
 
   // Scheduler State
@@ -77,6 +79,29 @@ export function AppHome() {
     setIsPubModalOpen(true);
   };
 
+  const handleGeneratePlanConfirm = async (
+    newPubs: Omit<Publication, "id">[],
+    toRemove: Publication[]
+  ) => {
+    // Remove antigas publicações obrigatórias substituídas (se selecionado)
+    for (const pub of toRemove) {
+      await deletePublication(pub.id);
+    }
+    // Cria as novas em sequência (o hook já persiste local + Firestore)
+    for (const pubData of newPubs) {
+      await createPublication(pubData);
+    }
+    // Navega o calendário para o início do plano gerado
+    if (newPubs.length > 0) {
+      const firstDate = [...newPubs].sort((a, b) =>
+        a.publicationDate.localeCompare(b.publicationDate)
+      )[0].publicationDate;
+      const [y, m] = firstDate.split("-").map(Number);
+      setSelectedYear(y);
+      setSelectedMonth(m - 1);
+    }
+  };
+
   const sortedAllPublications = [...publications]
     .filter((p) => !p.isDeleted)
     .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate));
@@ -94,6 +119,7 @@ export function AppHome() {
         onTabChange={setCurrentTab}
         onNewPublication={() => handleOpenNewPublication()}
         onNewBooking={() => setIsBookingModalOpen(true)}
+        onGeneratePlan={() => setIsGeneratePlanOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -218,6 +244,14 @@ export function AppHome() {
         deadlines={deadlines}
         series={series}
         categories={categories}
+      />
+
+      <GeneratePlanModal
+        isOpen={isGeneratePlanOpen}
+        onClose={() => setIsGeneratePlanOpen(false)}
+        holidays={holidays}
+        existingPublications={publications}
+        onConfirm={handleGeneratePlanConfirm}
       />
 
       <BookingModal
