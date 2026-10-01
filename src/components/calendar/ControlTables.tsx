@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Link2, Table2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Link2, Table2, X } from "lucide-react";
 import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
-import { Appointment, SchoolClass } from "@/lib/scheduler/types";
+import { Appointment, AppointmentStatus, SchoolClass } from "@/lib/scheduler/types";
 import { resolveClassName } from "@/lib/scheduler/association";
 import { DEFAULT_SERIES, DEFAULT_STATUSES } from "@/lib/calendar/constants";
 
@@ -30,6 +30,8 @@ interface ControlTablesProps {
   /** Sessões fotográficas — usadas para exibir o vínculo automático por publicação. */
   appointments?: Appointment[];
   classes?: SchoolClass[];
+  /** Atualiza o status de uma sessão fotográfica (ex.: marcar como PUBLICADO). */
+  onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
 }
 
 interface RowData {
@@ -38,9 +40,129 @@ interface RowData {
   linkedSessions: Appointment[];
 }
 
+const APT_STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pendente",
+  CONFIRMED: "Confirmado",
+  CANCELLED: "Cancelado",
+  PUBLICADO: "Publicado",
+  COMPLETED: "Concluído",
+  RESCHEDULED: "Reagendado",
+  RE_SCHEDULE_REQUEST: "Pedido de reagendamento",
+};
+
+function aptStatusBadgeClass(status: string): string {
+  switch (status) {
+    case "CONFIRMED":
+      return "bg-emerald-100 text-emerald-800";
+    case "PENDING":
+      return "bg-amber-100 text-amber-800";
+    case "CANCELLED":
+      return "bg-zinc-200 text-zinc-700";
+    case "PUBLICADO":
+      return "bg-violet-100 text-violet-800";
+    case "COMPLETED":
+      return "bg-sky-100 text-sky-800";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+/**
+ * Painel "Sessões vinculadas": lista as sessões fotográficas associadas à
+ * publicação (turma, disciplina, data e status), com opção de marcá-las
+ * como publicadas diretamente da tabela.
+ */
+function LinkedSessionsPanel({
+  row,
+  classes,
+  onClose,
+  onUpdateAppointmentStatus,
+}: {
+  row: RowData;
+  classes?: SchoolClass[];
+  onClose: () => void;
+  onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
+}) {
+  const { pub, seriesName, linkedSessions } = row;
+  return (
+    <tr className="border-b border-border/60 last:border-0 bg-muted/30">
+      <td colSpan={6} className="px-4 sm:px-5 py-3">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="text-xs">
+            <span className="font-extrabold text-foreground">
+              Sessões vinculadas — {seriesName}
+            </span>
+            <span className="text-muted-foreground">
+              {" "}• {categoryLabelOf(pub.categoryId)} • {formatDateBR(pub.publicationDate)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+            title="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {linkedSessions.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">
+            Nenhuma sessão fotográfica vinculada a esta publicação. As sessões
+            são associadas automaticamente quando ficam com status Confirmado.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {linkedSessions.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center gap-2 text-xs bg-card border border-border/60 rounded-lg px-3 py-2"
+              >
+                <span className="font-bold text-foreground">
+                  {resolveClassName(a, classes ?? []) || a.className || "Turma não informada"}
+                </span>
+                <span className="text-muted-foreground">
+                  {a.subject ? `• ${a.subject}` : ""}
+                </span>
+                <span className="text-muted-foreground tabular-nums">
+                  • {formatDateBR(a.appointmentDate)} {a.startTime}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${aptStatusBadgeClass(
+                    a.status
+                  )}`}
+                >
+                  {APT_STATUS_LABELS[a.status] ?? a.status}
+                </span>
+                {a.status !== "PUBLICADO" && onUpdateAppointmentStatus && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdateAppointmentStatus(a.id, "PUBLICADO")}
+                    className="ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90"
+                    title="Marcar esta sessão como publicada"
+                  >
+                    Marcar como publicada
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function isMandatory(p: Publication): boolean {
   const tags = p.tags ?? [];
   return tags.includes("obrigatoria") || tags.includes("plano-anual");
+}
+
+/** Rótulo fixo das duas categorias do plano anual (usado no painel de vínculos). */
+function categoryLabelOf(categoryId?: string): string {
+  if (categoryId === AV_CATEGORY_ID) return "Atividades Variadas";
+  if (categoryId === PB_CATEGORY_ID) return "Programa Bilíngue";
+  return categoryId ?? "";
 }
 
 function formatDateBR(iso?: string): string {
@@ -93,6 +215,7 @@ function PublicationTable({
   onUpdateDate,
   onCycleStatus,
   onSelect,
+  onUpdateAppointmentStatus,
 }: {
   title: string;
   accentClass: string;
@@ -102,8 +225,11 @@ function PublicationTable({
   onUpdateDate: (pub: Publication, dateISO: string) => void;
   onCycleStatus: (pub: Publication) => void;
   onSelect?: (pub: Publication) => void;
+  onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  // Publicação cuja lista de sessões vinculadas está expandida na tabela.
+  const [expandedPubId, setExpandedPubId] = useState<string | null>(null);
 
   return (
     <section className="bg-card border border-border rounded-2xl shadow-xs overflow-hidden">
@@ -152,70 +278,86 @@ function PublicationTable({
                 {rows.map((row) => {
                   const { pub, seriesName } = row;
                   const published = pub.status === "PUBLICADO";
+                  const isExpanded = expandedPubId === pub.id;
                   return (
-                    <tr
-                      key={pub.id}
-                      className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
-                    >
-                      <td className="px-4 sm:px-5 py-2.5 font-bold text-foreground whitespace-nowrap">
-                        {seriesName}
-                      </td>
-                      <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap tabular-nums">
-                        {formatDateBR(pub.plannedDate)}
-                      </td>
-                      <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5">
-                          <input
-                            type="date"
-                            value={pub.publicationDate}
-                            onChange={(e) => onUpdateDate(pub, e.target.value)}
-                            className="w-[150px] rounded-lg border border-input bg-background px-2 py-1 text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                          <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
-                            {weekdayLabel(pub.publicationDate)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-5 py-2.5 max-w-[220px]">
-                        <button
-                          type="button"
-                          onClick={() => onSelect?.(pub)}
-                          className="text-left truncate block w-full text-muted-foreground hover:text-foreground hover:underline"
-                          title={pub.title || "Sem título — clique para editar"}
-                        >
-                          {pub.title || <em>Sem título</em>}
-                        </button>
-                      </td>
-                      <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <StatusBadge
-                            status={pub.status}
-                            onClick={() => onCycleStatus(pub)}
-                          />
-                          {published && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-green-600" aria-label="Publicada" />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
-                        {row.linkedSessions.length > 0 ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200"
-                            title={
-                              "Sessões fotográficas vinculadas: " +
-                              row.linkedSessions
-                                .map((a) => `${resolveClassName(a, classes ?? []) || a.className} (${a.appointmentDate})`)
-                                .join(", ")
-                            }
+                    <React.Fragment key={pub.id}>
+                      <tr
+                        className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="px-4 sm:px-5 py-2.5 font-bold text-foreground whitespace-nowrap">
+                          {seriesName}
+                        </td>
+                        <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap tabular-nums">
+                          {formatDateBR(pub.plannedDate)}
+                        </td>
+                        <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <input
+                              type="date"
+                              value={pub.publicationDate}
+                              onChange={(e) => onUpdateDate(pub, e.target.value)}
+                              className="w-[150px] rounded-lg border border-input bg-background px-2 py-1 text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
+                              {weekdayLabel(pub.publicationDate)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-5 py-2.5 max-w-[220px]">
+                          <button
+                            type="button"
+                            onClick={() => onSelect?.(pub)}
+                            className="text-left truncate block w-full text-muted-foreground hover:text-foreground hover:underline"
+                            title={pub.title || "Sem título — clique para editar"}
                           >
-                            <Link2 className="w-3 h-3" />
-                            {row.linkedSessions.length} sessão{row.linkedSessions.length > 1 ? "ões" : ""}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">—</span>
-                        )}
-                      </td>
-                    </tr>
+                            {pub.title || <em>Sem título</em>}
+                          </button>
+                        </td>
+                        <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <StatusBadge
+                              status={pub.status}
+                              onClick={() => onCycleStatus(pub)}
+                            />
+                            {published && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" aria-label="Publicada" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
+                          {row.linkedSessions.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedPubId(isExpanded ? null : pub.id)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer ${
+                                isExpanded
+                                  ? "bg-violet-600 text-white border-violet-600"
+                                  : "bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-200"
+                              }`}
+                              title={
+                                isExpanded
+                                  ? "Ocultar sessões vinculadas"
+                                  : "Ver sessões fotográficas vinculadas a esta publicação"
+                              }
+                            >
+                              <Link2 className="w-3 h-3" />
+                              {row.linkedSessions.length} sessão{row.linkedSessions.length > 1 ? "ões" : ""}
+                              {isExpanded ? " ▲" : " ▼"}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <LinkedSessionsPanel
+                          row={row}
+                          classes={classes}
+                          onClose={() => setExpandedPubId(null)}
+                          onUpdateAppointmentStatus={onUpdateAppointmentStatus}
+                        />
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -234,6 +376,7 @@ export function ControlTables({
   onSelectPublication,
   appointments,
   classes,
+  onUpdateAppointmentStatus,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
 
@@ -362,6 +505,7 @@ export function ControlTables({
         onUpdateDate={handleUpdateDate}
         onCycleStatus={handleCycleStatus}
         onSelect={onSelectPublication}
+        onUpdateAppointmentStatus={onUpdateAppointmentStatus}
       />
 
       <PublicationTable
@@ -373,6 +517,7 @@ export function ControlTables({
         onUpdateDate={handleUpdateDate}
         onCycleStatus={handleCycleStatus}
         onSelect={onSelectPublication}
+        onUpdateAppointmentStatus={onUpdateAppointmentStatus}
       />
     </div>
   );
