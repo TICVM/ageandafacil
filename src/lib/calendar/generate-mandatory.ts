@@ -19,12 +19,27 @@ import { DEFAULT_PRODUCTION_DEADLINES } from "./constants";
  *  - Sem título e com status "PLANEJAMENTO"
  */
 
+/** Direção da sequência de séries dentro de cada categoria */
+export type SeriesOrder = "asc" | "desc";
+
 export interface GenerationOptions {
   year: number;
   /** Data inicial do período (YYYY-MM-DD). Default: 10/fevereiro do ano letivo */
   startDate?: string;
   /** Data final do período (YYYY-MM-DD). Default: 30/setembro */
   endDate?: string;
+  /**
+   * Ordem das séries em Atividades Variadas.
+   *  "asc"  = Maternal → 3º Médio (padrão)
+   *  "desc" = 3º Médio → Maternal (invertido)
+   */
+  avOrder?: SeriesOrder;
+  /**
+   * Ordem das séries no Programa Bilíngue.
+   *  "asc"  = Maternal → 9º Ano
+   *  "desc" = 9º Ano → Maternal (padrão — começa pelo 9º Ano)
+   */
+  pbOrder?: SeriesOrder;
 }
 
 export interface GenerationResult {
@@ -56,14 +71,32 @@ export function generateMandatoryPublications(
   holidays: Holiday[]
 ): GenerationResult {
   const { year } = options;
+  const avOrder: SeriesOrder = options.avOrder ?? "asc";
+  const pbOrder: SeriesOrder = options.pbOrder ?? "desc";
   const startDateStr = options.startDate ?? `${year}-02-10`;
   const endDateStr = options.endDate ?? `${year}-09-30`;
 
   const start = parseDateString(startDateStr);
-  // Começa sempre na segunda-feira da semana da data inicial
-  if (start.getDay() !== 1) {
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  }
+  // Distribui as publicações ao longo da semana (seg → sex), em vez de
+  // concentrar tudo nas segundas-feiras. A cada publicação o dia da semana
+  // avança uma posição útil (Seg, Ter, Qua, Qui, Sex, Seg, …).
+  let weekdayCursor = 0; // 0 = segunda ... 4 = sexta
+  const advanceWeekday = () => {
+    weekdayCursor = (weekdayCursor + 1) % 5;
+  };
+  /** Move a data para o n-ésimo dia útil da semana (a partir de segunda) */
+  const alignToNthBusinessDay = (d: Date): Date => {
+    const target = weekdayCursor;
+    let businessSeen = 0;
+    const probe = new Date(d);
+    // volta até a segunda-feira da semana
+    probe.setDate(probe.getDate() - ((probe.getDay() + 6) % 7));
+    while (businessSeen < target) {
+      probe.setDate(probe.getDate() + 1);
+      if (isBusinessDay(probe, holidays)) businessSeen++;
+    }
+    return probe;
+  };
   const end = parseDateString(endDateStr);
 
   // ------------------------------------------------------------------
@@ -85,11 +118,17 @@ export function generateMandatoryPublications(
 
   // Ordem das séries dentro de cada categoria, agrupada por faixas:
   // infantil (3), anos iniciais (5), anos finais (4), ensino médio (3).
+  // A direção é controlável pelo usuário (avOrder / pbOrder):
+  //   AV padrão: Maternal → 3º Médio ("asc")
+  //   PB padrão: 9º Ano → Maternal ("desc") — começa pelo 9º Ano
+  const orient = (list: string[], order: SeriesOrder): string[] =>
+    order === "desc" ? [...list].reverse() : list;
+
   const PHASES: Array<{ av: string[]; pb: string[] }> = [
-    { av: ["MATERNAL", "JARDIM", "PRE"],                 pb: ["MATERNAL", "JARDIM", "PRE"] },
-    { av: ["ANO_1", "ANO_2", "ANO_3", "ANO_4", "ANO_5"], pb: ["ANO_1", "ANO_2", "ANO_3", "ANO_4", "ANO_5"] },
-    { av: ["ANO_6", "ANO_7", "ANO_8", "ANO_9"],          pb: ["ANO_6", "ANO_7", "ANO_8", "ANO_9"] },
-    { av: ["MEDIO_1", "MEDIO_2", "MEDIO_3"],             pb: [] as string[] },
+    { av: orient(["MATERNAL", "JARDIM", "PRE"], avOrder),                 pb: orient(["MATERNAL", "JARDIM", "PRE"], pbOrder) },
+    { av: orient(["ANO_1", "ANO_2", "ANO_3", "ANO_4", "ANO_5"], avOrder), pb: orient(["ANO_1", "ANO_2", "ANO_3", "ANO_4", "ANO_5"], pbOrder) },
+    { av: orient(["ANO_6", "ANO_7", "ANO_8", "ANO_9"], avOrder),          pb: orient(["ANO_6", "ANO_7", "ANO_8", "ANO_9"], pbOrder) },
+    { av: orient(["MEDIO_1", "MEDIO_2", "MEDIO_3"], avOrder),             pb: [] as string[] },
   ];
 
   // Estratégia de intercalação (igual ao 2026): percorre as fases em ordem,
@@ -106,42 +145,60 @@ export function generateMandatoryPublications(
   const PB_GAP = 4;
   const avIndexOfSeries = new Map<string, number>();
   avItems.forEach((it, idx) => avIndexOfSeries.set(it.seriesId, idx));
-  const pbBySeriesOrder = pbItems; // já na ordem Maternal→9º Ano
+
+  // Ordem de EMISSÃO do bloco PB conforme a direção escolhida pelo usuário
+  // (pbOrder: "desc" = começa pelo 9º Ano; "asc" = começa pelo Maternal).
+  // A fila é sempre percorrida em ordem didática (Maternal → 9º Ano) para o
+  // cálculo da distância por série; ao soltar itens, emitimos primeiro os que
+  // vêm DEPOIS do último liberado na sequência desejada — assim o primeiro PB
+  // agendado respeita a escolha do usuário.
+  const pbByEmission = pbOrder === "desc" ? [...pbItems].reverse() : pbItems;
+  const emissionRank = new Map<string, number>();
+  pbByEmission.forEach((it, idx) => emissionRank.set(it.seriesId, idx));
+  const didaticList = [...pbItems].sort(
+    (a, b) => SERIES_PB.indexOf(a.seriesId) - SERIES_PB.indexOf(b.seriesId)
+  );
 
   const sequence: Array<{ categoryId: string; seriesId: string }> = [];
-  let pbCursor = 0;
+  let releasedCount = 0; // quantidade da fila didática já liberada
   for (let i = 0; i < avItems.length; i++) {
     sequence.push(avItems[i]);
-    // Solta itens de PB cujo "par de AV da mesma série" já está a PB_GAP
-    // ou mais posições para trás.
-    while (pbCursor < pbBySeriesOrder.length) {
-      const candidate = pbBySeriesOrder[pbCursor];
+    // Libera itens da fila didática cujo par de AV está a PB_GAP ou mais
+    // posições para trás.
+    let newRelease = releasedCount;
+    while (newRelease < didaticList.length) {
+      const candidate = didaticList[newRelease];
       const avIdx = avIndexOfSeries.get(candidate.seriesId);
-      // Séries sem par em AV (não existem aqui) entram livremente.
-      if (avIdx === undefined || i - avIdx >= PB_GAP) {
-        sequence.push(candidate);
-        pbCursor++;
-      } else {
-        break;
-      }
+      if (avIdx === undefined || i - avIdx >= PB_GAP) newRelease++;
+      else break;
+    }
+    // Emite os recém-liberados na ordem de emissão escolhida (ex.: 9º→Maternal)
+    if (newRelease > releasedCount) {
+      const fresh = didaticList.slice(releasedCount, newRelease);
+      fresh.sort((a, b) => (emissionRank.get(a.seriesId) ?? 0) - (emissionRank.get(b.seriesId) ?? 0));
+      sequence.push(...fresh);
+      releasedCount = newRelease;
     }
   }
-  // PBs restantes (séries do fundamental final que só liberam no fim)
-  while (pbCursor < pbBySeriesOrder.length) {
-    sequence.push(pbBySeriesOrder[pbCursor]);
-    pbCursor++;
-  }
+  // PBs restantes (liberados no fim) — também na ordem de emissão escolhida
+  const rest = didaticList.slice(releasedCount);
+  rest.sort((a, b) => (emissionRank.get(a.seriesId) ?? 0) - (emissionRank.get(b.seriesId) ?? 0));
+  sequence.push(...rest);
 
   const warnings: string[] = [];
   let skipped = 0;
-  let dateCursor = new Date(start);
+  let weekBase = new Date(start);
   const publications: Omit<Publication, "id">[] = [];
 
   for (const item of sequence) {
-    // Avança o cursor até encontrar um dia útil (segunda a sexta, sem feriado)
+    // Data da semana corrente ajustada para o dia útil alvo (Seg→Sex rotativo)
+    let dateCursor = alignToNthBusinessDay(weekBase);
+    // Se o dia alvo caiu em feriado e empurrou para o fim de semana,
+    // avança até o próximo dia útil.
     let guard = 0;
     while (!isBusinessDay(dateCursor, holidays) && guard < 220) {
       skipped++;
+      dateCursor = new Date(dateCursor);
       dateCursor.setDate(dateCursor.getDate() + 1);
       guard++;
     }
@@ -168,8 +225,11 @@ export function generateMandatoryPublications(
       tags: ["obrigatoria", "plano-anual"],
     });
 
-    // Próxima publicação exatamente 1 semana depois (1 publicação por semana)
-    dateCursor.setDate(dateCursor.getDate() + 7);
+    // Próxima publicação na semana seguinte (1 por semana), em outro dia da
+    // semana — evita que tudo fique agendado nas segundas-feiras.
+    advanceWeekday();
+    weekBase = new Date(weekBase);
+    weekBase.setDate(weekBase.getDate() + 7);
   }
 
   return { publications, skippedWeekendsAndHolidays: skipped, warnings };
