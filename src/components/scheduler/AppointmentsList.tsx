@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  BookOpen,
   Filter,
   Plus,
   Trash2,
@@ -244,6 +245,19 @@ export function AppointmentsList({
                     <Users className="w-3.5 h-3.5 text-indigo-600" />
                     <span className="line-clamp-1">Resp: {apt.teacherName}</span>
                   </div>
+
+                  {(() => {
+                    const subject =
+                      apt.subject ??
+                      (apt as unknown as { subject?: string | null }).subject;
+                    if (!subject) return null;
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 shrink-0 text-teal-600" />
+                        <span className="line-clamp-1">{subject}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {apt.observations && (
