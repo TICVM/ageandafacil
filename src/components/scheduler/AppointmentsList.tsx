@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Calendar,
   Clock,
@@ -14,6 +14,7 @@ import {
   Plus,
   Trash2,
   Images,
+  X,
 } from "lucide-react";
 import { Appointment, AppointmentStatus, PhotoLocation, SchoolClass } from "@/lib/scheduler/types";
 import { formatDateForDisplay } from "@/lib/calendar/utils";
@@ -42,6 +43,8 @@ export function AppointmentsList({
 }: AppointmentsListProps) {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [locationFilter, setLocationFilter] = useState<string>("ALL");
+  const [classFilter, setClassFilter] = useState<string>("ALL");
+  const [subjectFilter, setSubjectFilter] = useState<string>("ALL");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -77,11 +80,57 @@ export function AppointmentsList({
     return "Turma não informada";
   };
 
+  // Opções de turma: todas as turmas cadastradas no banco (school_classes)
+  // mais as turmas citadas nas sessões que porventura não estejam no cadastro.
+  const classOptions = useMemo(() => {
+    const map = new Map<string, string>(); // value -> label
+    classes.forEach((c) => map.set(c.id, c.name));
+    appointments.forEach((a) => {
+      const name = a.className && a.className !== "Turma" && a.className !== "Não informada"
+        ? a.className
+        : null;
+      if (a.schoolClassId && !map.has(a.schoolClassId)) {
+        map.set(a.schoolClassId, name ?? a.schoolClassId);
+      } else if (!a.schoolClassId && name) {
+        map.set(`name:${name}`, name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((x, y) => x.label.localeCompare(y.label, "pt-BR"));
+  }, [appointments, classes]);
+
+  // Opções de disciplina: valores únicos presentes nas sessões.
+  const subjectOptions = useMemo(() => {
+    const set = new Set<string>();
+    appointments.forEach((a) => {
+      const s = (a.subject ?? "").trim();
+      if (s) set.add(s);
+    });
+    return Array.from(set).sort((x, y) => x.localeCompare(y, "pt-BR"));
+  }, [appointments]);
+
   const filtered = appointments.filter((a) => {
     if (statusFilter !== "ALL" && a.status !== statusFilter) return false;
     if (locationFilter !== "ALL" && a.photoLocationId !== locationFilter) return false;
+    if (classFilter !== "ALL") {
+      if (classFilter.startsWith("name:")) {
+        if (getClassName(a) !== classFilter.slice(5)) return false;
+      } else if (a.schoolClassId) {
+        if (a.schoolClassId !== classFilter) return false;
+      } else if (getClassName(a) !== classes.find((c) => c.id === classFilter)?.name) {
+        return false;
+      }
+    }
+    if (subjectFilter !== "ALL" && (a.subject ?? "").trim() !== subjectFilter) return false;
     return true;
   });
+
+  const hasActiveFilters =
+    statusFilter !== "ALL" ||
+    locationFilter !== "ALL" ||
+    classFilter !== "ALL" ||
+    subjectFilter !== "ALL";
 
   const getStatusBadge = (status: AppointmentStatus) => {
     switch (status) {
@@ -189,6 +238,48 @@ export function AppointmentsList({
               </option>
             ))}
           </select>
+
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="h-8 px-2.5 text-xs font-medium rounded-lg border border-border bg-background text-foreground max-w-[160px]"
+          >
+            <option value="ALL">Todas as Turmas</option>
+            {classOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={subjectFilter}
+            onChange={(e) => setSubjectFilter(e.target.value)}
+            className="h-8 px-2.5 text-xs font-medium rounded-lg border border-border bg-background text-foreground max-w-[160px]"
+          >
+            <option value="ALL">Todas as Disciplinas</option>
+            {subjectOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("ALL");
+                setLocationFilter("ALL");
+                setClassFilter("ALL");
+                setSubjectFilter("ALL");
+              }}
+              className="h-8 px-2.5 text-xs font-semibold rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1"
+              title="Limpar todos os filtros"
+            >
+              <X className="w-3.5 h-3.5" /> Limpar
+            </button>
+          )}
         </div>
 
         <button
