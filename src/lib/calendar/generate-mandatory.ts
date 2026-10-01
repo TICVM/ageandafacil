@@ -9,18 +9,28 @@ import { DEFAULT_PRODUCTION_DEADLINES } from "./constants";
  *  - Atividades Variadas: 1 publicação por série (Maternal ao 3º Médio) = 15
  *  - Programa Bilíngue:   1 publicação por série (Maternal ao 9º Ano)    = 12
  *  - Total: 27 publicações obrigatórias, no máximo 1 por semana, até setembro
- *  - Intercalação por FASES (espelhando o plano de 2026): primeiro as fases
- *    iniciais (Maternal → Pré) das duas categorias, depois as séries inicias
- *    (1º–5º Ano), depois as intermediárias (6º–9º Ano) e por último o Ensino
- *    Médio. Assim a publicação do Maternal de Atividades Variadas NUNCA vem
- *    logo em seguida da publicação do Maternal do Programa Bilíngue — entre
- *    elas sempre haverá publicações de outras séries.
- *  - Nunca em finais de semana nem feriados (usa os feriados cadastrados)
+ *  - Ritmo de intercalação fixo 2:1 — a cada 2 publicações de Atividades
+ *    Variadas vem 1 do Programa Bilíngue. Ex.:
+ *      Maternal  → Atividades Variadas  (08/02)
+ *      Jardim    → Atividades Variadas  (16/02)
+ *      9º Ano    → Programa Bilíngue    (24/02)
+ *      Pré       → Atividades Variadas  (02/03)
+ *      1º Ano    → Atividades Variadas  (09/03)
+ *      8º Ano    → Programa Bilíngue    (16/03) …
+ *  - AV percorre as séries de Maternal ao 3º Médio; PB percorre na direção
+ *    oposta (9º Ano → Maternal). O usuário pode inverter essa direção.
+ *  - Como o ritmo é 2:1, uma série jamais aparece em AV e PB em semanas
+ *    seguidas (entre as duas sempre há pelo menos 2 outras publicações).
+ *  - Datas distribuídas entre os dias úteis (Seg→Sex rotativo), nunca em
+ *    finais de semana nem feriados (usa os feriados cadastrados)
  *  - Sem título e com status "PLANEJAMENTO"
  */
 
 /** Direção da sequência de séries dentro de cada categoria */
 export type SeriesOrder = "asc" | "desc";
+
+/** Ritmo fixo de intercalação: a cada 2 AV, 1 PB */
+const AV_PER_PB = 2;
 
 export interface GenerationOptions {
   year: number;
@@ -100,90 +110,91 @@ export function generateMandatoryPublications(
   const end = parseDateString(endDateStr);
 
   // ------------------------------------------------------------------
-  // Sequência espelhada no plano real de 2026 (datas previstas):
+  // Sequência no ritmo 2:1 pedido pelo usuário:
+  //   pos 1: AV[0]  (Maternal)      pos 2: AV[1]  (Jardim)
+  //   pos 3: PB[0]  (9º Ano)        pos 4: AV[2]  (Pré)
+  //   pos 5: AV[3]  (1º Ano)        pos 6: PB[1]  (8º Ano)  …
   //
-  //   AV: Maternal(20/fev) Jardim(25/mar) Pré(08/mai) 1ºAno(16/jun) …
-  //   PB: 5ºAno(24/fev) 9ºAno(04/mai) Maternal(28/mai) … Jardim(17/ago)
-  //
-  // Regra central observada no modelo: entre a publicação de uma série em
-  // Atividades Variadas e a MESMA série em Programa Bilíngue sempre existem
-  // várias outras publicações — nunca uma em seguida da outra.
-  //
-  // Implementação: bloco AV (15 séries, ordem didática Maternal→Médio) e
-  // bloco PB (12 séries), entrelaçados com distância mínima (PB_GAP semanas)
-  // entre a mesma série nas duas categorias. O primeiro item de PB entra só
-  // após as primeiras infantis de AV (como no 2026, onde o 1º PB foi um 5º
-  // Ano logo na 1ª semana — aqui mantemos a folga garantida por série).
+  // AV consome a fila Maternal → 3º Médio; PB consome a fila oposta
+  // (9º Ano → Maternal). Direções podem ser invertidas pelo usuário.
   // ------------------------------------------------------------------
 
-  // Ordem das séries dentro de cada categoria, agrupada por faixas:
-  // infantil (3), anos iniciais (5), anos finais (4), ensino médio (3).
-  // A direção é controlável pelo usuário (avOrder / pbOrder):
-  //   AV padrão: Maternal → 3º Médio ("asc")
-  //   PB padrão: 9º Ano → Maternal ("desc") — começa pelo 9º Ano
   const orient = (list: string[], order: SeriesOrder): string[] =>
     order === "desc" ? [...list].reverse() : list;
 
-  const PHASES: Array<{ av: string[]; pb: string[] }> = [
-    { av: orient(["MATERNAL", "JARDIM", "PRE"], avOrder),                 pb: orient(["MATERNAL", "JARDIM", "PRE"], pbOrder) },
-    { av: orient(["ANO_1", "ANO_2", "ANO_3", "ANO_4", "ANO_5"], avOrder), pb: orient(["ANO_1", "ANO_2", "ANO_3", "ANO_4", "ANO_5"], pbOrder) },
-    { av: orient(["ANO_6", "ANO_7", "ANO_8", "ANO_9"], avOrder),          pb: orient(["ANO_6", "ANO_7", "ANO_8", "ANO_9"], pbOrder) },
-    { av: orient(["MEDIO_1", "MEDIO_2", "MEDIO_3"], avOrder),             pb: [] as string[] },
-  ];
+  const avQueue = orient(SERIES_AV, avOrder).map((s) => ({
+    categoryId: "ATIVIDADES_VARIADAS",
+    seriesId: s,
+  }));
+  const pbQueue = orient(SERIES_PB, pbOrder).map((s) => ({
+    categoryId: "PROGRAMA_BILINGUE",
+    seriesId: s,
+  }));
 
-  // Estratégia de intercalação (igual ao 2026): percorre as fases em ordem,
-  // emitindo primeiro toda a fase de AV e, logo atrás dela (com atraso de
-  // uma janela inteira da fase), a mesma fase de PB. Como cada fase tem
-  // tamanho >= 3, a série X de AV nunca fica adjacente à série X de PB.
-  const avItems = PHASES.flatMap((p) => p.av.map((s) => ({ categoryId: "ATIVIDADES_VARIADAS", seriesId: s })));
-  const pbItems = PHASES.flatMap((p) => p.pb.map((s) => ({ categoryId: "PROGRAMA_BILINGUE", seriesId: s })));
-
-  // Mescla determinística: para cada item de AV, insere itens de PB apenas
-  // quando já passaram pelo menos PB_GAP publicações desde o item AV da
-  // MESMA série — garantindo distância mínima entre a mesma série nas duas
-  // categorias (no plano 2026 essa distância é de 3 a 10 semanas).
-  const PB_GAP = 4;
-  const avIndexOfSeries = new Map<string, number>();
-  avItems.forEach((it, idx) => avIndexOfSeries.set(it.seriesId, idx));
-
-  // Ordem de EMISSÃO do bloco PB conforme a direção escolhida pelo usuário
-  // (pbOrder: "desc" = começa pelo 9º Ano; "asc" = começa pelo Maternal).
-  // A fila é sempre percorrida em ordem didática (Maternal → 9º Ano) para o
-  // cálculo da distância por série; ao soltar itens, emitimos primeiro os que
-  // vêm DEPOIS do último liberado na sequência desejada — assim o primeiro PB
-  // agendado respeita a escolha do usuário.
-  const pbByEmission = pbOrder === "desc" ? [...pbItems].reverse() : pbItems;
-  const emissionRank = new Map<string, number>();
-  pbByEmission.forEach((it, idx) => emissionRank.set(it.seriesId, idx));
-  const didaticList = [...pbItems].sort(
-    (a, b) => SERIES_PB.indexOf(a.seriesId) - SERIES_PB.indexOf(b.seriesId)
-  );
-
+  // Intercalação no ritmo 2:1 — a cada 2 publicações de Atividades Variadas
+  // vem 1 do Programa Bilíngue (ex.: Maternal-AV, Jardim-AV, 9ºAno-PB,
+  // Pré-AV, 1ºAno-AV, 8ºAno-PB …). AV percorre as séries em uma direção e PB
+  // na oposta; o usuário pode inverter. Como as filas andam em sentidos
+  // contrários, uma série só "encosta" no próprio par perto do meio do plano.
+  // Nesse caso procuramos adiante na fila de PB (mantendo a direção escolhida)
+  // um item cuja série não apareceu como AV nos últimos MIN_GAP slots; se
+  // todos estiverem colados, adiamos o PB e emitimos mais uma AV.
+  const MIN_GAP = 3; // distância mínima de posições entre o par AV/PB da mesma série
   const sequence: Array<{ categoryId: string; seriesId: string }> = [];
-  let releasedCount = 0; // quantidade da fila didática já liberada
-  for (let i = 0; i < avItems.length; i++) {
-    sequence.push(avItems[i]);
-    // Libera itens da fila didática cujo par de AV está a PB_GAP ou mais
-    // posições para trás.
-    let newRelease = releasedCount;
-    while (newRelease < didaticList.length) {
-      const candidate = didaticList[newRelease];
-      const avIdx = avIndexOfSeries.get(candidate.seriesId);
-      if (avIdx === undefined || i - avIdx >= PB_GAP) newRelease++;
-      else break;
+  const lastAvPos = new Map<string, number>(); // última posição de AV por série
+  const pendingPb = [...pbQueue]; // fila de PB na ordem de emissão escolhida
+  let ai = 0; // ponteiro da fila AV
+  let avRun = 0; // AVs emitidas desde o último PB
+
+  const isBlocked = (seriesId: string, pos: number): boolean => {
+    const lp = lastAvPos.get(seriesId);
+    return lp !== undefined && pos - lp < MIN_GAP;
+  };
+
+  while (ai < avQueue.length || pendingPb.length > 0) {
+    if (pendingPb.length === 0) {
+      // cauda de AV (15 AV × 12 PB → sobram 3 AV no fim)
+      sequence.push(avQueue[ai]);
+      lastAvPos.set(avQueue[ai].seriesId, sequence.length);
+      ai++;
+      avRun++;
+      continue;
     }
-    // Emite os recém-liberados na ordem de emissão escolhida (ex.: 9º→Maternal)
-    if (newRelease > releasedCount) {
-      const fresh = didaticList.slice(releasedCount, newRelease);
-      fresh.sort((a, b) => (emissionRank.get(a.seriesId) ?? 0) - (emissionRank.get(b.seriesId) ?? 0));
-      sequence.push(...fresh);
-      releasedCount = newRelease;
+    if (ai >= avQueue.length) {
+      // cauda de PB: solta em ordem
+      sequence.push(pendingPb.shift()!);
+      avRun = 0;
+      continue;
     }
+    if (avRun >= AV_PER_PB) {
+      // Slot de PB: pega o primeiro da fila que respeite a distância mínima
+      const nextPos = sequence.length + 1;
+      let k = -1;
+      for (let j = 0; j < pendingPb.length; j++) {
+        if (!isBlocked(pendingPb[j].seriesId, nextPos)) {
+          k = j;
+          break;
+        }
+      }
+      if (k >= 0) {
+        const item = pendingPb.splice(k, 1)[0];
+        if (k > 0) pendingPb.unshift(item); // volta p/ frente: direção preservada quando destravar
+        sequence.push(item);
+        avRun = 0;
+        continue;
+      }
+      // Todos os PB pendentes estão colados no par: emite mais uma AV antes.
+      sequence.push(avQueue[ai]);
+      lastAvPos.set(avQueue[ai].seriesId, sequence.length);
+      ai++;
+      avRun++;
+      continue;
+    }
+    sequence.push(avQueue[ai]);
+    lastAvPos.set(avQueue[ai].seriesId, sequence.length);
+    ai++;
+    avRun++;
   }
-  // PBs restantes (liberados no fim) — também na ordem de emissão escolhida
-  const rest = didaticList.slice(releasedCount);
-  rest.sort((a, b) => (emissionRank.get(a.seriesId) ?? 0) - (emissionRank.get(b.seriesId) ?? 0));
-  sequence.push(...rest);
 
   const warnings: string[] = [];
   let skipped = 0;
