@@ -15,6 +15,7 @@ export interface SchoolClass {
   id: string;
   name: string;
   segmentId: string;
+  order?: number;
 }
 
 export type AppointmentStatus =
@@ -45,6 +46,8 @@ export interface Appointment {
   appointmentDate: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
+  /** Disciplina da sessão (campo "subject" no Firestore). */
+  subject?: string | null;
   status: AppointmentStatus;
   observations?: string;
   history?: AppointmentHistoryEntry[];
