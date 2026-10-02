@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Link2, Table2, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Link2, RotateCcw, Table2, X } from "lucide-react";
 import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
 import { Appointment, AppointmentStatus, SchoolClass } from "@/lib/scheduler/types";
 import { resolveClassName } from "@/lib/scheduler/association";
@@ -45,6 +45,12 @@ interface ControlTablesProps {
   editingPublicationId?: string | null;
   /** Função que define qual publicação está em edição (pausa a sincronia automática). */
   onSetEditingPublicationId?: (id: string | null) => void;
+  /**
+   * Abre o modal "Restaurar publicações do plano anual" para o ano indicado.
+   * Usado pelo botão "Restaurar publicações" quando uma publicação obrigatória
+   * (ex.: 5º Ano do Programa Bilíngue) saiu da tabela após uma alteração.
+   */
+  onRequestRestore?: (year: number) => void;
 }
 
 interface RowData {
@@ -403,6 +409,7 @@ export function ControlTables({
   onUpdateAppointmentStatus,
   editingPublicationId,
   onSetEditingPublicationId,
+  onRequestRestore,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
 
@@ -545,20 +552,33 @@ export function ControlTables({
             tabela e clique no status para publicar.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-sm font-bold">
-          Ano:
-          <select
-            value={activeYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center gap-2 flex-wrap">
+          {onRequestRestore && (
+            <button
+              type="button"
+              onClick={() => onRequestRestore(activeYear)}
+              title="Recupera publicações obrigatórias que saíram da tabela (ex.: 5º Ano do Programa Bilíngue)"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Restaurar publicações do plano anual
+            </button>
+          )}
+          <label className="flex items-center gap-2 text-sm font-bold">
+            Ano:
+            <select
+              value={activeYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       <PublicationTable
