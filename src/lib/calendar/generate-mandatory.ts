@@ -251,6 +251,310 @@ export function mandatoryStableId(year: number, categoryId: string, seriesId: st
 }
 
 /**
+ * Recupera o histórico de exclusões de uma publicação. Quando ela é apagada,
+ * alguns fluxos registram aqui os dados originais (categoria, série, datas),
+ * permitindo restaurá-la exatamente como estava no Controle de Publicações.
+ */
+const DELETED_SNAPSHOT_KEY = "schoollens_deleted_publication_snapshots_v1";
+
+export type DeletedSnapshotMap = Record<string, Omit<Publication, "id"> & { id?: string }>;
+
+export function getDeletedSnapshots(): DeletedSnapshotMap {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(DELETED_SNAPSHOT_KEY);
+    return raw ? (JSON.parse(raw) as DeletedSnapshotMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Salva (ou substitui) o snapshot de uma publicação excluída. */
+export function saveDeletedSnapshot(pub: Publication): void {
+  if (typeof window === "undefined") return;
+  try {
+    const map = getDeletedSnapshots();
+    map[pub.id] = { ...pub };
+    localStorage.setItem(DELETED_SNAPSHOT_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+/** Remove o snapshot após a restauração bem-sucedida. */
+export function clearDeletedSnapshot(id: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const map = getDeletedSnapshots();
+    if (!(id in map)) return;
+    delete map[id];
+    localStorage.setItem(DELETED_SNAPSHOT_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+/** Série pertence à categoria? (PB vai do Maternal ao 9º Ano; AV até o 3º Médio) */
+function seriesInCategory(categoryId: string, seriesId: string): boolean {
+  if (categoryId === PB_CATEGORY_ID_CONST) return SERIES_PB.includes(seriesId);
+  return SERIES_AV.includes(seriesId);
+}
+
+/**
+ * Constrói a publicação obrigatória que faltava para uma dada série/categoria/ano.
+ *
+ * Estratégia de data: percorre-se o plano completo do ano e retiram-se as
+ * publicações obrigatórias ainda vivas; a vaga da publicação excluída fica
+ * livre e as demais ocupam as semanas seguintes — assim a restaurada recebe a
+ * data que seria dela originalmente, sem colidir com as que continuam na tabela.
+ * Se não houver nenhuma data livre, usa-se a data sugerida pelo usuário.
+ */
+export function buildMissingMandatoryPublication(
+  params: {
+    year: number;
+    categoryId: string;
+    seriesId: string;
+    holidays: Holiday[];
+    existing: Publication[];
+    /** Data escolhida pelo usuário (fallback / sugestão). */
+    date?: string;
+  }
+): Omit<Publication, "id"> {
+  const { year, categoryId, seriesId, holidays, existing, date } = params;
+
+  const isMandatory = (p: Publication) =>
+    !p.isDeleted &&
+    (p.tags?.includes("obrigatoria") || p.tags?.includes("plano-anual")) &&
+    p.publicationDate.startsWith(String(year));
+
+  // Reconstrói o plano do ano para descobrir qual semana pertencia à série.
+  let candidateDate = "";
+  try {
+    const fullPlan = generateMandatoryPublications({ year }, holidays).publications;
+    const taken = new Set(
+      existing.filter(isMandatory).map((p) => p.publicationDate)
+    );
+    const missingOfSameKind = fullPlan.filter(
+      (g) => g.categoryId === categoryId && g.seriesId === seriesId
+    );
+    const freeSlot = [...missingOfSameKind, ...fullPlan].find(
+      (g) => !taken.has(g.publicationDate)
+    );
+    if (freeSlot) candidateDate = freeSlot.publicationDate;
+  } catch {
+    /* geração indisponível — usa a data sugerida */
+  }
+
+  if (!candidateDate) candidateDate = date ?? `${year}-06-01`;
+
+  // Ajusta para dia útil (nunca fim de semana/feriado) e evita duplicar data.
+  const takenDates = new Set(existing.filter(isMandatory).map((p) => p.publicationDate));
+  let cursor = parseDateString(candidateDate);
+  const endOfYear = parseDateString(`${year}-12-31`);
+  let guard = 0;
+  while (
+    (!isBusinessDay(cursor, holidays) || takenDates.has(formatDateToISO(cursor))) &&
+    cursor <= endOfYear &&
+    guard < 300
+  ) {
+    cursor = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+    guard++;
+  }
+  const publicationDate = formatDateToISO(cursor);
+
+  const productionDays = getProductionDays(categoryId, seriesId);
+
+  return {
+    title: "",
+    description:
+      "Publicação obrigatória restaurada no Controle de Publicações (plano anual).",
+    categoryId,
+    seriesId,
+    status: "PLANEJAMENTO" as PublicationStatus,
+    priority: "MEDIA" as Priority,
+    publicationDate,
+    plannedDate: calculatePlannedDate(publicationDate, productionDays, holidays),
+    productionDays,
+    tags: ["obrigatoria", "plano-anual"],
+  };
+}
+
+const PB_CATEGORY_ID_CONST = "PROGRAMA_BILINGUE";
+
+/**
+ * Lista as publicações obrigatórias do plano anual que estão FALTANDO em um
+ * ano — isto é, cada combinação série × categoria (AV: 15 séries, PB: 12) que
+ * não possui nenhuma publicação ativa. É o caso do 5º Ano do Programa Bilíngue
+ * que sumiu da tabela após uma alteração/exclusão.
+ */
+export function findMissingMandatorySeries(
+  publications: Publication[],
+  year: number
+): Array<{ categoryId: string; seriesId: string }> {
+  const present = new Set<string>();
+  for (const p of publications) {
+    if (
+      !p.isDeleted &&
+      (p.tags?.includes("obrigatoria") || p.tags?.includes("plano-anual")) &&
+      p.categoryId &&
+      p.seriesId &&
+      p.publicationDate?.startsWith(String(year))
+    ) {
+      present.add(`${p.categoryId}|${p.seriesId}`);
+    }
+  }
+  const missing: Array<{ categoryId: string; seriesId: string }> = [];
+  for (const s of SERIES_AV) {
+    if (!present.has(`ATIVIDADES_VARIADAS|${s}`)) {
+      missing.push({ categoryId: "ATIVIDADES_VARIADAS", seriesId: s });
+    }
+  }
+  for (const s of SERIES_PB) {
+    if (!present.has(`${PB_CATEGORY_ID_CONST}|${s}`)) {
+      missing.push({ categoryId: PB_CATEGORY_ID_CONST, seriesId: s });
+    }
+  }
+  return missing;
+}
+
+/**
+ * Restaura publicações obrigatórias faltantes do plano anual.
+ *
+ * Para cada série/categoria informada:
+ *  1. se houver snapshot salvo no momento da exclusão, recria com os dados
+ *     originais (datas, título e status que a publicação tinha);
+ *  2. caso contrário, reconstrói a publicação a partir do algoritmo do plano
+ *     anual, respeitando as datas das publicações que ainda existem;
+ *  3. se a publicação apenas saiu do ano selecionado (data movida para outro
+ *     ano), corrige a data de volta para o ano do plano.
+ *
+ * Retorna a lista de publicações prontas para serem criadas/atualizadas pela
+ * UI (`onRestore` decide como persistir).
+ */
+export function restoreMissingMandatoryPublications(params: {
+  year: number;
+  targets: Array<{ categoryId: string; seriesId: string }>;
+  holidays: Holiday[];
+  existing: Publication[];
+}): { toCreate: Omit<Publication, "id">[]; toUpdate: Array<{ id: string; updates: Partial<Publication> }> } {
+  const { year, targets, holidays, existing } = params;
+  const toCreate: Omit<Publication, "id">[] = [];
+  const toUpdate: Array<{ id: string; updates: Partial<Publication> }> = [];
+  const usedDates = new Set(
+    existing
+      .filter(
+        (p) =>
+          !p.isDeleted &&
+          (p.tags?.includes("obrigatoria") || p.tags?.includes("plano-anual")) &&
+          p.publicationDate?.startsWith(String(year))
+      )
+      .map((p) => p.publicationDate)
+  );
+
+  const snapshots = getDeletedSnapshots();
+
+  const publicationsWithPending = (): Publication[] => [
+    ...existing,
+    ...toCreate.map((c, i) => ({ ...c, id: `pending-${i}` }) as Publication),
+  ];
+
+  for (const target of targets) {
+    if (!seriesInCategory(target.categoryId, target.seriesId)) continue;
+
+    // 1) Snapshot da exclusão → restaura com os dados originais.
+    const snap = Object.values(snapshots).find(
+      (s) =>
+        s?.categoryId === target.categoryId &&
+        s?.seriesId === target.seriesId &&
+        s?.publicationDate?.startsWith(String(year))
+    );
+    if (snap) {
+      const { id: _id, history: _h, createdAt: _c, updatedAt: _u, isDeleted: _d, ...rest } =
+        snap as Publication;
+      void _id; void _h; void _c; void _u; void _d;
+      let date = rest.publicationDate;
+      if (usedDates.has(date) || !isBusinessDay(parseDateString(date), holidays)) {
+        date = buildMissingMandatoryPublication({
+          year,
+          categoryId: target.categoryId,
+          seriesId: target.seriesId,
+          holidays,
+          existing: publicationsWithPending(),
+          date: rest.publicationDate,
+        }).publicationDate;
+      }
+      usedDates.add(date);
+      toCreate.push({
+        ...rest,
+        publicationDate: date,
+        plannedDate: calculatePlannedDate(
+          date,
+          rest.productionDays ?? getProductionDays(target.categoryId, target.seriesId),
+          holidays
+        ),
+        tags: [
+          ...new Set([
+            ...(rest.tags ?? []).filter((t) => t !== "obrigatoria" && t !== "plano-anual"),
+            "obrigatoria",
+            "plano-anual",
+          ]),
+        ],
+      });
+      if (snap.id) clearDeletedSnapshot(snap.id);
+      continue;
+    }
+
+    // 2) Existe em outro ano? (a data foi alterada para fora do ano do plano e
+    //    por isso ela "sumiu" da tabela) → corrige a data de volta para o ano.
+    const moved = existing.find(
+      (p) =>
+        !p.isDeleted &&
+        p.categoryId === target.categoryId &&
+        p.seriesId === target.seriesId &&
+        (p.tags?.includes("obrigatoria") || p.tags?.includes("plano-anual")) &&
+        !p.publicationDate.startsWith(String(year))
+    );
+    if (moved) {
+      const rebuilt = buildMissingMandatoryPublication({
+        year,
+        categoryId: target.categoryId,
+        seriesId: target.seriesId,
+        holidays,
+        existing: publicationsWithPending(),
+      });
+      usedDates.add(rebuilt.publicationDate);
+      toUpdate.push({
+        id: moved.id,
+        updates: {
+          publicationDate: rebuilt.publicationDate,
+          plannedDate: rebuilt.plannedDate,
+          tags: [
+            ...new Set([
+              ...(moved.tags ?? []).filter(
+                (t) => t !== "obrigatoria" && t !== "plano-anual"
+              ),
+              "obrigatoria",
+              "plano-anual",
+            ]),
+          ],
+        },
+      });
+      continue;
+    }
+
+    // 3) Não há registro — reconstrói pelo algoritmo do plano anual.
+    const rebuilt = buildMissingMandatoryPublication({
+      year,
+      categoryId: target.categoryId,
+      seriesId: target.seriesId,
+      holidays,
+      existing: publicationsWithPending(),
+    });
+    usedDates.add(rebuilt.publicationDate);
+    toCreate.push(rebuilt);
+  }
+
+  return { toCreate, toUpdate };
+}
+
+/**
  * Remove publicações antigas substituídas pela geração (título vazio + tag
  * "obrigatoria" + categoria obrigatória + ano alvo) — apenas quando o usuário
  * escolhe substituir as existentes.
