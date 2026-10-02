@@ -185,6 +185,7 @@ export function AppHome() {
             {/* Top Dashboard Metric Cards */}
             <DashboardCards
               stats={stats}
+              year={selectedYear}
               upcoming={upcomingSorted}
               categories={categories}
               onSelectPublication={handleSelectPublication}
@@ -286,6 +287,9 @@ export function AppHome() {
         series={series}
         holidays={holidays}
         allPublications={publications}
+        appointments={appointments}
+        classes={classes}
+        onUpdateAppointmentStatus={updateStatus}
         onSave={async (data) => {
           await createPublication(data);
         }}
