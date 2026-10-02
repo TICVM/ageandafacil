@@ -35,6 +35,8 @@ export function getPublicationLabel(pub: Publication, categoryName?: string): st
   return "(Sem título)";
 }
 
+const STATS_CARDS_HIDDEN_KEY = "calendar-stats-cards-hidden";
+
 interface DashboardCardsProps {
   stats: DashboardStats;
   /** Ano ativo do calendário — os cards contam apenas publicações deste ano. */
@@ -43,6 +45,9 @@ interface DashboardCardsProps {
   categories: Category[];
   onSelectPublication: (pub: Publication) => void;
   onNewPublication: () => void;
+  /** Controle externo de visibilidade dos cards (opcional). */
+  collapsed?: boolean;
+  onToggleCollapsed?: (collapsed: boolean) => void;
 }
 
 export function DashboardCards({
@@ -52,7 +57,34 @@ export function DashboardCards({
   categories,
   onSelectPublication,
   onNewPublication,
+  collapsed: collapsedProp,
+  onToggleCollapsed,
 }: DashboardCardsProps) {
+  // Estado interno (persistido em localStorage) usado quando não há controle externo.
+  const [internalCollapsed, setInternalCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(STATS_CARDS_HIDDEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const isCollapsed = collapsedProp ?? internalCollapsed;
+
+  const toggleCollapsed = () => {
+    const next = !isCollapsed;
+    if (onToggleCollapsed) {
+      onToggleCollapsed(next);
+    } else {
+      setInternalCollapsed(next);
+      try {
+        window.localStorage.setItem(STATS_CARDS_HIDDEN_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore storage errors */
+      }
+    }
+  };
   const getCategoryColor = (catId: string) => {
     return categories.find((c) => c.id === catId)?.color || "#6B7280";
   };
@@ -172,8 +204,39 @@ export function DashboardCards({
 
   return (
     <div className="space-y-6">
+      {/* Barra de controle: ocultar/exibir os cards de resumo */}
+      <div className="flex items-center justify-between">
+        {isCollapsed ? (
+          <p className="text-xs text-muted-foreground">
+            Cards de resumo ocultos
+          </p>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-expanded={!isCollapsed}
+          title={isCollapsed ? "Mostrar cards de resumo" : "Ocultar cards de resumo"}
+        >
+          {isCollapsed ? (
+            <>
+              <Eye className="w-3.5 h-3.5" />
+              Mostrar cards
+            </>
+          ) : (
+            <>
+              <EyeOff className="w-3.5 h-3.5" />
+              Ocultar cards
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Cards Grid — 10 cards em fluxo responsivo (2/3/5 colunas) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+      {!isCollapsed && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {cardItems.map((card, idx) => {
           const Icon = card.icon;
           return (
@@ -196,7 +259,8 @@ export function DashboardCards({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
