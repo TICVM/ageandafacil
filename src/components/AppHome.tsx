@@ -40,6 +40,10 @@ export function AppHome() {
   // Scheduler State
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
+  // Pausa temporária da sincronia automática quando o usuário altera o status
+  // manualmente na aba "Controle de Publicações" (cascata vice-versa).
+  const [manualSyncPauseId, setManualSyncPauseId] = useState<string | null>(null);
+
   // Calendar Hooks
   const {
     publications,
@@ -68,14 +72,18 @@ export function AppHome() {
     deleteAppointment,
   } = useScheduler();
 
-  // Associação automática: sessões fotográficas confirmadas/publicadas
-  // atualizam o status das publicações obrigatórias correspondentes
-  // (Programa Bilíngue para disciplinas de idioma, Atividades Variadas p/ as demais).
+  // Associação automática: o status das sessões fotográficas espelha-se nas
+  // publicações obrigatórias correspondentes (mapeamento completo — ver
+  // src/lib/scheduler/status-mapping.ts):
+  //   Editar/Pendente → Produção de Conteúdo · Em aprovação → Revisão/Aprovação
+  //   Aprovado → Aprovado para publicar · Confirmado → Agendado · Publicado → Publicado
+  // A publicação em edição no momento é ignorada pela sincronia.
   useAppointmentPublicationLink({
     appointments,
     classes,
     publications,
     onUpdatePublication: updatePublication,
+    publicationBeingEdited: isPubModalOpen ? selectedPubForModal?.id ?? null : manualSyncPauseId,
   });
 
   const stats = getStats(selectedYear);
@@ -199,6 +207,7 @@ export function AppHome() {
             appointments={appointments}
             classes={classes}
             onUpdateAppointmentStatus={updateStatus}
+            editingPublicationId={setManualSyncPauseId}
           />
         ) : (
           <div className="space-y-6">
