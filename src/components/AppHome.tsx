@@ -327,6 +327,15 @@ export function AppHome() {
         onConfirm={handleGeneratePlanConfirm}
       />
 
+      <RestorePublicationsModal
+        isOpen={isRestoreOpen}
+        onClose={() => setIsRestoreOpen(false)}
+        year={restoreYear}
+        holidays={holidays}
+        publications={publications}
+        onRestore={handleRestoreConfirm}
+      />
+
       <BookingModal
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
