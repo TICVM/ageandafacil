@@ -8,6 +8,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Flame,
+  CalendarCheck,
+  Palette,
+  SearchCheck,
+  BadgeCheck,
   ArrowRight,
   Trash2,
   Eye,
@@ -109,6 +113,38 @@ export function DashboardCards({
       bgColor: "bg-amber-50 border-amber-200",
     },
     {
+      title: "Agendados",
+      value: stats.scheduled ?? 0,
+      subtitle: "Com data confirmada",
+      icon: CalendarCheck,
+      color: "text-sky-600",
+      bgColor: "bg-sky-50 border-sky-200",
+    },
+    {
+      title: "Em Produção",
+      value: stats.inProduction ?? 0,
+      subtitle: "Sendo produzidos",
+      icon: Palette,
+      color: "text-violet-600",
+      bgColor: "bg-violet-50 border-violet-200",
+    },
+    {
+      title: "Revisão / Aprovação",
+      value: stats.inReview ?? 0,
+      subtitle: "Em conferência",
+      icon: SearchCheck,
+      color: "text-teal-600",
+      bgColor: "bg-teal-50 border-teal-200",
+    },
+    {
+      title: "Aprovados p/ Publicar",
+      value: stats.approved ?? 0,
+      subtitle: "Prontos para ir ao ar",
+      icon: BadgeCheck,
+      color: "text-lime-600",
+      bgColor: "bg-lime-50 border-lime-200",
+    },
+    {
       title: "Concluídas / No Ar",
       value: stats.completed,
       subtitle: "Publicadas com sucesso",
@@ -136,8 +172,8 @@ export function DashboardCards({
 
   return (
     <div className="space-y-6">
-      {/* 6 Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* Cards Grid — 10 cards em fluxo responsivo (2/3/5 colunas) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {cardItems.map((card, idx) => {
           const Icon = card.icon;
           return (
