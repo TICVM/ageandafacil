@@ -402,8 +402,18 @@ export function usePublications() {
     return createPublication(duplicateData, userName);
   };
 
+  /**
+   * Estatísticas do painel do calendário SEMPRE restritas ao ano selecionado.
+   * Antes as métricas consideravam todas as publicações do sistema — lançar
+   * algo em 2027 inflava "Total de Publicações", "Em Planejamento",
+   * "Concluídas" etc. Agora, com um ano selecionado, cada card conta apenas
+   * as publicações cuja data está dentro daquele ano.
+   */
   const getStats = useCallback((year = 2026): DashboardStats => {
-    const active = publications.filter((p) => !p.isDeleted);
+    const yearPrefix = `${year}-`;
+    const active = publications.filter(
+      (p) => !p.isDeleted && p.publicationDate?.startsWith(yearPrefix)
+    );
     const now = new Date();
     const currentMonthStr = String(now.getMonth() + 1).padStart(2, "0");
     const yearMonthStr = `${year}-${currentMonthStr}`;
@@ -417,7 +427,14 @@ export function usePublications() {
     const planned = active.filter((p) => p.status === "PLANEJAMENTO").length;
     const completed = active.filter((p) => p.status === "PUBLICADO").length;
     const delayed = active.filter((p) => p.status === "ATRASADO" || (p.status !== "PUBLICADO" && p.publicationDate < todayStr)).length;
-    const next7Days = active.filter((p) => p.publicationDate >= todayStr && p.publicationDate <= next7DaysStr).length;
+    // "Próximos 7 Dias" também não pode ultrapassar a virada do ano.
+    const nextYearPrefix = `${year + 1}-`;
+    const next7Days = active.filter(
+      (p) =>
+        p.publicationDate >= todayStr &&
+        p.publicationDate <= next7DaysStr &&
+        !p.publicationDate.startsWith(nextYearPrefix)
+    ).length;
 
     return {
       total: active.length,
