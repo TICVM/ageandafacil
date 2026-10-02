@@ -33,6 +33,8 @@ export function getPublicationLabel(pub: Publication, categoryName?: string): st
 
 interface DashboardCardsProps {
   stats: DashboardStats;
+  /** Ano ativo do calendário — os cards contam apenas publicações deste ano. */
+  year?: number;
   upcoming: Publication[];
   categories: Category[];
   onSelectPublication: (pub: Publication) => void;
@@ -41,6 +43,7 @@ interface DashboardCardsProps {
 
 export function DashboardCards({
   stats,
+  year,
   upcoming,
   categories,
   onSelectPublication,
@@ -84,7 +87,7 @@ export function DashboardCards({
     {
       title: "Total de Publicações",
       value: stats.total,
-      subtitle: "Cadastradas no sistema",
+      subtitle: year ? `Cadastradas em ${year}` : "Cadastradas no sistema",
       icon: FileText,
       color: "text-blue-600",
       bgColor: "bg-blue-50 border-blue-200",

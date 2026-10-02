@@ -21,6 +21,7 @@ import {
   PublicationStatus,
   Priority,
 } from "@/lib/calendar/types";
+import { Appointment, SchoolClass } from "@/lib/scheduler/types";
 import {
   DEFAULT_STATUSES,
   DEFAULT_PRIORITIES,
@@ -30,6 +31,16 @@ import {
   checkDateConflict,
   formatDateForDisplay,
 } from "@/lib/calendar/utils";
+import {
+  resolveClassName,
+  seriesFromClassName,
+  isBilingualSubject,
+  linkKey,
+} from "@/lib/scheduler/association";
+import {
+  normalizeAppointmentStatus,
+  mapPublicationStatusToAppointment,
+} from "@/lib/scheduler/status-mapping";
 
 interface PublicationModalProps {
   isOpen: boolean;
@@ -40,10 +51,15 @@ interface PublicationModalProps {
   series: Series[];
   holidays: Holiday[];
   allPublications: Publication[];
+  /** Sessões fotográficas — permitem associar publicações do Controle de Publicações. */
+  appointments?: Appointment[];
+  classes?: SchoolClass[];
   onSave: (data: Omit<Publication, "id" | "createdAt" | "updatedAt">) => Promise<void>;
   onUpdate: (id: string, data: Partial<Publication>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDuplicate: (id: string, newDate: string) => Promise<void>;
+  /** Atualiza o status de uma sessão fotográfica (cascata ao salvar no modal). */
+  onUpdateAppointmentStatus?: (appointmentId: string, status: Appointment["status"]) => Promise<void> | void;
   getDeadline: (catId: string, seriesId?: string) => number;
 }
 
@@ -56,10 +72,13 @@ export function PublicationModal({
   series,
   holidays,
   allPublications,
+  appointments,
+  classes,
   onSave,
   onUpdate,
   onDelete,
   onDuplicate,
+  onUpdateAppointmentStatus,
   getDeadline,
 }: PublicationModalProps) {
   const isEditing = Boolean(publication);
@@ -80,6 +99,36 @@ export function PublicationModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDuplicatePrompt, setShowDuplicatePrompt] = useState(false);
   const [duplicateDateInput, setDuplicateDateInput] = useState("");
+  // Vínculo manual com sessões fotográficas (tags "apt:<id>") — permite
+  // associar a publicação às linhas do Controle de Publicações.
+  const [linkedAptIds, setLinkedAptIds] = useState<string[]>([]);
+
+  // Sessões candidatas ao vínculo: as que correspondem à categoria/série
+  // escolhidos no formulário (mesma regra da associação automática), mais as
+  // já vinculadas a esta publicação — para poder removê-las também.
+  const candidateAppointments: Appointment[] = (() => {
+    const list = appointments ?? [];
+    if (list.length === 0) return [];
+    const cls = classes ?? [];
+    const alreadyLinked = new Set(linkedAptIds);
+    return list.filter((a) => {
+      if (alreadyLinked.has(a.id)) return true;
+      const st = normalizeAppointmentStatus(a.status as unknown as string);
+      if (st === "CANCELLED") return false;
+      const aptSeries = seriesFromClassName(resolveClassName(a, cls));
+      if (!aptSeries || aptSeries !== seriesId) return false;
+      const aptCategory = isBilingualSubject(a.subject)
+        ? "PROGRAMA_BILINGUE"
+        : "ATIVIDADES_VARIADAS";
+      return aptCategory === categoryId;
+    });
+  })();
+
+  const toggleLinkedApt = (aptId: string) => {
+    setLinkedAptIds((prev) =>
+      prev.includes(aptId) ? prev.filter((i) => i !== aptId) : [...prev, aptId]
+    );
+  };
 
   // Sync state with open/edit props
   useEffect(() => {
@@ -97,6 +146,11 @@ export function PublicationModal({
       setPriority(publication.priority || "MEDIA");
       setResponsibleName(publication.responsibleName || "");
       setTags(publication.tags || []);
+      setLinkedAptIds(
+        (publication.tags ?? [])
+          .filter((t) => t.startsWith("apt:"))
+          .map((t) => t.slice(4))
+      );
     } else {
       setTitle("");
       setDescription("");
@@ -113,6 +167,7 @@ export function PublicationModal({
       setPriority("MEDIA");
       setResponsibleName("");
       setTags([]);
+      setLinkedAptIds([]);
     }
   }, [publication, initialDate, isOpen, getDeadline]);
 
@@ -161,6 +216,14 @@ export function PublicationModal({
     setIsSaving(true);
 
     try {
+      // Monta as tags finais: remove vínculos "apt:" antigos e adiciona os
+      // selecionados manualmente — é assim que a publicação fica associada às
+      // linhas do Controle de Publicações / sessões fotográficas.
+      const baseTags = tags.filter((t) => !t.startsWith("apt:"));
+      const finalTags = [
+        ...new Set([...baseTags, ...linkedAptIds.map((id) => linkKey(id))]),
+      ];
+
       if (isEditing && publication) {
         await onUpdate(publication.id, {
           title,
@@ -173,8 +236,25 @@ export function PublicationModal({
           status,
           priority,
           responsibleName,
-          tags,
+          tags: finalTags,
         });
+
+        // Cascata imediata: ao publicar/alterar o status aqui, as sessões
+        // fotográficas vinculadas recebem o status equivalente — sem esperar
+        // a sincronia automática.
+        const nowLinked = finalTags.filter((t) => t.startsWith("apt:"));
+        const targetApt = mapPublicationStatusToAppointment(status);
+        for (const t of nowLinked) {
+          const apt = (appointments ?? []).find((a) => a.id === t.slice(4));
+          if (!apt) continue;
+          const cur = normalizeAppointmentStatus(apt.status as unknown as string);
+          if (cur === targetApt) continue;
+          try {
+            await onUpdateAppointmentStatus?.(apt.id, targetApt);
+          } catch (err) {
+            console.warn("Cascata modal→sessão falhou:", err);
+          }
+        }
       } else {
         await onSave({
           title,
@@ -187,7 +267,7 @@ export function PublicationModal({
           status,
           priority,
           responsibleName,
-          tags,
+          tags: finalTags,
         });
       }
       onClose();
@@ -489,7 +569,9 @@ export function PublicationModal({
                 Tags (Pressione Enter para adicionar)
               </label>
               <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg border border-border bg-background min-h-[42px]">
-                {tags.map((t) => (
+                {tags
+                  .filter((t) => !t.startsWith("apt:"))
+                  .map((t) => (
                   <span
                     key={t}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary font-medium"
@@ -514,6 +596,67 @@ export function PublicationModal({
                 />
               </div>
             </div>
+
+            {/* Vínculo com o Controle de Publicações (sessões fotográficas) */}
+            {(candidateAppointments.length > 0 || linkedAptIds.length > 0) && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3.5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-violet-600" />
+                  <span className="text-xs font-bold text-violet-900">
+                    Vincular ao Controle de Publicações (sessões fotográficas)
+                  </span>
+                </div>
+                <p className="text-[11px] text-violet-800/80">
+                  Marque as sessões da série {series.find((s) => s.id === seriesId)?.name ?? seriesId}
+                  {" • "}
+                  {categories.find((c) => c.id === categoryId)?.name ?? categoryId}.
+                  Ao salvar, o status escolhido aqui é aplicado às sessões marcadas
+                  (ex.: Publicado → publica as sessões vinculadas).
+                </p>
+                {candidateAppointments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Nenhuma sessão fotográfica encontrada para esta categoria/série.
+                  </p>
+                ) : (
+                  <ul className="space-y-1 max-h-40 overflow-y-auto">
+                    {candidateAppointments.map((a) => {
+                      const checked = linkedAptIds.includes(a.id);
+                      const aptSt = normalizeAppointmentStatus(a.status as unknown as string) ?? String(a.status);
+                      return (
+                        <li key={a.id}>
+                          <label
+                            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer transition-colors ${
+                              checked
+                                ? "border-violet-400 bg-violet-100/70"
+                                : "border-border bg-background hover:bg-accent/50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleLinkedApt(a.id)}
+                              className="accent-violet-600"
+                            />
+                            <span className="font-bold text-foreground">
+                              {resolveClassName(a, classes ?? []) || a.className || "Turma"}
+                            </span>
+                            {a.subject && (
+                              <span className="text-muted-foreground">• {a.subject}</span>
+                            )}
+                            <span className="text-muted-foreground tabular-nums">
+                              • {formatDateForDisplay(a.appointmentDate)}
+                            </span>
+                            <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">
+                              {aptSt}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* Inline Delete Confirmation Box */}
             {showDeleteConfirm && (
