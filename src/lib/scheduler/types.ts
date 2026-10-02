@@ -28,7 +28,9 @@ export type AppointmentStatus =
   | "RESCHEDULED"
   | "RE_SCHEDULE_REQUEST"
   | "COMPLETED"
-  | "PUBLICADO";
+  | "PUBLICADO"
+  /** Reprogramado: usado quando a sessão é reagendada ou há pedido de reagendamento. */
+  | "REPROGRAMADO";
 
 export interface AppointmentHistoryEntry {
   timestamp: string;

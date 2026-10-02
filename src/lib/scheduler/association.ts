@@ -85,12 +85,15 @@ export function getLinkedKeys(pub: Publication): string[] {
 }
 
 /** Statuses de sessão que NÃO participam da associação automática. */
-const EXCLUDED_STATUSES = new Set<string>(["CANCELLED", "RESCHEDULED", "RE_SCHEDULE_REQUEST"]);
+const EXCLUDED_STATUSES = new Set<string>(["CANCELLED"]);
 
 /**
  * Para cada sessão vinculável (Pendente/Editar/Aprovação/Aprovado/Confirmado/
- * Concluído/Publicado), determina qual publicação obrigatória
- * (categoria + série) deve ser associada. Canceladas e reagendadas ficam de fora.
+ * Concluído/Publicado/Reagendado), determina qual publicação obrigatória
+ * (categoria + série) deve ser associada. Canceladas ficam de fora; sessões
+ * reagendadas / com pedido de reagendamento entram como "REPROGRAMADO".
+ * O status é normalizado — no Firestore pode estar gravado em inglês
+ * minúsculo ("confirmed", "pending", "approved" …).
  */
 export function computeAssociations(
   appointments: Appointment[],
@@ -98,7 +101,8 @@ export function computeAssociations(
 ): LinkInfo[] {
   const out: LinkInfo[] = [];
   for (const apt of appointments) {
-    if (EXCLUDED_STATUSES.has(apt.status)) continue;
+    const st = normalizeAppointmentStatus(apt.status);
+    if (st && EXCLUDED_STATUSES.has(st)) continue;
     const className = resolveClassName(apt, classes);
     const seriesId = seriesFromClassName(className);
     if (!seriesId) continue;
@@ -113,6 +117,7 @@ export function computeAssociations(
  * (mapeamento completo — ver status-mapping.ts):
  *  Editar/Pendente → Produção de Conteúdo · Em aprovação → Revisão/Aprovação
  *  Aprovado → Aprovado para publicar · Confirmado → Agendado · Publicado → Publicado
+ *  Reagendado / Pedido de reagendamento → Reprogramado
  */
 export function targetPublicationStatus(apt: Appointment): PublicationStatus {
   return mapAppointmentStatusToPublication(apt.status);
