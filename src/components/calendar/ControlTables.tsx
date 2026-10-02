@@ -5,8 +5,16 @@ import { CheckCircle2, ChevronDown, ChevronUp, Link2, Table2, X } from "lucide-r
 import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
 import { Appointment, AppointmentStatus, SchoolClass } from "@/lib/scheduler/types";
 import { resolveClassName } from "@/lib/scheduler/association";
-import { mapPublicationStatusToAppointment } from "@/lib/scheduler/status-mapping";
+import {
+  mapPublicationStatusToAppointment,
+  normalizeAppointmentStatus,
+  normalizePublicationStatus,
+} from "@/lib/scheduler/status-mapping";
 import { DEFAULT_SERIES, DEFAULT_STATUSES } from "@/lib/calendar/constants";
+
+/** Chave canônica do status da sessão (banco pode trazer inglês minúsculo). */
+const aptKey = (apt: Appointment): string =>
+  normalizeAppointmentStatus(apt.status) ?? String(apt.status);
 
 /**
  * Aba "Controle de Publicações": duas tabelas — Atividades Variadas e
@@ -52,8 +60,7 @@ const APT_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelado",
   PUBLICADO: "Publicado",
   COMPLETED: "Concluído",
-  RESCHEDULED: "Reagendado",
-  RE_SCHEDULE_REQUEST: "Pedido de reagendamento",
+  REPROGRAMADO: "Reprogramado",
 };
 
 function aptStatusBadgeClass(status: string): string {
@@ -143,12 +150,12 @@ function LinkedSessionsPanel({
                 </span>
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${aptStatusBadgeClass(
-                    a.status
+                    aptKey(a)
                   )}`}
                 >
-                  {APT_STATUS_LABELS[a.status] ?? a.status}
+                  {APT_STATUS_LABELS[aptKey(a)] ?? a.status}
                 </span>
-                {a.status !== "PUBLICADO" && onUpdateAppointmentStatus && (
+                {aptKey(a) !== "PUBLICADO" && onUpdateAppointmentStatus && (
                   <button
                     type="button"
                     onClick={() => onUpdateAppointmentStatus(a.id, "PUBLICADO")}
@@ -204,7 +211,8 @@ function StatusBadge({
   status: PublicationStatus;
   onClick: () => void;
 }) {
-  const meta = DEFAULT_STATUSES.find((s) => s.value === status);
+  const key = normalizePublicationStatus(status) ?? status;
+  const meta = DEFAULT_STATUSES.find((s) => s.value === key);
   return (
     <button
       type="button"
@@ -214,8 +222,8 @@ function StatusBadge({
         meta ? `${meta.bg} ${meta.color}` : "bg-muted text-muted-foreground"
       }`}
     >
-      {status === "PUBLICADO" && <CheckCircle2 className="w-3 h-3 text-green-600" />}
-      {meta?.label ?? status}
+      {key === "PUBLICADO" && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+      {meta?.label ?? key}
     </button>
   );
 }
@@ -291,7 +299,7 @@ function PublicationTable({
               <tbody>
                 {rows.map((row) => {
                   const { pub, seriesName } = row;
-                  const published = pub.status === "PUBLICADO";
+                  const published = normalizePublicationStatus(pub.status) === "PUBLICADO";
                   const isExpanded = expandedPubId === pub.id;
                   return (
                     <React.Fragment key={pub.id}>
@@ -472,6 +480,10 @@ export function ControlTables({
     "PUBLICADO",
   ];
 
+  /** Status da publicação normalizado (banco pode trazer grafias variadas). */
+  const pubKey = (pub: Publication): PublicationStatus =>
+    normalizePublicationStatus(pub.status) ?? pub.status;
+
   /**
    * Ciclo manual do status da publicação. Além de avançar na tabela, propaga
    * o status equivalente para as sessões fotográficas vinculadas
@@ -479,11 +491,12 @@ export function ControlTables({
    * associadas; "Publicado" publica; "Produção de Conteúdo" volta para Editar.
    */
   const handleCycleStatus = async (pub: Publication) => {
+    const current = pubKey(pub);
     let next: PublicationStatus;
-    if (pub.status === "PUBLICADO") {
+    if (current === "PUBLICADO") {
       next = "PLANEJAMENTO";
     } else {
-      const idx = STATUS_CYCLE.indexOf(pub.status);
+      const idx = STATUS_CYCLE.indexOf(current);
       next = idx >= 0 && idx < STATUS_CYCLE.length - 1
         ? STATUS_CYCLE[idx + 1]
         : "PRODUCAO_CONTEUDO";
@@ -503,7 +516,7 @@ export function ControlTables({
       const targetApt = mapPublicationStatusToAppointment(next);
       for (const id of linkedIds) {
         const apt = (appointments ?? []).find((a) => a.id === id);
-        if (!apt || apt.status === targetApt) continue;
+        if (!apt || aptKey(apt) === targetApt) continue;
         try {
           await onUpdateAppointmentStatus(id, targetApt);
         } catch (err) {
