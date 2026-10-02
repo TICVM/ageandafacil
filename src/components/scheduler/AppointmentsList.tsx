@@ -17,7 +17,16 @@ import {
   X,
 } from "lucide-react";
 import { Appointment, AppointmentStatus, PhotoLocation, SchoolClass } from "@/lib/scheduler/types";
+import { normalizeAppointmentStatus } from "@/lib/scheduler/status-mapping";
 import { formatDateForDisplay } from "@/lib/calendar/utils";
+
+/**
+ * Chave canônica do status — no Firestore os status podem estar gravados em
+ * inglês minúsculo ("confirmed", "pending", "approved", "published",
+ * "rescheduled" etc.). Tudo é normalizado antes de comparar/exibir.
+ */
+const aptKey = (apt: Appointment): string =>
+  normalizeAppointmentStatus(apt.status) ?? String(apt.status);
 
 interface AppointmentsListProps {
   appointments: Appointment[];
@@ -111,7 +120,7 @@ export function AppointmentsList({
   }, [appointments]);
 
   const filtered = appointments.filter((a) => {
-    if (statusFilter !== "ALL" && a.status !== statusFilter) return false;
+    if (statusFilter !== "ALL" && aptKey(a) !== statusFilter) return false;
     if (locationFilter !== "ALL" && a.photoLocationId !== locationFilter) return false;
     if (classFilter !== "ALL") {
       if (classFilter.startsWith("name:")) {
@@ -132,7 +141,8 @@ export function AppointmentsList({
     classFilter !== "ALL" ||
     subjectFilter !== "ALL";
 
-  const getStatusBadge = (status: AppointmentStatus) => {
+  const getStatusBadge = (rawStatus: AppointmentStatus) => {
+    const status = (normalizeAppointmentStatus(rawStatus) ?? rawStatus) as AppointmentStatus;
     switch (status) {
       case "CONFIRMED":
         return (
@@ -164,16 +174,30 @@ export function AppointmentsList({
             <CheckCircle2 className="w-3 h-3" /> Concluído
           </span>
         );
-      case "RESCHEDULED":
+      case "EDITAR":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-            <Calendar className="w-3 h-3" /> Reagendado
+            <AlertCircle className="w-3 h-3" /> Editar
           </span>
         );
-      case "RE_SCHEDULE_REQUEST":
+      case "APROVACAO":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800">
-            <AlertCircle className="w-3 h-3" /> Pedido de reagendamento
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+            <AlertCircle className="w-3 h-3" /> Em aprovação
+          </span>
+        );
+      case "APROVADO":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-800">
+            <CheckCircle2 className="w-3 h-3" /> Aprovado
+          </span>
+        );
+      case "RESCHEDULED":
+      case "RE_SCHEDULE_REQUEST":
+      case "REPROGRAMADO":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+            <Calendar className="w-3 h-3" /> Reprogramado
           </span>
         );
       default: {
@@ -183,8 +207,7 @@ export function AppointmentsList({
           CANCELLED: "Cancelado",
           PUBLICADO: "Publicado",
           COMPLETED: "Concluído",
-          RESCHEDULED: "Reagendado",
-          RE_SCHEDULE_REQUEST: "Pedido de reagendamento",
+          REPROGRAMADO: "Reprogramado",
         };
         return (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
@@ -218,9 +241,11 @@ export function AppointmentsList({
           >
             <option value="ALL">Todos os Status</option>
             <option value="PENDING">Pendentes</option>
+            <option value="EDITAR">Editar / Sem texto</option>
+            <option value="APROVACAO">Em aprovação</option>
+            <option value="APROVADO">Aprovados</option>
             <option value="CONFIRMED">Confirmados</option>
-            <option value="RESCHEDULED">Reagendados</option>
-            <option value="RE_SCHEDULE_REQUEST">Pedidos de reagendamento</option>
+            <option value="REPROGRAMADO">Reprogramados</option>
             <option value="COMPLETED">Concluídos</option>
             <option value="PUBLICADO">Publicados</option>
             <option value="CANCELLED">Cancelados</option>
@@ -393,7 +418,40 @@ export function AppointmentsList({
                     </button>
 
                     <div className="flex items-center gap-2">
-                      {apt.status === "PENDING" && (
+                      {/* Fluxo de produção fotográfica: Editar → Em aprovação →
+                          Aprovado → Confirmado → Publicado. Cada avanço também
+                          atualiza o status da publicação vinculada no Controle
+                          de Publicações (associação automática). O status é
+                          normalizado — no banco pode estar em inglês minúsculo. */}
+                      {(() => { const st = aptKey(apt) as AppointmentStatus; return (<>
+                      {(st === "PENDING" || st === "EDITAR") && (
+                        <button
+                          onClick={() => onUpdateStatus(apt.id, "EDITAR")}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-md bg-orange-600 text-white hover:bg-orange-700"
+                          title="Iniciar edição/produção de conteúdo"
+                        >
+                          Editar
+                        </button>
+                      )}
+                      {st === "EDITAR" && (
+                        <button
+                          onClick={() => onUpdateStatus(apt.id, "APROVACAO")}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white hover:bg-purple-700"
+                          title="Enviar para aprovação"
+                        >
+                          Enviar p/ aprovação
+                        </button>
+                      )}
+                      {st === "APROVACAO" && (
+                        <button
+                          onClick={() => onUpdateStatus(apt.id, "APROVADO")}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-md bg-teal-600 text-white hover:bg-teal-700"
+                          title="Aprovar a sessão"
+                        >
+                          Aprovar
+                        </button>
+                      )}
+                      {(st === "APROVADO" || st === "APROVACAO" || st === "PENDING" || st === "EDITAR" || st === "REPROGRAMADO") && (
                         <button
                           onClick={() => onUpdateStatus(apt.id, "CONFIRMED")}
                           className="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
@@ -401,7 +459,7 @@ export function AppointmentsList({
                           Confirmar
                         </button>
                       )}
-                      {(apt.status === "CONFIRMED" || apt.status === "COMPLETED") && (
+                      {(st === "CONFIRMED" || st === "COMPLETED" || st === "APROVADO") && (
                         <button
                           onClick={() =>
                             (onPublish ?? ((id: string) => onUpdateStatus(id, "PUBLICADO")))(
@@ -414,7 +472,8 @@ export function AppointmentsList({
                           <Images className="w-3.5 h-3.5" /> Publicar
                         </button>
                       )}
-                      {apt.status !== "CANCELLED" && apt.status !== "PUBLICADO" && (
+                      </>) })()}
+                      {aptKey(apt) !== "CANCELLED" && aptKey(apt) !== "PUBLICADO" && (
                         <button
                           onClick={() => onCancel(apt.id)}
                           className="px-2.5 py-1 text-xs font-semibold rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
