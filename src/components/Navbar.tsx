@@ -55,7 +55,7 @@ export function Navbar({
               }`}
             >
               <Calendar className="w-4 h-4 text-blue-600" />
-              <span>Calendário Editorial</span>
+              <span>Calendário de Publicações</span>
             </button>
 
             <button
