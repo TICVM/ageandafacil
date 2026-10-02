@@ -55,6 +55,25 @@ function recordDeletedPublicationId(id: string) {
   } catch {}
 }
 
+/**
+ * Remove o id da lista local de exclusões. Necessário para "restaurar" uma
+ * publicação obrigatória do plano anual que foi excluída: enquanto o id
+ * estiver nessa lista, o listener do Firestore e os dados locais a ignoram,
+ * e ela nunca mais volta a aparecer no Controle de Publicações.
+ */
+function clearDeletedPublicationId(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getDeletedPublicationIds();
+    if (!current.has(id)) return;
+    current.delete(id);
+    localStorage.setItem(
+      DELETED_PUBLICATIONS_KEY,
+      JSON.stringify(Array.from(current))
+    );
+  } catch {}
+}
+
 function getCustomPublications(): Publication[] {
   if (typeof window === "undefined") return [];
   try {
@@ -301,6 +320,53 @@ export function usePublications() {
     }
   };
 
+  /**
+   * Restaura uma publicação obrigatória do plano anual que saiu da tabela do
+   * Controle de Publicações (ex.: excluída sem querer ao editar/alterar a
+   * publicação de uma série — como o 5º Ano do Programa Bilíngue).
+   *
+   * - Se o documento ainda existe no Firestore mas estava na lista local de
+   *   exclusões, basta removê-la: o listener volta a carregá-lo.
+   * - Se o documento foi apagado definitivamente, recria a publicação com os
+   *   dados originais (categoria, série, datas e tags "obrigatoria"/
+   *   "plano-anual"), garantindo que ela volte a aparecer na tabela.
+   */
+  const restorePublication = async (
+    pubData: Omit<Publication, "id"> | Publication,
+    userName = "Usuário"
+  ): Promise<string> => {
+    const id = (pubData as Publication).id;
+    if (id) clearDeletedPublicationId(id);
+
+    const existsLocally = publications.some(
+      (p) => p.id === id && !p.isDeleted
+    );
+    if (id && existsLocally) {
+      // Documento ainda vivo — apenas "desmarca" a exclusão e sincroniza.
+      await updatePublication(id, { isDeleted: false }, userName);
+      return id;
+    }
+
+    const { id: _omit, history: _hist, createdAt: _c, updatedAt: _u, isDeleted: _d, ...rest } =
+      pubData as Publication;
+    void _omit; void _hist; void _c; void _u; void _d;
+    return createPublication(
+      {
+        ...rest,
+        // Garante que volte a ser reconhecida como obrigatória do plano anual
+        // (critério de exibição na tabela do Controle de Publicações).
+        tags: [
+          ...new Set([
+            ...(rest.tags ?? []).filter((t) => t !== "obrigatoria" && t !== "plano-anual"),
+            "obrigatoria",
+            "plano-anual",
+          ]),
+        ],
+      },
+      userName
+    );
+  };
+
   const duplicatePublication = async (
     sourceId: string,
     newDate: string,
@@ -364,6 +430,7 @@ export function usePublications() {
     createPublication,
     updatePublication,
     deletePublication,
+    restorePublication,
     duplicatePublication,
     getStats,
   };

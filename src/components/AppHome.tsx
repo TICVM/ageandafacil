@@ -9,6 +9,7 @@ import { PublicationModal } from "@/components/calendar/PublicationModal";
 import { HolidaysModal } from "@/components/calendar/HolidaysModal";
 import { DeadlinesModal } from "@/components/calendar/DeadlinesModal";
 import { GeneratePlanModal } from "@/components/calendar/GeneratePlanModal";
+import { RestorePublicationsModal } from "@/components/calendar/RestorePublicationsModal";
 import { BookingModal } from "@/components/scheduler/BookingModal";
 import { AppointmentsList } from "@/components/scheduler/AppointmentsList";
 import {
@@ -48,6 +49,10 @@ export function AppHome() {
   const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
   const [isDeadlinesModalOpen, setIsDeadlinesModalOpen] = useState(false);
   const [isGeneratePlanOpen, setIsGeneratePlanOpen] = useState(false);
+  // Abre o modal "Restaurar publicações do plano anual" (ex.: quando a
+  // publicação do 5º Ano do Programa Bilíngue some da tabela após uma alteração).
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
+  const [restoreYear, setRestoreYear] = useState<number>(new Date().getFullYear());
   const [isUpcomingCollapsed, setIsUpcomingCollapsed] = useState(false);
 
   // Scheduler State
@@ -64,6 +69,7 @@ export function AppHome() {
     createPublication,
     updatePublication,
     deletePublication,
+    restorePublication,
     duplicatePublication,
     getStats,
   } = usePublications();
@@ -132,6 +138,23 @@ export function AppHome() {
       const [y, m] = firstDate.split("-").map(Number);
       setSelectedYear(y);
       setSelectedMonth(m - 1);
+    }
+  };
+
+  /**
+   * Persistência das restaurações feitas no modal "Restaurar publicações do
+   * plano anual": cria as que sumiram e corrige a data das que foram movidas
+   * para outro ano (caso do 5º Ano do Programa Bilíngue).
+   */
+  const handleRestoreConfirm = async (
+    toCreate: Omit<Publication, "id">[],
+    toUpdate: Array<{ id: string; updates: Partial<Publication> }>
+  ) => {
+    for (const u of toUpdate) {
+      await updatePublication(u.id, u.updates);
+    }
+    for (const pubData of toCreate) {
+      await restorePublication(pubData);
     }
   };
 
@@ -222,6 +245,10 @@ export function AppHome() {
             onUpdateAppointmentStatus={updateStatus}
             editingPublicationId={manualSyncPauseId}
             onSetEditingPublicationId={setManualSyncPauseId}
+            onRequestRestore={(year) => {
+              setRestoreYear(year);
+              setIsRestoreOpen(true);
+            }}
           />
         ) : (
           <div className="space-y-6">
