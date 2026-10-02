@@ -17,12 +17,16 @@ import {
   PhotoLocation,
   SchoolClass,
   SchoolSegment,
+  AvailableTimeSlot,
+  ScheduleBlock,
+  AppSettings,
 } from "./types";
 import {
   SAMPLE_APPOINTMENTS,
   DEFAULT_LOCATIONS,
   DEFAULT_CLASSES,
   DEFAULT_SEGMENTS,
+  DEFAULT_TIME_SLOTS,
 } from "./constants";
 
 const DELETED_APPOINTMENTS_KEY = "schoollens_deleted_appointments_v1";
@@ -95,6 +99,13 @@ export function useScheduler() {
   const [locations, setLocations] = useState<PhotoLocation[]>(DEFAULT_LOCATIONS);
   const [classes, setClasses] = useState<SchoolClass[]>(DEFAULT_CLASSES);
   const [segments, setSegments] = useState<SchoolSegment[]>(DEFAULT_SEGMENTS);
+  // Dados usados pelo "Agendar Sessão Fotográfica" para ficar IDÊNTICO à
+  // página pública de reserva (/reserva): horários configuráveis do banco
+  // (available_time_slots), bloqueios de agenda (schedule_blocks) e
+  // configurações de antecedência mínima (app_settings/general).
+  const [timeSlots, setTimeSlots] = useState<AvailableTimeSlot[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Load school classes/segments from the Firestore "school_classes" and
@@ -147,9 +158,9 @@ export function useScheduler() {
           }
           const list: SchoolSegment[] = [];
           snap.forEach((d) => {
-            const data = d.data() as { name?: string; isActive?: boolean };
+            const data = d.data() as { name?: string; unit?: string; isActive?: boolean };
             if (data.isActive === false) return;
-            list.push({ id: d.id, name: data.name ?? "" });
+            list.push({ id: d.id, name: data.name ?? "", unit: data.unit });
           });
           setSegments(list);
         },
@@ -191,6 +202,8 @@ export function useScheduler() {
               description: data.description ?? "",
               color: data.color,
               isActive: data.isActive !== false,
+              unit: data.unit,
+              requiresIdentifier: data.requiresIdentifier,
             });
           });
           // Only show active locations in the booking flow/list filters.
@@ -206,6 +219,71 @@ export function useScheduler() {
     }
     return () => {
       if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Horários configuráveis, bloqueios de agenda e configurações de
+  // antecedência — MESMAS coleções lidas pela página /reserva, para que o
+  // modal "Agendar Sessão Fotográfica" ofereça exatamente as mesmas opções.
+  useEffect(() => {
+    let unsubSlots: (() => void) | undefined;
+    let unsubBlocks: (() => void) | undefined;
+    let unsubSettings: (() => void) | undefined;
+    try {
+      unsubSlots = onSnapshot(
+        collection(db, "available_time_slots"),
+        (snap) => {
+          const list: AvailableTimeSlot[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as Omit<AvailableTimeSlot, "id">;
+            if (data.isActive === false) return;
+            list.push({
+              id: d.id,
+              dayOfWeek: String(data.dayOfWeek ?? ""),
+              startTime: data.startTime ?? "",
+              durationMinutes: data.durationMinutes || 60,
+              subject: data.subject ?? null,
+              schoolSegmentId: data.schoolSegmentId ?? null,
+              schoolClassId: data.schoolClassId ?? null,
+              isActive: true,
+            });
+          });
+          setTimeSlots(list);
+        },
+        (err) => console.warn("available_time_slots listener:", err)
+      );
+      unsubBlocks = onSnapshot(
+        collection(db, "schedule_blocks"),
+        (snap) => {
+          const list: ScheduleBlock[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as Omit<ScheduleBlock, "id">;
+            list.push({ id: d.id, ...data });
+          });
+          setScheduleBlocks(list);
+        },
+        (err) => console.warn("schedule_blocks listener:", err)
+      );
+      unsubSettings = onSnapshot(
+        doc(db, "app_settings", "general"),
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.data() as AppSettings;
+            setAppSettings({
+              minAdvanceBookingDays: data.minAdvanceBookingDays ?? 1,
+              minAdvanceBookingHours: data.minAdvanceBookingHours ?? 0,
+            });
+          }
+        },
+        (err) => console.warn("app_settings listener:", err)
+      );
+    } catch (err) {
+      console.warn("booking config listeners fallback:", err);
+    }
+    return () => {
+      if (unsubSlots) unsubSlots();
+      if (unsubBlocks) unsubBlocks();
+      if (unsubSettings) unsubSettings();
     };
   }, []);
 
@@ -289,7 +367,7 @@ export function useScheduler() {
       history: [
         {
           timestamp: new Date().toISOString(),
-          userId: "user-1",
+          userId: data.teacherId || "user-1",
           userName,
           action: "CRIACAO",
           details: `Agendamento criado para a turma ${data.className}.`,
@@ -301,10 +379,27 @@ export function useScheduler() {
     saveCustomAppointment(newAppointment);
     setAppointments((prev) => [newAppointment, ...prev]);
 
-    // 2. Fire-and-forget sync to Firestore with timeout
+    // 2. Fire-and-forget sync to Firestore with timeout.
+    //    Campos gravados em "appointments" — mesmo schema da página /reserva
+    //    (schoolClassId, teacherId, teacherName, photoLocationId,
+    //    locationIdentifier, appointmentDate, startTime, endTime, subject,
+    //    status, observations, history, createdAt) para não haver divergência
+    //    entre os dois fluxos de agendamento.
     try {
       const docPromise = addDoc(collection(db, "appointments"), {
-        ...data,
+        schoolClassId: data.schoolClassId,
+        className: data.className,
+        teacherId: data.teacherId,
+        teacherName: data.teacherName,
+        photoLocationId: data.photoLocationId,
+        locationName: data.locationName,
+        locationIdentifier: data.locationIdentifier || null,
+        appointmentDate: data.appointmentDate,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        subject: data.subject || null,
+        status: data.status,
+        observations: data.observations ?? "",
         history: newAppointment.history,
         createdAt: serverTimestamp(),
       });
@@ -375,10 +470,125 @@ export function useScheduler() {
     locations,
     classes,
     segments,
+    timeSlots,
+    scheduleBlocks,
+    appSettings,
     loading,
     createAppointment,
     updateStatus,
     cancelAppointment,
     deleteAppointment,
   };
+}
+
+/** Converte "HH:mm" em minutos desde 00:00 (comparação de sobreposição). */
+const timeToMin = (t: string): number => {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
+/**
+ * Horários disponíveis para um dia/turma — MESMA lógica da página /reserva:
+ *  - filtra available_time_slots pelo dia da semana e pela turma/segmento;
+ *  - respeita a antecedência mínima (app_settings/general);
+ *  - remove slots já ocupados por sessões (appointments) não canceladas;
+ *  - remove slots que colidem com bloqueios de agenda (schedule_blocks).
+ * Retorna os horários ordenados por startTime. Sem slots configurados no
+ * banco, usa DEFAULT_TIME_SLOTS como fallback (modo offline).
+ */
+export function getAvailableBookingSlots(params: {
+  configuredSlots: AvailableTimeSlot[];
+  dateStr: string; // YYYY-MM-DD
+  schoolClassId: string;
+  classes: SchoolClass[];
+  appointments: Appointment[];
+  blocks: ScheduleBlock[];
+  settings: AppSettings | null;
+}): SlotOption[] {
+  const { configuredSlots, dateStr, schoolClassId, classes, appointments, blocks, settings } = params;
+
+  if (configuredSlots.length === 0) {
+    // Fallback offline: grade fixa histórica do modal.
+    return DEFAULT_TIME_SLOTS.map((s) => ({
+      id: `default-${s.startTime}`,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      durationMinutes: Math.max(
+        10,
+        timeToMin(s.endTime) - timeToMin(s.startTime)
+      ),
+      subject: null,
+    }));
+  }
+
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(date.getTime())) return [];
+  const day = date.getDay().toString();
+  const now = new Date();
+  const minLimit = new Date(now);
+  minLimit.setDate(minLimit.getDate() + (settings?.minAdvanceBookingDays ?? 1));
+  minLimit.setHours(
+    minLimit.getHours() + (settings?.minAdvanceBookingHours ?? 0)
+  );
+  const cls = classes.find((c) => c.id === schoolClassId);
+
+  const toOption = (s: AvailableTimeSlot): SlotOption => {
+    const dur = s.durationMinutes || 60;
+    const endTotal = timeToMin(s.startTime) + dur;
+    const endTime = `${String(Math.floor(endTotal / 60)).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}`;
+    return {
+      id: s.id,
+      startTime: s.startTime,
+      endTime,
+      durationMinutes: dur,
+      subject: s.subject ?? null,
+    };
+  };
+
+  return configuredSlots
+    .filter((s) => {
+      if (s.dayOfWeek !== day) return false;
+      const targetMatches = s.schoolClassId
+        ? s.schoolClassId === schoolClassId
+        : s.schoolSegmentId
+          ? s.schoolSegmentId === cls?.segmentId
+          : !s.schoolClassId && !s.schoolSegmentId;
+      if (!targetMatches) return false;
+      const [h, m] = s.startTime.split(":").map(Number);
+      const slotDT = new Date(date);
+      slotDT.setHours(h, m, 0, 0);
+      if (slotDT < minLimit) return false;
+      const opt = toOption(s);
+      if (
+        appointments.some(
+          (a) =>
+            a.appointmentDate === dateStr &&
+            a.startTime === s.startTime &&
+            a.status !== "CANCELLED"
+        )
+      )
+        return false;
+      if (
+        blocks.some(
+          (b) =>
+            b.date === dateStr &&
+            timeToMin(opt.startTime) < timeToMin(b.endTime) &&
+            timeToMin(opt.endTime) > timeToMin(b.startTime)
+        )
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
+    .map(toOption);
+}
+
+/** Slot pronto para exibição/seleção no formulário de agendamento. */
+export interface SlotOption {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  subject?: string | null;
 }
