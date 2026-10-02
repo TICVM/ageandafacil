@@ -427,6 +427,13 @@ export function usePublications() {
     const planned = active.filter((p) => p.status === "PLANEJAMENTO").length;
     const completed = active.filter((p) => p.status === "PUBLICADO").length;
     const delayed = active.filter((p) => p.status === "ATRASADO" || (p.status !== "PUBLICADO" && p.publicationDate < todayStr)).length;
+    // Status intermediários do fluxo de produção — também restritos ao ano.
+    const scheduled = active.filter((p) => p.status === "AGENDADO").length;
+    const inProduction = active.filter(
+      (p) => p.status === "PRODUCAO_CONTEUDO" || p.status === "DESIGN_ARTE" || p.status === "BRIEFING"
+    ).length;
+    const inReview = active.filter((p) => p.status === "REVISAO_APROVACAO").length;
+    const approved = active.filter((p) => p.status === "APROVADO_PARA_PUBLICAR").length;
     // "Próximos 7 Dias" também não pode ultrapassar a virada do ano.
     const nextYearPrefix = `${year + 1}-`;
     const next7Days = active.filter(
@@ -443,6 +450,10 @@ export function usePublications() {
       completed,
       delayed,
       next7Days,
+      scheduled,
+      inProduction,
+      inReview,
+      approved,
     };
   }, [publications]);
 

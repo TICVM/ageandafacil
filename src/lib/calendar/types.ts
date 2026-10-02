@@ -117,6 +117,11 @@ export interface DashboardStats {
   completed: number;
   delayed: number;
   next7Days: number;
+  /** Status intermediários do fluxo de produção (contados por ano selecionado) */
+  scheduled: number; // AGENDADO
+  inProduction: number; // PRODUCAO_CONTEUDO + DESIGN_ARTE + BRIEFING
+  inReview: number; // REVISAO_APROVACAO
+  approved: number; // APROVADO_PARA_PUBLICAR
 }
 
 export interface ConflictAlert {
