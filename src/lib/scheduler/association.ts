@@ -1,6 +1,6 @@
 import { Appointment, SchoolClass } from "./types";
 import { Publication, PublicationStatus } from "../calendar/types";
-import { mapAppointmentStatusToPublication } from "./status-mapping";
+import { mapAppointmentStatusToPublication, normalizeAppointmentStatus } from "./status-mapping";
 
 /**
  * Associação entre o Agendamento de Sessões Fotográficas (appointments) e o

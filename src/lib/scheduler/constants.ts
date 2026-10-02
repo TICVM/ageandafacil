@@ -44,9 +44,25 @@ export const DEFAULT_TIME_SLOTS = [
   { startTime: "15:40", endTime: "16:30" },
 ];
 
+/**
+ * Sessão de exemplo usada apenas quando o Firestore está indisponível.
+ * Mantém a coleção "appointments" populada com um card demonstrativo.
+ */
 export const SAMPLE_APPOINTMENTS: Appointment[] = [
   {
-    // ... valid Appointment properties
+    id: "sample-apt-1",
+    schoolClassId: "cls-pre-a",
+    className: "Pré A",
+    teacherId: "teacher-sample",
+    teacherName: "Profª Exemplo",
+    photoLocationId: "loc-1",
+    locationName: "Estúdio Principal (Sala Maker)",
+    appointmentDate: new Date().toISOString().slice(0, 10),
+    startTime: "08:00",
+    endTime: "08:50",
+    subject: null,
+    status: "PENDING",
+    observations: "Sessão de exemplo (offline).",
   },
 ];
   

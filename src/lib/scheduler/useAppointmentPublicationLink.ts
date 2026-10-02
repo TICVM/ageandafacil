@@ -8,6 +8,16 @@ import {
   linkKey,
   targetPublicationStatus,
 } from "./association";
+import { normalizeAppointmentStatus } from "./status-mapping";
+
+/**
+ * Chave canônica do status da sessão. No Firestore os status podem estar
+ * gravados em inglês minúsculo ("confirmed", "pending", "rescheduled"...),
+ * então SEMPRE normalizamos antes de comparar — caso contrário o mapeamento
+ * não corresponde e a sincronização silenciosamente falha.
+ */
+const canonicalAptStatus = (apt: Appointment): string | null =>
+  normalizeAppointmentStatus(apt.status as unknown as string);
 
 /**
  * Hook que sincroniza automaticamente os Agendamentos de Sessões Fotográficas
@@ -117,8 +127,9 @@ export function useAppointmentPublicationLink({
         const tags = Array.from(new Set([...(pub.tags ?? []), key]));
         // Uma vez PUBLICADO pelo scheduler, manter publicado; caso contrário,
         // espelhar o status da sessão (subindo e descendo conforme o fluxo).
+        const aptStatusKey = canonicalAptStatus(apt);
         const nextStatus: PublicationStatus =
-          pub.status === "PUBLICADO" && apt.status !== "PUBLICADO"
+          pub.status === "PUBLICADO" && aptStatusKey !== "PUBLICADO"
             ? pub.status
             : target;
 
