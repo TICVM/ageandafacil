@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronDown, ChevronUp, Link2, Table2, X } from "lucide-r
 import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
 import { Appointment, AppointmentStatus, SchoolClass } from "@/lib/scheduler/types";
 import { resolveClassName } from "@/lib/scheduler/association";
+import { mapPublicationStatusToAppointment } from "@/lib/scheduler/status-mapping";
 import { DEFAULT_SERIES, DEFAULT_STATUSES } from "@/lib/calendar/constants";
 
 /**
@@ -32,6 +33,8 @@ interface ControlTablesProps {
   classes?: SchoolClass[];
   /** Atualiza o status de uma sessão fotográfica (ex.: marcar como PUBLICADO). */
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
+  /** Id da publicação cujo modal de edição está aberto — usada para pausar a sincronia automática. */
+  editingPublicationId?: string | null;
 }
 
 interface RowData {
@@ -42,6 +45,9 @@ interface RowData {
 
 const APT_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendente",
+  EDITAR: "Editar",
+  APROVACAO: "Em aprovação",
+  APROVADO: "Aprovado",
   CONFIRMED: "Confirmado",
   CANCELLED: "Cancelado",
   PUBLICADO: "Publicado",
@@ -56,6 +62,12 @@ function aptStatusBadgeClass(status: string): string {
       return "bg-emerald-100 text-emerald-800";
     case "PENDING":
       return "bg-amber-100 text-amber-800";
+    case "EDITAR":
+      return "bg-orange-100 text-orange-800";
+    case "APROVACAO":
+      return "bg-purple-100 text-purple-800";
+    case "APROVADO":
+      return "bg-teal-100 text-teal-800";
     case "CANCELLED":
       return "bg-zinc-200 text-zinc-700";
     case "PUBLICADO":
@@ -109,7 +121,9 @@ function LinkedSessionsPanel({
         {linkedSessions.length === 0 ? (
           <p className="text-xs text-muted-foreground italic">
             Nenhuma sessão fotográfica vinculada a esta publicação. As sessões
-            são associadas automaticamente quando ficam com status Confirmado.
+            são associadas automaticamente conforme o status (Editar → Produção
+            de Conteúdo, Em aprovação → Revisão/Aprovação, Aprovado → Aprovado
+            para publicar, Confirmado → Agendado, Publicado → Publicado).
           </p>
         ) : (
           <ul className="space-y-1.5">
@@ -377,6 +391,7 @@ export function ControlTables({
   appointments,
   classes,
   onUpdateAppointmentStatus,
+  editingPublicationId: setEditingPublicationId,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
 
@@ -450,10 +465,19 @@ export function ControlTables({
 
   const STATUS_CYCLE: PublicationStatus[] = [
     "PLANEJAMENTO",
+    "PRODUCAO_CONTEUDO",
+    "REVISAO_APROVACAO",
+    "APROVADO_PARA_PUBLICAR",
     "AGENDADO",
     "PUBLICADO",
   ];
 
+  /**
+   * Ciclo manual do status da publicação. Além de avançar na tabela, propaga
+   * o status equivalente para as sessões fotográficas vinculadas
+   * ("assim vice-versa") — ex.: colocar como "Agendado" confirma as sessões
+   * associadas; "Publicado" publica; "Produção de Conteúdo" volta para Editar.
+   */
   const handleCycleStatus = async (pub: Publication) => {
     let next: PublicationStatus;
     if (pub.status === "PUBLICADO") {
@@ -462,9 +486,34 @@ export function ControlTables({
       const idx = STATUS_CYCLE.indexOf(pub.status);
       next = idx >= 0 && idx < STATUS_CYCLE.length - 1
         ? STATUS_CYCLE[idx + 1]
-        : "AGENDADO";
+        : "PRODUCAO_CONTEUDO";
     }
+
+    // Pausa temporariamente a sincronia automática para esta publicação,
+    // evitando que o hook reverta o status escolhido manualmente.
+    setEditingPublicationId?.(pub.id);
+
     await onUpdatePublication(pub.id, { status: next });
+
+    // Cascata: atualiza as sessões vinculadas com o status equivalente.
+    const linkedIds = (pub.tags ?? [])
+      .filter((t) => t.startsWith("apt:"))
+      .map((t) => t.slice(4));
+    if (onUpdateAppointmentStatus && linkedIds.length > 0) {
+      const targetApt = mapPublicationStatusToAppointment(next);
+      for (const id of linkedIds) {
+        const apt = (appointments ?? []).find((a) => a.id === id);
+        if (!apt || apt.status === targetApt) continue;
+        try {
+          await onUpdateAppointmentStatus(id, targetApt);
+        } catch (err) {
+          console.warn("Cascata publicação→sessão falhou:", err);
+        }
+      }
+    }
+
+    // Libera a sincronia após o snapshot refletir as mudanças.
+    window.setTimeout(() => setEditingPublicationId?.(null), 2500);
   };
 
   return (
