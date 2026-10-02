@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Navbar, AppTab } from "@/components/Navbar";
 import { DashboardCards, UpcomingPublicationsList } from "@/components/calendar/DashboardCards";
 import { CalendarView } from "@/components/calendar/CalendarView";
@@ -26,9 +26,22 @@ import { formatDateToISO } from "@/lib/calendar/utils";
 export function AppHome() {
   const [currentTab, setCurrentTab] = useState<AppTab>("calendar");
 
-  // Calendar State (starts on the current month)
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth());
+  // Calendar State (starts on the current month).
+  // Renderiza primeiro no servidor com o mês fixado (fev/início do ano letivo)
+  // e ajusta para a data real do cliente após a hidratação — evita o erro de
+  // hidratação (#418) quando o fuso do build difere do fuso do navegador.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(1);
+  useEffect(() => {
+    if (!hydrated) return;
+    const now = new Date();
+    setSelectedYear((y) => (y === 2026 ? now.getFullYear() : y));
+    setSelectedMonth((m) => (m === 1 ? now.getMonth() : m));
+  }, [hydrated]);
   const [selectedPubForModal, setSelectedPubForModal] = useState<Publication | null>(null);
   const [isPubModalOpen, setIsPubModalOpen] = useState(false);
   const [initialDateForPub, setInitialDateForPub] = useState<string | undefined>(undefined);
@@ -207,7 +220,8 @@ export function AppHome() {
             appointments={appointments}
             classes={classes}
             onUpdateAppointmentStatus={updateStatus}
-            editingPublicationId={setManualSyncPauseId}
+            editingPublicationId={manualSyncPauseId}
+            onSetEditingPublicationId={setManualSyncPauseId}
           />
         ) : (
           <div className="space-y-6">
