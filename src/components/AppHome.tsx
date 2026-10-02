@@ -163,8 +163,14 @@ export function AppHome() {
     .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate));
 
   const todayStr = formatDateToISO(new Date());
+  // "Próximas Publicações" mostra apenas publicações do ano atual selecionado.
   const upcomingSorted = sortedAllPublications
-    .filter((p) => p.publicationDate >= todayStr && p.status !== "CANCELADO")
+    .filter(
+      (p) =>
+        p.publicationDate.slice(0, 4) === String(selectedYear) &&
+        p.publicationDate >= todayStr &&
+        p.status !== "CANCELADO"
+    )
     .slice(0, 10);
 
   return (
@@ -220,7 +226,9 @@ export function AppHome() {
               <div className={isUpcomingCollapsed ? "lg:w-14 lg:justify-self-end" : "lg:col-span-1"}>
                 <UpcomingPublicationsList
                   upcoming={upcomingSorted}
-                  allPublications={sortedAllPublications}
+                  allPublications={sortedAllPublications.filter(
+                    (p) => p.publicationDate.slice(0, 4) === String(selectedYear)
+                  )}
                   categories={categories}
                   onSelectPublication={handleSelectPublication}
                   onNewPublication={() => handleOpenNewPublication()}
