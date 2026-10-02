@@ -28,6 +28,7 @@ import {
   INITIAL_SAMPLE_PUBLICATIONS,
 } from "./constants";
 import { calculatePlannedDate } from "./utils";
+import { saveDeletedSnapshot } from "./generate-mandatory";
 
 const DELETED_PUBLICATIONS_KEY = "schoollens_deleted_publications_v1";
 const CUSTOM_PUBLICATIONS_KEY = "schoollens_custom_publications_v1";
@@ -303,6 +304,11 @@ export function usePublications() {
   };
 
   const deletePublication = async (id: string): Promise<void> => {
+    // 0. Guarda um snapshot dos dados originais para permitir a restauração
+    //    pelo modal "Restaurar publicações do plano anual" (ex.: o 5º Ano do
+    //    Programa Bilíngue que saiu da tabela do Controle de Publicações).
+    const deleting = publications.find((p) => p.id === id);
+    if (deleting) saveDeletedSnapshot(deleting);
     // 1. Mark as deleted in local storage immediately
     recordDeletedPublicationId(id);
     removeCustomPublication(id);
