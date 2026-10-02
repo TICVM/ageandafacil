@@ -65,6 +65,7 @@ export const DEFAULT_STATUSES: { value: PublicationStatus; label: string; color:
   { value: "PRODUCAO_CONTEUDO", label: "Produção de Conteúdo", color: "text-amber-700", bg: "bg-amber-100" },
   { value: "DESIGN_ARTE", label: "Design & Arte", color: "text-indigo-700", bg: "bg-indigo-100" },
   { value: "REVISAO_APROVACAO", label: "Revisão / Aprovação", color: "text-purple-700", bg: "bg-purple-100" },
+  { value: "APROVADO_PARA_PUBLICAR", label: "Aprovado para publicar", color: "text-teal-700", bg: "bg-teal-100" },
   { value: "AGENDADO", label: "Agendado", color: "text-blue-700", bg: "bg-blue-100" },
   { value: "PUBLICADO", label: "Publicado", color: "text-emerald-700", bg: "bg-emerald-100" },
   { value: "ATRASADO", label: "Atrasado", color: "text-red-700", bg: "bg-red-100" },

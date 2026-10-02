@@ -11,6 +11,7 @@ export type PublicationStatus =
   | "PRODUCAO_CONTEUDO"
   | "DESIGN_ARTE"
   | "REVISAO_APROVACAO"
+  | "APROVADO_PARA_PUBLICAR"
   | "AGENDADO"
   | "PUBLICADO"
   | "ATRASADO"
