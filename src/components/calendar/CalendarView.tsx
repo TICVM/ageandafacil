@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -88,6 +88,13 @@ export function CalendarView({
     onMonthChange(today.getMonth());
   };
 
+  // Lista de anos estável (calculada uma única vez) — evita divergir entre
+  // SSR e client e re-renderizações.
+  const yearOptions = useMemo(
+    () => Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i),
+    []
+  );
+
   const filteredPublications = publications.filter((p) => {
     if (selectedCategoryFilter === "ALL") return true;
     return p.categoryId === selectedCategoryFilter;
@@ -140,10 +147,7 @@ export function CalendarView({
             onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
             className="h-8 px-2.5 text-xs font-semibold rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary"
           >
-            {Array.from(
-              { length: 5 },
-              (_, i) => new Date().getFullYear() - 2 + i
-            ).map((y) => (
+            {yearOptions.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>

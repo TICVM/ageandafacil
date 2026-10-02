@@ -26,10 +26,23 @@ import { Publication, Category, Series, PublicationStatus, Priority } from '@/li
 import { 
   DEFAULT_CATEGORIES, 
   DEFAULT_SERIES,
-  STATUS_OPTIONS,
-  PRIORITY_OPTIONS 
+  DEFAULT_STATUSES as STATUS_OPTIONS,
+  DEFAULT_PRIORITIES as PRIORITY_OPTIONS 
 } from '@/lib/calendar/constants';
-import { calculateBusinessDaysBefore, formatDateForInput } from '@/lib/calendar/utils';
+import { addBusinessDays, formatDateToISO } from '@/lib/calendar/utils';
+
+/** Formata uma Date como YYYY-MM-DD (valor aceito por <input type="date">). */
+const formatDateForInput = (d: Date): string => formatDateToISO(d);
+
+/** Retrocede dias úteis a partir da data de publicação. Retorna Date. */
+const calculateBusinessDaysBefore = (
+  dateStr: string,
+  days: number,
+  holidayDates: string[]
+): Date => {
+  const plannedIso = addBusinessDays(dateStr, days, holidayDates as any, true);
+  return new Date(plannedIso);
+};
 
 interface PublicationFormProps {
   open: boolean;
@@ -83,7 +96,7 @@ export function PublicationForm({
         plannedDate: initialData.plannedDate || '',
         productionDays: initialData.productionDays || 0,
         responsibleName: initialData.responsibleName || '',
-        notes: initialData.notes || '',
+        notes: (initialData as any).notes || '',
       });
     } else if (open) {
       // New publication - reset form
@@ -120,7 +133,7 @@ export function PublicationForm({
       }
       
       if (days > 0) {
-        const planned = calculateBusinessDaysBefore(pubDate, days, holidayDates);
+        const planned = calculateBusinessDaysBefore(formData.publicationDate, days, holidayDates);
         setFormData(prev => ({ ...prev, plannedDate: formatDateForInput(planned) }));
       }
     }

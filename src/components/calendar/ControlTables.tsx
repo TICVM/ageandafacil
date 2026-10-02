@@ -43,6 +43,8 @@ interface ControlTablesProps {
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
   /** Id da publicação cujo modal de edição está aberto — usada para pausar a sincronia automática. */
   editingPublicationId?: string | null;
+  /** Função que define qual publicação está em edição (pausa a sincronia automática). */
+  onSetEditingPublicationId?: (id: string | null) => void;
 }
 
 interface RowData {
@@ -399,7 +401,8 @@ export function ControlTables({
   appointments,
   classes,
   onUpdateAppointmentStatus,
-  editingPublicationId: setEditingPublicationId,
+  editingPublicationId,
+  onSetEditingPublicationId,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
 
@@ -504,7 +507,7 @@ export function ControlTables({
 
     // Pausa temporariamente a sincronia automática para esta publicação,
     // evitando que o hook reverta o status escolhido manualmente.
-    setEditingPublicationId?.(pub.id);
+    onSetEditingPublicationId?.(pub.id);
 
     await onUpdatePublication(pub.id, { status: next });
 
@@ -526,7 +529,7 @@ export function ControlTables({
     }
 
     // Libera a sincronia após o snapshot refletir as mudanças.
-    window.setTimeout(() => setEditingPublicationId?.(null), 2500);
+    window.setTimeout(() => onSetEditingPublicationId?.(null), 2500);
   };
 
   return (
