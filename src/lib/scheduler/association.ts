@@ -1,5 +1,6 @@
 import { Appointment, SchoolClass } from "./types";
-import { Publication } from "../calendar/types";
+import { Publication, PublicationStatus } from "../calendar/types";
+import { mapAppointmentStatusToPublication } from "./status-mapping";
 
 /**
  * Associação entre o Agendamento de Sessões Fotográficas (appointments) e o
@@ -83,9 +84,13 @@ export function getLinkedKeys(pub: Publication): string[] {
   return (pub.tags ?? []).filter((t) => t.startsWith("apt:"));
 }
 
+/** Statuses de sessão que NÃO participam da associação automática. */
+const EXCLUDED_STATUSES = new Set<string>(["CANCELLED", "RESCHEDULED", "RE_SCHEDULE_REQUEST"]);
+
 /**
- * Para cada sessão Confirmada/Concluída/Publicada, determina qual publicação
- * obrigatória (categoria + série) deve ser associada.
+ * Para cada sessão vinculável (Pendente/Editar/Aprovação/Aprovado/Confirmado/
+ * Concluído/Publicado), determina qual publicação obrigatória
+ * (categoria + série) deve ser associada. Canceladas e reagendadas ficam de fora.
  */
 export function computeAssociations(
   appointments: Appointment[],
@@ -93,7 +98,7 @@ export function computeAssociations(
 ): LinkInfo[] {
   const out: LinkInfo[] = [];
   for (const apt of appointments) {
-    if (apt.status !== "CONFIRMED" && apt.status !== "COMPLETED" && apt.status !== "PUBLICADO") continue;
+    if (EXCLUDED_STATUSES.has(apt.status)) continue;
     const className = resolveClassName(apt, classes);
     const seriesId = seriesFromClassName(className);
     if (!seriesId) continue;
@@ -103,7 +108,12 @@ export function computeAssociations(
   return out;
 }
 
-/** Status-alvo da publicação dado o status da sessão agendada. */
-export function targetPublicationStatus(apt: Appointment): "AGENDADO" | "PUBLICADO" {
-  return apt.status === "PUBLICADO" ? "PUBLICADO" : "AGENDADO";
+/**
+ * Status-alvo da publicação dado o status da sessão agendada
+ * (mapeamento completo — ver status-mapping.ts):
+ *  Editar/Pendente → Produção de Conteúdo · Em aprovação → Revisão/Aprovação
+ *  Aprovado → Aprovado para publicar · Confirmado → Agendado · Publicado → Publicado
+ */
+export function targetPublicationStatus(apt: Appointment): PublicationStatus {
+  return mapAppointmentStatusToPublication(apt.status);
 }

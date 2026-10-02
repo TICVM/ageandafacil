@@ -20,6 +20,9 @@ export interface SchoolClass {
 
 export type AppointmentStatus =
   | "PENDING"
+  | "EDITAR"
+  | "APROVACAO"
+  | "APROVADO"
   | "CONFIRMED"
   | "CANCELLED"
   | "RESCHEDULED"

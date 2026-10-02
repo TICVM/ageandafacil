@@ -14,9 +14,14 @@ import {
  * com as publicações obrigatórias do Controle de Publicações.
  *
  * Regras aplicadas sempre que uma sessão ou turma muda:
- *  - Sessão Confirmada/Concluída → publicação da série correspondente muda
- *    para AGENDADO (nunca rebaixa uma publicação já PUBLICADO).
- *  - Sessão Publicada no scheduler → publicação também vira PUBLICADO.
+ *  - O status da publicação espelha o status da sessão vinculada, via
+ *    mapeamento (ver status-mapping.ts):
+ *      Pendente/Editar → Produção de Conteúdo · Em aprovação → Revisão/Aprovação
+ *      Aprovado → Aprovado para publicar · Confirmado/Concluído → Agendado
+ *      Publicado → Publicado
+ *  - A publicação só é rebaixada se ela mesma ainda não tiver sido publicada
+ *    manualmente e se o usuário não a estiver editando no Controle de
+ *    Publicações (evita conflito com o clique manual no badge).
  *  - Disciplina de idioma (Inglês/Bilíngue) → Programa Bilíngue;
  *    demais disciplinas → Atividades Variadas.
  *  - O vínculo fica registrado na publicação como tag "apt:<id da sessão>",
@@ -27,11 +32,14 @@ export function useAppointmentPublicationLink({
   classes,
   publications,
   onUpdatePublication,
+  publicationBeingEdited,
 }: {
   appointments: Appointment[];
   classes: SchoolClass[];
   publications: Publication[];
   onUpdatePublication: (id: string, updates: Partial<Publication>) => Promise<void> | void;
+  /** Id da publicação cujo modal de edição está aberto — ignorada pela sincronia. */
+  publicationBeingEdited?: string | null;
 }) {
   // Guarda o que já foi processado para não regravar em loop (o listener do
   // Firestore atualiza as listas e o efeito rodaria novamente a cada snapshot).
@@ -66,9 +74,11 @@ export function useAppointmentPublicationLink({
         candidates.find((p) => p.publicationDate.startsWith(year)) ?? candidates[0];
       if (!pub) return false;
 
+      // Não sobrescreve a publicação que o usuário está editando agora.
+      if (publicationBeingEdited && pub.id === publicationBeingEdited) return false;
+
       const alreadyLinked = (pub.tags ?? []).includes(key);
-      const statusOk =
-        pub.status === "AGENDADO" || pub.status === "PUBLICADO";
+      const statusOk = pub.status === target;
       const fingerprint = `${pub.id}:${key}:${target}`;
 
       if (alreadyLinked && statusOk) {
@@ -90,7 +100,7 @@ export function useAppointmentPublicationLink({
         const key = linkKey(link.appointmentId);
         const apt = aptById.get(link.appointmentId);
         if (!apt) continue;
-        const target = targetPublicationStatus(apt) as PublicationStatus;
+        const target = targetPublicationStatus(apt);
 
         const year = apt.appointmentDate.slice(0, 4);
         const candidates = publications.filter(
@@ -105,9 +115,12 @@ export function useAppointmentPublicationLink({
         if (!pub) continue;
 
         const tags = Array.from(new Set([...(pub.tags ?? []), key]));
-        const currentIsPublished = pub.status === "PUBLICADO";
+        // Uma vez PUBLICADO pelo scheduler, manter publicado; caso contrário,
+        // espelhar o status da sessão (subindo e descendo conforme o fluxo).
         const nextStatus: PublicationStatus =
-          currentIsPublished && target !== "PUBLICADO" ? pub.status : target;
+          pub.status === "PUBLICADO" && apt.status !== "PUBLICADO"
+            ? pub.status
+            : target;
 
         const updates: Partial<Publication> = {};
         if (!(pub.tags ?? []).includes(key)) updates.tags = tags;
@@ -131,5 +144,5 @@ export function useAppointmentPublicationLink({
       cancelled = true;
       busyRef.current = false;
     };
-  }, [appointments, classes, publications, onUpdatePublication]);
+  }, [appointments, classes, publications, onUpdatePublication, publicationBeingEdited]);
 }
