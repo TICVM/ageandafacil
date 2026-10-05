@@ -92,17 +92,17 @@ export function GeneratePlanModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-border">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card">
-          <div className="flex items-center gap-2">
-            <Wand2 className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">Gerar Publicações Obrigatórias</h2>
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-border sticky top-0 bg-card">
+          <div className="flex items-center gap-2 min-w-0">
+            <Wand2 className="w-5 h-5 shrink-0 text-primary" />
+            <h2 className="text-base sm:text-lg font-bold text-foreground leading-tight">Gerar Publicações Obrigatórias</h2>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           <p className="text-sm text-muted-foreground">
             Cria automaticamente <strong>27 publicações obrigatórias</strong>: 15 de{" "}
             <span className="font-semibold text-teal-600">Atividades Variadas</span> (Maternal ao 3º Médio) e
@@ -271,17 +271,17 @@ export function GeneratePlanModal({
           </p>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-border sticky bottom-0 bg-card">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 px-4 sm:px-6 py-4 border-t border-border sticky bottom-0 bg-card">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-semibold border border-border hover:bg-muted"
+            className="px-4 py-2 rounded-lg text-sm font-semibold border border-border hover:bg-muted text-center"
           >
             Cancelar
           </button>
           <button
             onClick={handleConfirm}
             disabled={saving || result.publications.length === 0}
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Wand2 className="w-4 h-4" />
             {saving ? "Gerando..." : `Gerar ${result.publications.length} publicações`}

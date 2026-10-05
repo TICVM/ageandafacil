@@ -132,23 +132,23 @@ export function RestorePublicationsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-border">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card">
-          <div className="flex items-center gap-2">
-            <RotateCcw className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col border border-border">
+        <div className="flex items-center justify-between gap-2 min-w-0 px-4 sm:px-6 py-4 border-b border-border shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <RotateCcw className="w-5 h-5 shrink-0 text-primary" />
+            <h2 className="text-base sm:text-lg font-bold text-foreground leading-tight">
               Restaurar publicações do plano anual
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-muted text-muted-foreground"
+            className="p-1 rounded-lg hover:bg-muted text-muted-foreground shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <p className="text-sm text-muted-foreground">
             Publicações obrigatórias que <strong>não estão aparecendo</strong> na
             tabela do Controle de Publicações em <strong>{year}</strong> — por
@@ -194,7 +194,7 @@ export function RestorePublicationsModal({
                   return (
                     <li key={key}>
                       <label
-                        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                        className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
                           checked
                             ? "border-primary bg-primary/5"
                             : "border-border hover:bg-accent/50"
@@ -204,7 +204,7 @@ export function RestorePublicationsModal({
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggle(key)}
-                          className="accent-[var(--primary, #2563eb)]"
+                          className="accent-[var(--primary, #2563eb)] shrink-0"
                         />
                         <span className="font-bold whitespace-nowrap">
                           {SERIES_NAME[m.seriesId] ?? m.seriesId}
@@ -218,7 +218,7 @@ export function RestorePublicationsModal({
                         >
                           {CATEGORY_NAME[m.categoryId] ?? m.categoryId}
                         </span>
-                        <span className="ml-auto text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                        <span className="sm:ml-auto text-xs tabular-nums text-muted-foreground whitespace-nowrap w-full sm:w-auto">
                           {prev
                             ? `${prev.updating ? "corrige data → " : "volta com data "}${formatDateBR(
                                 prev.publicationDate
@@ -252,7 +252,7 @@ export function RestorePublicationsModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border sticky bottom-0 bg-card">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-border shrink-0 bg-card">
           <button
             type="button"
             onClick={onClose}

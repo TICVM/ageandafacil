@@ -114,8 +114,8 @@ function LinkedSessionsPanel({
   return (
     <tr className="border-b border-border/60 last:border-0 bg-muted/30">
       <td colSpan={6} className="px-4 sm:px-5 py-3">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
+          <div className="text-xs min-w-0">
             <span className="font-extrabold text-foreground">
               Sessões vinculadas — {seriesName}
             </span>
@@ -145,7 +145,7 @@ function LinkedSessionsPanel({
             {linkedSessions.map((a) => (
               <li
                 key={a.id}
-                className="flex flex-wrap items-center gap-2 text-xs bg-card border border-border/60 rounded-lg px-3 py-2"
+                className="flex flex-wrap items-start gap-1.5 sm:gap-2 text-xs bg-card border border-border/60 rounded-lg px-3 py-2"
               >
                 <span className="font-bold text-foreground">
                   {resolveClassName(a, classes ?? []) || a.className || "Turma não informada"}
@@ -167,7 +167,7 @@ function LinkedSessionsPanel({
                   <button
                     type="button"
                     onClick={() => onUpdateAppointmentStatus(a.id, "PUBLICADO")}
-                    className="ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90"
+                    className="w-full sm:w-auto justify-center sm:ml-auto px-2 py-1 sm:py-0.5 rounded-md text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90"
                     title="Marcar esta sessão como publicada"
                   >
                     Marcar como publicada
@@ -260,28 +260,50 @@ function PublicationTable({
   const [collapsed, setCollapsed] = useState(false);
   // Publicação cuja lista de sessões vinculadas está expandida na tabela.
   const [expandedPubId, setExpandedPubId] = useState<string | null>(null);
+  // Publicação selecionada para edição completa (modal) a partir da barra "Editar".
+  const [editPubId, setEditPubId] = useState<string | null>(null);
+
+  const editTarget = rows.find((r) => r.pub.id === editPubId)?.pub;
 
   return (
     <section className="bg-card border border-border rounded-2xl shadow-xs overflow-hidden">
       <header
-        className={`flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-border ${accentClass}`}
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-border ${accentClass}`}
       >
-        <div className="flex items-center gap-2">
-          <Table2 className="w-4 h-4" />
-          <h3 className="text-sm font-extrabold tracking-tight">{title}</h3>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/70 text-foreground">
+        <div className="flex items-center gap-2 min-w-0">
+          <Table2 className="w-4 h-4 shrink-0" />
+          <h3 className="text-sm font-extrabold tracking-tight truncate">{title}</h3>
+          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/70 text-foreground whitespace-nowrap">
             {rows.length} {rows.length === 1 ? "publicação" : "publicações"} • {year}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed((v) => !v)}
-          className="flex items-center gap-1 text-[11px] font-bold opacity-80 hover:opacity-100 transition-opacity"
-          title={collapsed ? "Estender tabela" : "Recolher tabela"}
-        >
-          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-          <span className="hidden sm:inline">{collapsed ? "Estender" : "Recolher"}</span>
-        </button>
+        <div className="flex items-center gap-2 text-[11px] font-bold opacity-80 hover:opacity-100 transition-opacity shrink-0">
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            className="flex items-center gap-1 hover:underline"
+            title={collapsed ? "Estender tabela" : "Recolher tabela"}
+          >
+            {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            <span className="hidden sm:inline">{collapsed ? "Estender" : "Recolher"}</span>
+          </button>
+          <button
+            type="button"
+            disabled={!editTarget}
+            onClick={() => {
+              if (editTarget) onSelect?.(editTarget);
+              else setEditPubId(rows[0]?.pub.id ?? null);
+            }}
+            className="hover:underline disabled:opacity-40 disabled:no-underline"
+            title={
+              editTarget
+                ? "Abrir edição completa (datas, status e vínculo com sessões fotográficas)"
+                : "Selecione uma linha primeiro (clique no título ou marque a caixa)"
+            }
+          >
+            Editar
+          </button>
+        </div>
       </header>
 
       {!collapsed &&
@@ -326,7 +348,7 @@ function PublicationTable({
                               type="date"
                               value={pub.publicationDate}
                               onChange={(e) => onUpdateDate(pub, e.target.value)}
-                              className="w-[150px] rounded-lg border border-input bg-background px-2 py-1 text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-[132px] sm:w-[150px] rounded-lg border border-input bg-background px-1.5 sm:px-2 py-1 text-xs sm:text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                             <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
                               {weekdayLabel(pub.publicationDate)}
@@ -542,10 +564,10 @@ export function ControlTables({
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-black text-foreground flex items-center gap-2">
-            <Table2 className="w-5 h-5 text-blue-600" />
-            Controle de Publicações
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2">
+            <Table2 className="w-5 h-5 shrink-0 text-blue-600" />
+            <span className="truncate">Controle de Publicações</span>
           </h2>
           <p className="text-sm text-muted-foreground">
             Publicações obrigatórias por série. Edite as datas diretamente na
@@ -560,8 +582,9 @@ export function ControlTables({
               title="Recupera publicações obrigatórias que saíram da tabela (ex.: 5º Ano do Programa Bilíngue)"
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition-colors"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Restaurar publicações do plano anual
+              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Restaurar publicações do plano anual</span>
+              <span className="sm:hidden">Restaurar</span>
             </button>
           )}
           <label className="flex items-center gap-2 text-sm font-bold">

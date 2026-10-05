@@ -315,12 +315,12 @@ export function PublicationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="relative w-full max-w-2xl my-2 sm:my-0 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border bg-muted/20">
-          <div>
-            <h3 className="text-lg font-bold text-foreground">
+        <div className="flex items-center justify-between gap-2 p-4 sm:p-5 border-b border-border bg-muted/20">
+          <div className="min-w-0">
+            <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
               {isEditing ? "Editar Publicação" : "Nova Publicação Editorial"}
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -339,10 +339,10 @@ export function PublicationModal({
 
         {/* Tab switcher for editing */}
         {isEditing && (
-          <div className="flex border-b border-border bg-muted/10 px-5 pt-2">
+          <div className="flex border-b border-border bg-muted/10 px-3 sm:px-5 pt-2 overflow-x-auto">
             <button
               onClick={() => setActiveTab("details")}
-              className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-all ${
+              className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
                 activeTab === "details"
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -352,7 +352,7 @@ export function PublicationModal({
             </button>
             <button
               onClick={() => setActiveTab("history")}
-              className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
+              className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === "history"
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -385,7 +385,7 @@ export function PublicationModal({
             ))}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[78vh] overflow-y-auto">
             {/* Conflict Warning */}
             {conflict && (
               <div className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs flex items-start gap-2.5">
@@ -706,12 +706,12 @@ export function PublicationModal({
                     onChange={(e) => setDuplicateDateInput(e.target.value)}
                     className="h-8 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground"
                   />
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-2 sm:ml-auto">
                     <button
                       type="button"
                       disabled={isSaving}
                       onClick={handleConfirmDuplicate}
-                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 shadow-xs"
+                      className="flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 shadow-xs"
                     >
                       {isSaving ? "Copiando..." : "Confirmar Cópia"}
                     </button>
@@ -719,7 +719,7 @@ export function PublicationModal({
                       type="button"
                       disabled={isSaving}
                       onClick={() => setShowDuplicatePrompt(false)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-background border border-border text-foreground hover:bg-accent"
+                      className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-semibold bg-background border border-border text-foreground hover:bg-accent"
                     >
                       Cancelar
                     </button>
@@ -729,8 +729,8 @@ export function PublicationModal({
             )}
 
             {/* Actions Bar */}
-            <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-4 border-t border-border mt-4">
+              <div className="flex flex-wrap items-center gap-2">
                 {isEditing && (
                   <>
                     <button
@@ -754,18 +754,18 @@ export function PublicationModal({
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-center"
                 >
                   Fechar
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving || showDeleteConfirm}
-                  className="px-5 py-2 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                  className="px-5 py-2 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
                 >
                   {isSaving ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Publicação"}
                 </button>
