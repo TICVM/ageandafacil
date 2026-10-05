@@ -258,6 +258,7 @@ export function AppHome() {
               setRestoreYear(year);
               setIsRestoreOpen(true);
             }}
+            onCreatePublication={createPublication}
           />
         ) : (
           <div className="space-y-6">
