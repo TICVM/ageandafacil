@@ -1,7 +1,18 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Link2, RotateCcw, Table2, X } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Link2,
+  Loader2,
+  RotateCcw,
+  Table2,
+  Upload,
+  X,
+} from "lucide-react";
 import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
 import { Appointment, AppointmentStatus, SchoolClass } from "@/lib/scheduler/types";
 import { resolveClassName } from "@/lib/scheduler/association";
@@ -11,6 +22,12 @@ import {
   normalizePublicationStatus,
 } from "@/lib/scheduler/status-mapping";
 import { DEFAULT_SERIES, DEFAULT_STATUSES } from "@/lib/calendar/constants";
+import {
+  buildPublicationFromImportedRow,
+  exportControlToExcel,
+  parseControlWorkbook,
+  type ImportedRow,
+} from "@/lib/calendar/excel";
 
 /** Chave canônica do status da sessão (banco pode trazer inglês minúsculo). */
 const aptKey = (apt: Appointment): string =>
@@ -51,6 +68,124 @@ interface ControlTablesProps {
    * (ex.: 5º Ano do Programa Bilíngue) saiu da tabela após uma alteração.
    */
   onRequestRestore?: (year: number) => void;
+  /** Cria uma nova publicação (usada pela importação de Excel). */
+  onCreatePublication?: (
+    pubData: Omit<Publication, "id" | "createdAt" | "updatedAt">
+  ) => Promise<string> | string;
+}
+
+/**
+ * Modal de confirmação da importação de Excel: lista as linhas lidas,
+ * separando atualizações (publicação já existente) de criações novas.
+ */
+function ImportPreviewModal({
+  rows,
+  errors,
+  fileName,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  rows: ImportedRow[];
+  errors: string[];
+  fileName: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const updates = rows.filter((r) => r.matchedExisting);
+  const creates = rows.filter((r) => !r.matchedExisting);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+      onClick={busy ? undefined : onCancel}
+    >
+      <div
+        className="w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-card border border-border shadow-xl p-4 sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-extrabold text-foreground truncate">
+              Confirmar importação
+            </h3>
+            <p className="text-xs text-muted-foreground truncate">{fileName}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+            title="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-3 text-center">
+          <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 px-2 py-2">
+            <p className="text-lg font-black text-blue-700">{updates.length}</p>
+            <p className="text-[11px] font-bold text-blue-800">Atualizações</p>
+          </div>
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-2 py-2">
+            <p className="text-lg font-black text-emerald-700">{creates.length}</p>
+            <p className="text-[11px] font-bold text-emerald-800">Novas publicações</p>
+          </div>
+        </div>
+
+        {errors.length > 0 && (
+          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 max-h-28 overflow-y-auto">
+            <p className="font-extrabold mb-1">Avisos:</p>
+            <ul className="list-disc pl-4 space-y-0.5">
+              {errors.slice(0, 20).map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+              {errors.length > 20 && <li>… e mais {errors.length - 20} avisos.</li>}
+            </ul>
+          </div>
+        )}
+
+        <ul className="max-h-48 overflow-y-auto rounded-lg border border-border divide-y divide-border/60 mb-4">
+          {rows.map((r, i) => (
+            <li key={i} className="px-3 py-2 text-xs flex items-center gap-2">
+              <span
+                className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                  r.matchedExisting
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {r.matchedExisting ? "Atualizar" : "Criar"}
+              </span>
+              <span className="font-bold shrink-0">{r.seriesName}</span>
+              <span className="tabular-nums shrink-0">{r.publicationDate}</span>
+              <span className="truncate text-muted-foreground">{r.title || "—"}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 rounded-lg border border-input px-3 py-2 text-sm font-bold hover:bg-accent disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy || rows.length === 0}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+            Aplicar {rows.length} linha{rows.length === 1 ? "" : "s"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 interface RowData {
@@ -432,8 +567,18 @@ export function ControlTables({
   editingPublicationId,
   onSetEditingPublicationId,
   onRequestRestore,
+  onCreatePublication,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importPreview, setImportPreview] = useState<{
+    rows: ImportedRow[];
+    errors: string[];
+    fileName: string;
+  } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const years = useMemo(() => {
     const set = new Set<number>();
@@ -561,6 +706,87 @@ export function ControlTables({
     window.setTimeout(() => onSetEditingPublicationId?.(null), 2500);
   };
 
+  // -------------------------------------------------------------------------
+  // Excel: exportação / importação do Controle de Publicações
+  // -------------------------------------------------------------------------
+
+  const handleExportExcel = () => {
+    try {
+      exportControlToExcel({
+        publications,
+        seriesList: allSeries,
+        statuses: DEFAULT_STATUSES,
+        year: activeYear,
+      });
+      setImportMessage(`Planilha do ano ${activeYear} exportada com sucesso.`);
+    } catch (err) {
+      console.error("Falha ao exportar Excel:", err);
+      setImportMessage("Não foi possível gerar o arquivo Excel.");
+    }
+    window.setTimeout(() => setImportMessage(null), 4000);
+  };
+
+  const handleImportFile = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const result = await parseControlWorkbook({
+        file,
+        publications,
+        seriesList: allSeries,
+        categories: categories ?? [],
+      });
+      if (result.rows.length === 0) {
+        setImportMessage(
+          result.errors[0] ?? "Nenhuma linha válida encontrada no arquivo."
+        );
+        window.setTimeout(() => setImportMessage(null), 5000);
+        return;
+      }
+      setImportPreview({ ...result, fileName: file.name });
+    } catch (err) {
+      console.error("Falha ao ler Excel:", err);
+      setImportMessage("Arquivo inválido ou corrompido.");
+      window.setTimeout(() => setImportMessage(null), 5000);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importPreview || isImporting) return;
+    setIsImporting(true);
+    let updated = 0;
+    let created = 0;
+    let failed = 0;
+    for (const row of importPreview.rows) {
+      try {
+        if (row.matchedExisting && row.existingId) {
+          const updates: Partial<Publication> = {
+            publicationDate: row.publicationDate!,
+            plannedDate: row.plannedDate ?? row.publicationDate!,
+          };
+          if (row.title) updates.title = row.title;
+          if (row.status) updates.status = row.status;
+          await onUpdatePublication(row.existingId, updates);
+          updated += 1;
+        } else if (onCreatePublication && row.publicationDate) {
+          await onCreatePublication(buildPublicationFromImportedRow(row));
+          created += 1;
+        } else {
+          failed += 1;
+        }
+      } catch (err) {
+        console.warn("Linha importada falhou:", err);
+        failed += 1;
+      }
+    }
+    setIsImporting(false);
+    setImportPreview(null);
+    setImportMessage(
+      `Importação concluída: ${updated} atualizada(s), ${created} criada(s)` +
+        (failed > 0 ? `, ${failed} falha(s).` : ".")
+    );
+    window.setTimeout(() => setImportMessage(null), 6000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -575,6 +801,37 @@ export function ControlTables({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            title="Baixa uma planilha Excel (.xlsx) com as publicações obrigatórias do ano selecionado (uma aba por categoria)"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Exportar Excel</span>
+            <span className="sm:hidden">Excel</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Importa uma planilha Excel (.xlsx) no formato exportado — linhas existentes são atualizadas e novas linhas são criadas"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100 transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Importar Excel</span>
+            <span className="sm:hidden">Importar</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            className="hidden"
+            onChange={(e) => {
+              void handleImportFile(e.target.files?.[0] ?? null);
+              // Permite reimportar o mesmo arquivo em seguida.
+              e.target.value = "";
+            }}
+          />
           {onRequestRestore && (
             <button
               type="button"
@@ -627,6 +884,23 @@ export function ControlTables({
         onSelect={onSelectPublication}
         onUpdateAppointmentStatus={onUpdateAppointmentStatus}
       />
+
+      {importMessage && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800">
+          {importMessage}
+        </div>
+      )}
+
+      {importPreview && (
+        <ImportPreviewModal
+          rows={importPreview.rows}
+          errors={importPreview.errors}
+          fileName={importPreview.fileName}
+          busy={isImporting}
+          onConfirm={() => void confirmImport()}
+          onCancel={() => !isImporting && setImportPreview(null)}
+        />
+      )}
     </div>
   );
 }
