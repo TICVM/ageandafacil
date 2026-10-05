@@ -1,11 +1,33 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Camera, Clock, MapPin, Users, AlertCircle, CheckCircle2, Hash, BookOpen, Sparkles, Loader2 } from "lucide-react";
+import { X, Menu, Camera, AlertCircle, Hash, BookOpen, Sparkles, Loader2, ShieldAlert, CalendarDays } from "lucide-react";
 import { PhotoLocation, SchoolClass, SchoolSegment, Appointment, AvailableTimeSlot, ScheduleBlock, AppSettings } from "@/lib/scheduler/types";
 import { getAvailableBookingSlots, SlotOption } from "@/lib/scheduler/hooks";
-import { formatDateForDisplay } from "@/lib/calendar/utils";
 import { aiSessionBriefAssistant } from "@/ai/flows/ai-session-brief-assistant-flow";
+
+/** Formata "YYYY-MM-DD" como 05/10/2026 sem depender de timezone. */
+const formatDateBR = (dateStr: string) => {
+  const [y, m, d] = dateStr.split("-");
+  if (!y || !m || !d) return dateStr;
+  return `${d}/${m}/${y}`;
+};
+
+/** Data local "YYYY-MM-DD" (evita UTC do toISOString). */
+const toLocalYMD = (dt: Date) => {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+/** Mesma regra da página /reserva: data mínima = hoje + antecedência mínima. */
+const getMinDateStr = (settings?: AppSettings | null) => {
+  const min = new Date();
+  min.setHours(0, 0, 0, 0);
+  min.setDate(min.getDate() + (settings?.minAdvanceBookingDays ?? 1));
+  return toLocalYMD(min);
+};
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -72,8 +94,9 @@ export function BookingModal({
     }
   }, [filteredLocations, selectedLocationId]);
 
-  const [appointmentDate, setAppointmentDate] = useState(
-    new Date().toISOString().split("T")[0]
+  // Mesma regra da /reserva: data inicial = hoje + antecedência mínima.
+  const [appointmentDate, setAppointmentDate] = useState(() =>
+    getMinDateStr(appSettings)
   );
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
   const [teacherName, setTeacherName] = useState(currentUserName || "Professor");
@@ -87,6 +110,16 @@ export function BookingModal({
   useEffect(() => {
     if (currentUserName) setTeacherName(currentUserName);
   }, [currentUserName]);
+
+  // appSettings pode chegar do Firestore depois da abertura do modal;
+  // ajusta a data inicial para a antecedência mínima (mesma regra da /reserva).
+  const minDateStr = useMemo(() => getMinDateStr(appSettings), [appSettings]);
+  useEffect(() => {
+    if (!appointmentDate || appointmentDate < minDateStr) {
+      setAppointmentDate(minDateStr);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minDateStr]);
 
   // Horários disponíveis calculados com a MESMA regra da página /reserva:
   // dia da semana + turma/segmento + antecedência mínima + ocupações + bloqueios.
@@ -127,6 +160,12 @@ export function BookingModal({
 
     if (!selectedClassId || !selectedLocationId || !appointmentDate || !selectedSlot) {
       setErrorMessage("Preencha turma, local, data e um horário disponível.");
+      return;
+    }
+    if (appointmentDate < minDateStr) {
+      setErrorMessage(
+        `A data deve ter a antecedência mínima permitida (a partir de ${formatDateBR(minDateStr)}).`
+      );
       return;
     }
     if (requiresIdentifier && !locationIdentifier.trim()) {
@@ -192,27 +231,29 @@ export function BookingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between p-5 border-b border-border bg-muted/20">
-          <div>
-            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-              <Camera className="w-4 h-4 text-primary" />
-              Agendar Sessão Fotográfica Escolar
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4">
+      <div className="w-full sm:max-w-xl h-[100dvh] sm:h-auto bg-card sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+        {/* Cabeçalho fixo */}
+        <div className="flex items-center justify-between px-4 sm:p-5 border-b border-border bg-muted/20 shrink-0 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-5">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2 truncate">
+              <Camera className="w-4 h-4 text-primary shrink-0" />
+              Agendar Sessão Fotográfica
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="hidden sm:block text-xs text-muted-foreground">
               Os mesmos campos da página de Reserva: turma, local, identificação, data, horário e resumo.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
+            aria-label="Fechar"
+            className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 p-4 sm:p-6 space-y-4 overflow-y-auto">
           {errorMessage && (
             <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -229,7 +270,7 @@ export function BookingModal({
               <select
                 value={selectedClassId}
                 onChange={(e) => setSelectedClassId(e.target.value)}
-                className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground"
+                className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm rounded-lg border border-border bg-background text-foreground appearance-none"
               >
                 <option value="">Selecione a turma</option>
                 {classes.map((cls) => (
@@ -248,7 +289,7 @@ export function BookingModal({
                 value={selectedLocationId}
                 onChange={(e) => setSelectedLocationId(e.target.value)}
                 disabled={!selectedClassId}
-                className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground disabled:opacity-50"
+                className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm rounded-lg border border-border bg-background text-foreground disabled:opacity-50 appearance-none"
               >
                 <option value="">Escolha o local</option>
                 {filteredLocations.map((loc) => (
@@ -274,39 +315,62 @@ export function BookingModal({
                 value={locationIdentifier}
                 onChange={(e) => setLocationIdentifier(e.target.value)}
                 placeholder="Especifique o número ou nome da sala..."
-                className="w-full h-10 px-3 text-sm rounded-lg border border-primary/30 bg-background text-foreground"
+                className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm rounded-lg border border-primary/30 bg-background text-foreground"
               />
             </div>
           )}
 
-          {/* Date & Teacher */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Data *
-              </label>
+          {/* Identificação do Professor — mesmo campo de identificação da /reserva */}
+          <div className="p-3 sm:p-4 rounded-xl border border-border bg-muted/30 space-y-3">
+            <label className="block text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Menu className="w-3.5 h-3.5 text-primary" />
+              Identificação do Professor
+            </label>
+            <input
+              type="text"
+              required
+              value={teacherName}
+              onChange={(e) => setTeacherName(e.target.value)}
+              placeholder="Ex: Prof. Helena Ramos"
+              className="w-full h-11 px-3 text-base sm:text-sm rounded-lg border border-border bg-background text-foreground"
+            />
+          </div>
+
+          {/* Data — seletor nativo com a mesma antecedência mínima da /reserva */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Data *
+            </label>
+            <div className="relative">
               <input
                 type="date"
                 required
+                min={minDateStr}
                 value={appointmentDate}
-                onChange={(e) => setAppointmentDate(e.target.value)}
-                className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground"
+                onChange={(e) => {
+                  if (e.target.value) setAppointmentDate(e.target.value);
+                }}
+                className="w-full h-11 px-3 pr-10 text-base sm:text-sm rounded-lg border border-border bg-background text-foreground appearance-none"
               />
+              <CalendarDays className="w-4 h-4 text-primary absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d{" "}
+              {appSettings?.minAdvanceBookingHours ?? 0}h — a partir de {formatDateBR(minDateStr)}
+            </p>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Professor / Responsável *
-              </label>
-              <input
-                type="text"
-                required
-                value={teacherName}
-                onChange={(e) => setTeacherName(e.target.value)}
-                placeholder="Ex: Prof. Helena Ramos"
-                className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground"
-              />
-            </div>
+          {/* Regras da Unidade — mesmos dados exibidos na /reserva */}
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 sm:p-4">
+            <h4 className="font-bold text-[11px] uppercase tracking-widest text-primary flex items-center gap-1.5 mb-2">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Regras da Unidade
+            </h4>
+            <ul className="space-y-1 text-[11px] sm:text-xs text-muted-foreground list-disc list-inside">
+              <li>Antecedência mínima: {appSettings?.minAdvanceBookingDays ?? 1}d {appSettings?.minAdvanceBookingHours ?? 0}h</li>
+              <li>Verifique a disponibilidade do local escolhido.</li>
+              <li>Comunique alterações com antecedência.</li>
+            </ul>
           </div>
 
           {/* Time Slot Selection — layout preservado, agora com os horários
@@ -330,14 +394,14 @@ export function BookingModal({
                       key={slot.id}
                       type="button"
                       onClick={() => setSelectedSlotId(slot.id)}
-                      className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-all flex flex-col items-center gap-0.5 ${
+                      className={`py-2.5 px-2.5 rounded-lg border text-sm sm:text-xs font-semibold transition-all flex flex-col items-center gap-0.5 ${
                         isSelected
                           ? "border-primary bg-primary text-primary-foreground shadow-xs"
                           : "border-border bg-background text-foreground hover:bg-accent"
                       }`}
                     >
                       <span>{slot.startTime}</span>
-                      <span className="text-[10px] font-normal opacity-80">
+                      <span className="text-[10px] font-normal opacity-80 line-clamp-1">
                         {slot.subject ? slot.subject : `${slot.durationMinutes} min`}
                       </span>
                     </button>
@@ -347,7 +411,7 @@ export function BookingModal({
             )}
             {selectedSlot?.subject && (
               <p className="text-[11px] text-primary font-bold flex items-center gap-1.5 mt-2 animate-in slide-in-from-left-2">
-                <BookOpen className="w-3.5 h-3.5" />
+                <BookOpen className="w-3.5 h-3.5 shrink-0" />
                 Disciplina: {selectedSlot.subject}
               </p>
             )}
@@ -355,7 +419,7 @@ export function BookingModal({
 
           {/* Resumo da Atividade / Briefing (com o mesmo botão de IA da /reserva) */}
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-1 gap-2">
               <label className="block text-xs font-semibold text-foreground">
                 Resumo da Atividade
               </label>
@@ -363,7 +427,7 @@ export function BookingModal({
                 type="button"
                 onClick={handleGenerateAI}
                 disabled={isGeneratingAI || !observations || !selectedClassId || !selectedLocationId}
-                className="flex items-center gap-1.5 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-md px-2 py-1 disabled:opacity-40"
+                className="flex items-center gap-1.5 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-md px-2 py-1 disabled:opacity-40 shrink-0"
               >
                 {isGeneratingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 Aprimorar com IA
@@ -374,19 +438,12 @@ export function BookingModal({
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
               placeholder="Descreva brevemente o que os alunos estarão fazendo. Use a IA para expandir o texto para o marketing..."
-              className="w-full p-3 text-xs rounded-lg border border-border bg-background text-foreground resize-none"
+              className="w-full p-3 text-sm sm:text-xs rounded-lg border border-border bg-background text-foreground resize-none"
             />
           </div>
 
-          {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-accent"
-            >
-              Cancelar
-            </button>
+          {/* Footer Buttons — largura total no mobile, com safe-area */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-4 border-t border-border pb-[max(0.5rem,env(safe-area-inset-bottom))] sticky bottom-0 bg-card">
             <button
               type="submit"
               disabled={
@@ -394,11 +451,19 @@ export function BookingModal({
                 !selectedClassId ||
                 !selectedLocationId ||
                 !selectedSlot ||
+                appointmentDate < minDateStr ||
                 (requiresIdentifier && !locationIdentifier.trim())
               }
-              className="px-5 py-2 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 shadow-xs disabled:opacity-50"
+              className="w-full sm:w-auto h-12 sm:h-11 px-5 rounded-xl text-sm sm:text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 shadow-xs disabled:opacity-50"
             >
               {isSubmitting ? "Agendando..." : "Confirmar Agendamento"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full sm:w-auto h-11 px-4 rounded-xl text-sm sm:text-xs font-semibold text-muted-foreground hover:bg-accent"
+            >
+              Cancelar
             </button>
           </div>
         </form>
