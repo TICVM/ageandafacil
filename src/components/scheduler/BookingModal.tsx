@@ -3,8 +3,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { X, Menu, Camera, AlertCircle, Hash, BookOpen, Sparkles, Loader2, ShieldAlert, CalendarDays } from "lucide-react";
 import { PhotoLocation, SchoolClass, SchoolSegment, Appointment, AvailableTimeSlot, ScheduleBlock, AppSettings } from "@/lib/scheduler/types";
-import { SlotOption } from "@/lib/scheduler/hooks";
+import { getAvailableBookingSlots, SlotOption } from "@/lib/scheduler/hooks";
 import { aiSessionBriefAssistant } from "@/ai/flows/ai-session-brief-assistant-flow";
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 
 /** Formata "YYYY-MM-DD" como 05/10/2026 sem depender de timezone. */
 const formatDateBR = (dateStr: string) => {
@@ -62,6 +64,40 @@ export function BookingModal({
   currentUserUid,
   onBook,
 }: BookingModalProps) {
+  const db = useFirestore();
+
+  // O modal consulta diretamente as mesmas coleções usadas pela /reserva.
+  // As props continuam sendo aceitas para manter compatibilidade com o componente pai.
+  const slotsRef = useMemoFirebase(
+    () => db ? collection(db, "available_time_slots") : null,
+    [db]
+  );
+  const appointmentsRef = useMemoFirebase(
+    () => db ? collection(db, "appointments") : null,
+    [db]
+  );
+  const blocksRef = useMemoFirebase(
+    () => db ? collection(db, "schedule_blocks") : null,
+    [db]
+  );
+  const settingsRef = useMemoFirebase(
+    () => db ? doc(db, "app_settings", "general") : null,
+    [db]
+  );
+
+  const { data: firestoreSlots } = useCollection<AvailableTimeSlot>(slotsRef);
+  const { data: firestoreAppointments } = useCollection<Appointment>(appointmentsRef);
+  const { data: firestoreBlocks } = useCollection<ScheduleBlock>(blocksRef);
+  const { data: firestoreSettings } = useDoc<AppSettings>(settingsRef);
+
+  // Se o pai passar os dados, usamos as props. Caso contrário, usamos Firestore.
+  const effectiveTimeSlots = timeSlots.length > 0 ? timeSlots : (firestoreSlots ?? []);
+  const effectiveAppointments =
+    existingAppointments.length > 0 ? existingAppointments : (firestoreAppointments ?? []);
+  const effectiveScheduleBlocks =
+    scheduleBlocks.length > 0 ? scheduleBlocks : (firestoreBlocks ?? []);
+  const effectiveAppSettings = appSettings ?? firestoreSettings ?? null;
+
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "");
   const [selectedLocationId, setSelectedLocationId] = useState(locations[0]?.id || "");
 
@@ -96,7 +132,7 @@ export function BookingModal({
 
   // Mesma regra da /reserva: data inicial = hoje + antecedência mínima.
   const [appointmentDate, setAppointmentDate] = useState(() =>
-    getMinDateStr(appSettings)
+    getMinDateStr(effectiveAppSettings)
   );
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
   const [teacherName, setTeacherName] = useState(currentUserName || "Professor");
@@ -113,7 +149,7 @@ export function BookingModal({
 
   // appSettings pode chegar do Firestore depois da abertura do modal;
   // ajusta a data inicial para a antecedência mínima (mesma regra da /reserva).
-  const minDateStr = useMemo(() => getMinDateStr(appSettings), [appSettings]);
+  const minDateStr = useMemo(() => getMinDateStr(effectiveAppSettings), [effectiveAppSettings]);
   useEffect(() => {
     if (!appointmentDate || appointmentDate < minDateStr) {
       setAppointmentDate(minDateStr);
@@ -121,109 +157,103 @@ export function BookingModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minDateStr]);
 
-  // Horários disponíveis: MESMA regra usada na página /reserva.
-  // Os horários são lidos de `available_time_slots` (via timeSlots recebido
-  // do pai) e filtrados por dia da semana, turma/segmento, antecedência,
-  // agendamentos já existentes e bloqueios da agenda.
+  // Horários disponíveis: mesma regra efetiva da /reserva.
+  // A fonte principal é available_time_slots no Firestore.
   const availableSlots = useMemo<SlotOption[]>(() => {
-    if (!timeSlots || !appointmentDate || !selectedClassId) return [];
-
-    const selectedDate = new Date(`${appointmentDate}T00:00:00`);
-    const dayOfWeek = selectedDate.getDay().toString();
-
-    // Mesma regra da /reserva:
-    // hoje + dias de antecedência + horas de antecedência.
-    const now = new Date();
-    const minLimit = new Date(now);
-    minLimit.setHours(0, 0, 0, 0);
-    minLimit.setDate(
-      minLimit.getDate() + (appSettings?.minAdvanceBookingDays ?? 1)
-    );
-    minLimit.setHours(appSettings?.minAdvanceBookingHours ?? 0, 0, 0, 0);
+    if (!selectedClassId || !appointmentDate) return [];
 
     const selectedClass = classes.find((c) => c.id === selectedClassId);
-    const dateStr = appointmentDate;
+    if (!selectedClass) return [];
 
-    const timeToMin = (time: string) => {
-      if (!time) return 0;
-      const [hours, minutes] = time.split(":").map(Number);
-      return hours * 60 + minutes;
+    const [year, month, dayNumber] = appointmentDate.split("-").map(Number);
+    const selectedDate = new Date(year, month - 1, dayNumber);
+    const dayOfWeek = selectedDate.getDay().toString();
+
+    const minLimit = new Date();
+    minLimit.setHours(0, 0, 0, 0);
+    minLimit.setDate(
+      minLimit.getDate() + (effectiveAppSettings?.minAdvanceBookingDays ?? 1)
+    );
+    minLimit.setHours(
+      minLimit.getHours() + (effectiveAppSettings?.minAdvanceBookingHours ?? 0)
+    );
+
+    const timeToMin = (value: string) => {
+      const [h, m] = value.split(":").map(Number);
+      return h * 60 + m;
     };
 
-    return timeSlots
+    return effectiveTimeSlots
       .filter((slot) => {
-        // 1. O horário precisa estar configurado para o dia escolhido.
-        if (slot.dayOfWeek !== dayOfWeek) return false;
+        // Mesmo filtro da /reserva: dia da semana.
+        if (String(slot.dayOfWeek) !== dayOfWeek) return false;
 
-        // 2. A configuração pode ser específica da turma, do segmento
-        //    ou geral, exatamente como na página /reserva.
+        // Mesmo filtro da /reserva:
+        // 1. horário específico da turma
+        // 2. horário específico do segmento
+        // 3. horário geral
         const targetMatches = slot.schoolClassId
           ? slot.schoolClassId === selectedClassId
           : slot.schoolSegmentId
-            ? slot.schoolSegmentId === selectedClass?.segmentId
+            ? slot.schoolSegmentId === selectedClass.schoolSegmentId
             : !slot.schoolClassId && !slot.schoolSegmentId;
 
         if (!targetMatches) return false;
 
-        // 3. Respeita a antecedência mínima em dias + horas.
-        const [hours, minutes] = slot.startTime.split(":").map(Number);
+        const [h, m] = slot.startTime.split(":").map(Number);
         const slotDateTime = new Date(selectedDate);
-        slotDateTime.setHours(hours, minutes, 0, 0);
+        slotDateTime.setHours(h, m, 0, 0);
 
         if (slotDateTime < minLimit) return false;
 
-        // 4. Não permite horário já ocupado por outro agendamento,
-        //    exceto os que foram cancelados.
-        const alreadyBooked = existingAppointments.some(
+        // Horário já ocupado.
+        const alreadyBooked = effectiveAppointments.some(
           (appointment) =>
-            appointment.appointmentDate === dateStr &&
+            appointment.appointmentDate === appointmentDate &&
             appointment.startTime === slot.startTime &&
             appointment.status !== "CANCELLED"
         );
 
         if (alreadyBooked) return false;
 
-        // 5. Não permite horários que cruzem um bloqueio da agenda.
-        const slotStart = timeToMin(slot.startTime);
-        const slotEnd =
-          slotStart + (slot.durationMinutes || 60);
-
-        const isBlocked = scheduleBlocks.some(
+        // Horário bloqueado.
+        const blocked = effectiveScheduleBlocks.some(
           (block) =>
-            block.date === dateStr &&
-            slotStart < timeToMin(block.endTime) &&
-            slotEnd > timeToMin(block.startTime)
+            block.date === appointmentDate &&
+            timeToMin(slot.startTime) < timeToMin(block.endTime) &&
+            timeToMin(slot.startTime) + (slot.durationMinutes || 60) >
+              timeToMin(block.startTime)
         );
 
-        if (isBlocked) return false;
+        if (blocked) return false;
 
         return true;
       })
-      .sort((a, b) =>
-        (a.startTime || "").localeCompare(b.startTime || "")
-      )
+      .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
       .map((slot) => {
         const startMinutes = timeToMin(slot.startTime);
-        const endMinutes =
-          startMinutes + (slot.durationMinutes || 60);
+        const endMinutes = startMinutes + (slot.durationMinutes || 60);
 
         return {
-          ...slot,
+          id: slot.id,
+          startTime: slot.startTime,
           endTime: `${Math.floor(endMinutes / 60)
             .toString()
             .padStart(2, "0")}:${(endMinutes % 60)
             .toString()
             .padStart(2, "0")}`,
+          subject: slot.subject || null,
+          durationMinutes: slot.durationMinutes || 60,
         };
       });
   }, [
-    timeSlots,
+    effectiveTimeSlots,
     appointmentDate,
     selectedClassId,
     classes,
-    existingAppointments,
-    scheduleBlocks,
-    appSettings,
+    effectiveAppointments,
+    effectiveScheduleBlocks,
+    effectiveAppSettings,
   ]);
 
   // Mantém a seleção de horário válida quando a data/turma muda.
