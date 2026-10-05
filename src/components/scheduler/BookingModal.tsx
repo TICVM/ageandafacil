@@ -351,8 +351,8 @@ export function BookingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4">
-      <div className="w-full sm:max-w-xl h-[100dvh] sm:h-auto bg-card sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full max-w-full sm:max-w-xl h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[min(90dvh,820px)] bg-card border-0 sm:border sm:border-border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col min-w-0">
         {/* Cabeçalho fixo */}
         <div className="flex items-center justify-between px-4 sm:p-5 border-b border-border bg-muted/20 shrink-0 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-5">
           <div className="min-w-0">
@@ -373,7 +373,7 @@ export function BookingModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 min-h-0 p-4 sm:p-6 space-y-4 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 min-w-0 p-3 xs:p-4 sm:p-6 space-y-4 overflow-y-auto overscroll-contain">
           {errorMessage && (
             <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -506,7 +506,7 @@ export function BookingModal({
                 configuração de horários (Admin → Horários) e a antecedência mínima.
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 min-[420px]:grid-cols-3 sm:grid-cols-4 gap-2">
                 {availableSlots.map((slot) => {
                   const isSelected = selectedSlotId === slot.id;
                   return (
