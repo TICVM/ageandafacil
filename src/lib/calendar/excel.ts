@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * Importação / Exportação em Excel do "Controle de Publicações".
+ * Importação / Exportação em Excel do "Controle de Publicações" e do
+ * "Controle de Eventos Pedagógicos".
  *
  * Formato do arquivo (uma planilha por categoria):
- *   - "Atividades Variadas"  → categoryId ATIVIDADES_VARIADAS
- *   - "Programa Bilíngue"    → categoryId PROGRAMA_BILINGUE
- * Colunas: Série | Data Prevista | Data da Publicação | Título | Status
+ *   - "Atividades Variadas"      → categoryId ATIVIDADES_VARIADAS
+ *   - "Programa Bilíngue"        → categoryId PROGRAMA_BILINGUE
+ *   - "Eventos Pedagógicos"      → categoryId EVENTOS_PEDAGOGICOS
+ * Colunas: Série | Prazo (Dias Úteis) | Data Prevista Produção |
+ *          Data da Publicação | Título | Status
  *
  * A exportação usa exatamente os mesmos rótulos exibidos na tabela, de modo
  * que o arquivo pode ser editado no Excel e reimportado sem divergências:
@@ -28,10 +31,12 @@ import { normalizePublicationStatus } from "@/lib/scheduler/status-mapping";
 
 export const AV_CATEGORY_ID = "ATIVIDADES_VARIADAS";
 export const PB_CATEGORY_ID = "PROGRAMA_BILINGUE";
+export const EP_CATEGORY_ID = "EVENTOS_PEDAGOGICOS";
 
 const HEADERS = [
   "Série",
-  "Data Prevista",
+  "Prazo (Dias Úteis)",
+  "Data Prevista Produção",
   "Data da Publicação",
   "Título da Publicação",
   "Status",
@@ -155,6 +160,8 @@ export interface ExportOptions {
   seriesList: Series[];
   statuses: StatusMeta[];
   year: number;
+  /** Prazo (dias úteis) por categoria|série — usado na coluna "Prazo (Dias Úteis)". */
+  getDeadline?: (categoryId: string, seriesId?: string) => number;
 }
 
 function isMandatory(p: Publication): boolean {
@@ -165,13 +172,19 @@ function isMandatory(p: Publication): boolean {
 function sheetRows(
   pubs: Publication[],
   seriesNameById: Map<string, string>,
-  statusLabelByKey: Map<string, string>
+  statusLabelByKey: Map<string, string>,
+  categoryId: string,
+  getDeadline?: (categoryId: string, seriesId?: string) => number
 ): (string | number)[][] {
   const rows: (string | number)[][] = [HEADERS.slice()];
   pubs.forEach((p) => {
     const key = normalizePublicationStatus(p.status) ?? p.status;
+    const deadlineDays =
+      p.productionDays ??
+      (getDeadline ? getDeadline(categoryId, p.seriesId) : undefined);
     rows.push([
       seriesNameById.get(p.seriesId ?? "") ?? p.seriesId ?? "",
+      deadlineDays ?? "",
       formatDateBR(p.plannedDate),
       formatDateBR(p.publicationDate),
       p.title ?? "",
@@ -182,14 +195,16 @@ function sheetRows(
 }
 
 /**
- * Gera e baixa um arquivo .xlsx com duas abas (Atividades Variadas e Programa
- * Bilíngue) contendo as publicações obrigatórias do ano informado.
+ * Gera e baixa um arquivo .xlsx com três abas (Atividades Variadas, Programa
+ * Bilíngue e Eventos Pedagógicos) contendo as publicações obrigatórias do ano
+ * informado.
  */
 export function exportControlToExcel({
   publications,
   seriesList,
   statuses,
   year,
+  getDeadline,
 }: ExportOptions): void {
   const seriesNameById = new Map(seriesList.map((s) => [s.id, s.name]));
   const statusLabelByKey = new Map(statuses.map((s) => [s.value, s.label]));
@@ -201,21 +216,42 @@ export function exportControlToExcel({
       p.publicationDate.startsWith(String(year))
   );
 
+  const byDate = (a: Publication, b: Publication) =>
+    a.publicationDate.localeCompare(b.publicationDate);
   const av = mandatoryOfYear
     .filter((p) => p.categoryId === AV_CATEGORY_ID)
-    .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate));
+    .sort(byDate);
   const pb = mandatoryOfYear
     .filter((p) => p.categoryId === PB_CATEGORY_ID)
-    .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate));
+    .sort(byDate);
+  const ep = mandatoryOfYear
+    .filter((p) => p.categoryId === EP_CATEGORY_ID)
+    .sort(byDate);
 
   const wb = XLSX.utils.book_new();
-  const wsAv = XLSX.utils.aoa_to_sheet(sheetRows(av, seriesNameById, statusLabelByKey));
-  const wsPb = XLSX.utils.aoa_to_sheet(sheetRows(pb, seriesNameById, statusLabelByKey));
-  const colWidths = [{ wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 42 }, { wch: 24 }];
+  const wsAv = XLSX.utils.aoa_to_sheet(
+    sheetRows(av, seriesNameById, statusLabelByKey, AV_CATEGORY_ID, getDeadline)
+  );
+  const wsPb = XLSX.utils.aoa_to_sheet(
+    sheetRows(pb, seriesNameById, statusLabelByKey, PB_CATEGORY_ID, getDeadline)
+  );
+  const wsEp = XLSX.utils.aoa_to_sheet(
+    sheetRows(ep, seriesNameById, statusLabelByKey, EP_CATEGORY_ID, getDeadline)
+  );
+  const colWidths = [
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 42 },
+    { wch: 24 },
+  ];
   wsAv["!cols"] = colWidths;
   wsPb["!cols"] = colWidths;
+  wsEp["!cols"] = colWidths;
   XLSX.utils.book_append_sheet(wb, wsAv, "Atividades Variadas");
   XLSX.utils.book_append_sheet(wb, wsPb, "Programa Bilíngue");
+  XLSX.utils.book_append_sheet(wb, wsEp, "Eventos Pedagógicos");
 
   XLSX.writeFile(wb, `controle-publicacoes-${year}.xlsx`);
 }
@@ -230,6 +266,8 @@ export interface ImportedRow {
   seriesName: string;
   plannedDate: string | null;
   publicationDate: string | null;
+  /** Prazo de produção em dias úteis (coluna "Prazo (Dias Úteis)"). */
+  productionDays: number | null;
   title: string;
   status: PublicationStatus | null;
   /** true quando a linha corresponde a uma publicação existente (atualizar). */
@@ -249,10 +287,20 @@ export interface ImportOptions {
   categories: Category[];
 }
 
+/** Lê um número inteiro de dias (aceita "7", "7 dias", "07"). */
+function parseDays(raw: unknown): number | null {
+  if (raw == null || String(raw).trim() === "") return null;
+  const m = String(raw).match(/\d+/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function categoryFromSheetName(name: string): string | null {
   const key = norm(name);
-  if (key.includes("bilingue") || key.includes("bilingue")) return PB_CATEGORY_ID;
+  if (key.includes("bilingue")) return PB_CATEGORY_ID;
   if (key.includes("atividade") || key.includes("variada")) return AV_CATEGORY_ID;
+  if (key.includes("evento") || key.includes("pedagogic")) return EP_CATEGORY_ID;
   return null;
 }
 
@@ -291,7 +339,7 @@ export async function parseControlWorkbook({
     const categoryId = categoryFromSheetName(sheetName);
     if (!categoryId) {
       errors.push(
-        `Aba "${sheetName}" ignorada (esperado "Atividades Variadas" ou "Programa Bilíngue").`
+        `Aba "${sheetName}" ignorada (esperado "Atividades Variadas", "Programa Bilíngue" ou "Eventos Pedagógicos").`
       );
       return;
     }
@@ -322,18 +370,23 @@ export async function parseControlWorkbook({
     const publicacaoIdx = header.findIndex(
       (h) => h.includes("publicacao") && h !== header[previstaIdx]
     );
+    const prazoIdx = header.findIndex(
+      (h) => h.includes("prazo") || h.includes("dias uteis")
+    );
     const tituloIdx = header.findIndex((h) => h.includes("titulo"));
     const statusIdx = header.findIndex((h) => h.includes("status"));
     const col: {
       serie: number;
       prevista: number;
       publicacao: number;
+      prazo: number;
       titulo: number;
       status: number;
     } = {
       serie: serieIdx,
       prevista: previstaIdx,
       publicacao: publicacaoIdx,
+      prazo: prazoIdx,
       titulo: tituloIdx,
       status: statusIdx,
     };
@@ -360,6 +413,7 @@ export async function parseControlWorkbook({
       }
       const title = col.titulo >= 0 ? String(line[col.titulo] ?? "").trim() : "";
       const status = col.status >= 0 ? parseStatus(line[col.status]) : null;
+      const productionDays = col.prazo >= 0 ? parseDays(line[col.prazo]) : null;
       if (col.status >= 0 && status === null && String(line[col.status] ?? "").trim()) {
         errors.push(
           `${sheetName} linha ${rowNum}: status desconhecido "${String(
@@ -375,6 +429,7 @@ export async function parseControlWorkbook({
         seriesName: series.name,
         plannedDate: planDate ?? pubDate,
         publicationDate: pubDate,
+        productionDays,
         title,
         status,
         matchedExisting: !!existing,
@@ -404,7 +459,15 @@ export function buildPublicationFromImportedRow(
     priority: "MEDIA" as Priority,
     publicationDate: row.publicationDate!,
     plannedDate: row.plannedDate ?? row.publicationDate!,
-    tags: ["obrigatoria", "plano-anual", "importado-excel"],
+    productionDays: row.productionDays ?? undefined,
+    tags: [
+      "obrigatoria",
+      "plano-anual",
+      "importado-excel",
+      // Publicações de eventos pedagógicos importadas também recebem a tag do
+      // gerador semi-automático, para não serem duplicadas pelo plano anual.
+      ...(row.categoryId === EP_CATEGORY_ID ? ["evento-pedagogico"] : []),
+    ],
     isDeleted: false,
   };
 }
