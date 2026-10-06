@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Camera, Calendar, Menu, Plus, Sparkles, Table2, X } from "lucide-react";
+import { Camera, Calendar, GraduationCap, Menu, Plus, Sparkles, Table2, X } from "lucide-react";
 
 export type AppTab = "calendar" | "control" | "scheduler";
 
@@ -11,6 +11,8 @@ interface NavbarProps {
   onNewPublication: () => void;
   onNewBooking: () => void;
   onGeneratePlan?: () => void;
+  /** Gera o plano anual SEMI-AUTOMÁTICO de Eventos Pedagógicos */
+  onGeneratePedagogicalPlan?: () => void;
 }
 
 const tabItems: { id: AppTab; label: string; icon: React.ComponentType<{ className?: string }>; iconColor: string }[] = [
@@ -25,6 +27,7 @@ export function Navbar({
   onNewPublication,
   onNewBooking,
   onGeneratePlan,
+  onGeneratePedagogicalPlan,
 }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -96,6 +99,16 @@ export function Navbar({
                     <span>Gerar Plano Anual</span>
                   </button>
                 )}
+                {onGeneratePedagogicalPlan && (
+                  <button
+                    onClick={onGeneratePedagogicalPlan}
+                    title="Gera automaticamente as publicações dos eventos pedagógicos que se repetem todos os anos"
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-all flex items-center gap-1.5 shadow-xs"
+                  >
+                    <GraduationCap className="w-4 h-4" />
+                    <span>Eventos Pedagógicos</span>
+                  </button>
+                )}
                 <button
                   onClick={onNewPublication}
                   className="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-1.5 shadow-xs"
@@ -164,6 +177,18 @@ export function Navbar({
                     >
                       <Sparkles className="w-4 h-4" />
                       <span>Gerar Plano Anual</span>
+                    </button>
+                  )}
+                  {onGeneratePedagogicalPlan && (
+                    <button
+                      onClick={() => {
+                        setMobileOpen(false);
+                        onGeneratePedagogicalPlan();
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition-all flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <GraduationCap className="w-4 h-4" />
+                      <span>Eventos Pedagógicos</span>
                     </button>
                   )}
                   <button

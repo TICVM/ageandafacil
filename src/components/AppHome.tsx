@@ -9,6 +9,7 @@ import { PublicationModal } from "@/components/calendar/PublicationModal";
 import { HolidaysModal } from "@/components/calendar/HolidaysModal";
 import { DeadlinesModal } from "@/components/calendar/DeadlinesModal";
 import { GeneratePlanModal } from "@/components/calendar/GeneratePlanModal";
+import { GeneratePedagogicalPlanModal } from "@/components/calendar/GeneratePedagogicalPlanModal";
 import { RestorePublicationsModal } from "@/components/calendar/RestorePublicationsModal";
 import { BookingModal } from "@/components/scheduler/BookingModal";
 import { AppointmentsList } from "@/components/scheduler/AppointmentsList";
@@ -49,6 +50,9 @@ export function AppHome() {
   const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
   const [isDeadlinesModalOpen, setIsDeadlinesModalOpen] = useState(false);
   const [isGeneratePlanOpen, setIsGeneratePlanOpen] = useState(false);
+  // Abre o modal "Gerar Plano Anual de Eventos Pedagógicos" (geração
+  // semi-automática dos eventos que se repetem todos os anos).
+  const [isGeneratePedagogicalPlanOpen, setIsGeneratePedagogicalPlanOpen] = useState(false);
   // Abre o modal "Restaurar publicações do plano anual" (ex.: quando a
   // publicação do 5º Ano do Programa Bilíngue some da tabela após uma alteração).
   const [isRestoreOpen, setIsRestoreOpen] = useState(false);
@@ -142,6 +146,30 @@ export function AppHome() {
   };
 
   /**
+   * Persistência do plano anual de Eventos Pedagógicos (geração semi-automática):
+   * remove as publicações antigas substituídas (se selecionado) e cria as novas.
+   */
+  const handleGeneratePedagogicalPlanConfirm = async (
+    newPubs: Omit<Publication, "id">[],
+    toRemove: Publication[]
+  ) => {
+    for (const pub of toRemove) {
+      await deletePublication(pub.id);
+    }
+    for (const pubData of newPubs) {
+      await createPublication(pubData);
+    }
+    if (newPubs.length > 0) {
+      const firstDate = [...newPubs].sort((a, b) =>
+        a.publicationDate.localeCompare(b.publicationDate)
+      )[0].publicationDate;
+      const [y, m] = firstDate.split("-").map(Number);
+      setSelectedYear(y);
+      setSelectedMonth(m - 1);
+    }
+  };
+
+  /**
    * Persistência das restaurações feitas no modal "Restaurar publicações do
    * plano anual": cria as que sumiram e corrige a data das que foram movidas
    * para outro ano (caso do 5º Ano do Programa Bilíngue).
@@ -182,6 +210,7 @@ export function AppHome() {
         onNewPublication={() => handleOpenNewPublication()}
         onNewBooking={() => setIsBookingModalOpen(true)}
         onGeneratePlan={() => setIsGeneratePlanOpen(true)}
+        onGeneratePedagogicalPlan={() => setIsGeneratePedagogicalPlanOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -338,6 +367,14 @@ export function AppHome() {
         holidays={holidays}
         existingPublications={publications}
         onConfirm={handleGeneratePlanConfirm}
+      />
+
+      <GeneratePedagogicalPlanModal
+        isOpen={isGeneratePedagogicalPlanOpen}
+        onClose={() => setIsGeneratePedagogicalPlanOpen(false)}
+        holidays={holidays}
+        existingPublications={publications}
+        onConfirm={handleGeneratePedagogicalPlanConfirm}
       />
 
       <RestorePublicationsModal
