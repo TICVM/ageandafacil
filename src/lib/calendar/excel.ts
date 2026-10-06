@@ -22,11 +22,13 @@
 import * as XLSX from "xlsx";
 import {
   Category,
+  Holiday,
   Priority,
   Publication,
   PublicationStatus,
   Series,
 } from "@/lib/calendar/types";
+import { calculatePlannedDate } from "@/lib/calendar/utils";
 import { normalizePublicationStatus } from "@/lib/scheduler/status-mapping";
 
 export const AV_CATEGORY_ID = "ATIVIDADES_VARIADAS";
