@@ -288,6 +288,8 @@ export function AppHome() {
               setIsRestoreOpen(true);
             }}
             onCreatePublication={createPublication}
+            holidays={holidays}
+            getDeadline={getDeadline}
           />
         ) : (
           <div className="space-y-6">
