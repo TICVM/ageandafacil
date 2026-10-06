@@ -81,6 +81,15 @@ export function PublicationModal({
   const [showDuplicatePrompt, setShowDuplicatePrompt] = useState(false);
   const [duplicateDateInput, setDuplicateDateInput] = useState("");
 
+  // Categorias sem série (RT Publicity, Eventos Pedagógicos, Feriados) não
+  // exibem o campo Série Escolar no formulário.
+  const SERIES_EXCLUDED_CATEGORY_IDS = [
+    "RT_PUBLICITY",
+    "EVENTOS_PEDAGOGICOS",
+    "FERIADOS",
+  ];
+  const showSeriesField = !SERIES_EXCLUDED_CATEGORY_IDS.includes(categoryId);
+
   // Sync state with open/edit props
   useEffect(() => {
     setShowDeleteConfirm(false);
@@ -344,7 +353,7 @@ export function PublicationModal({
 
             {/* Category & Series */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              <div className={showSeriesField ? "" : "sm:col-span-2"}>
                 <label className="block text-xs font-semibold text-foreground mb-1">
                   Categoria *
                 </label>
@@ -361,22 +370,25 @@ export function PublicationModal({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Série Escolar
-                </label>
-                <select
-                  value={seriesId}
-                  onChange={(e) => handleCategoryOrSeriesChange(categoryId, e.target.value)}
-                  className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
-                >
-                  {series.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* RT Publicity, Eventos Pedagógicos e Feriados não usam série. */}
+              {showSeriesField && (
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Série Escolar
+                  </label>
+                  <select
+                    value={seriesId}
+                    onChange={(e) => handleCategoryOrSeriesChange(categoryId, e.target.value)}
+                    className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                  >
+                    {series.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Dates & Automatic Calculation */}
