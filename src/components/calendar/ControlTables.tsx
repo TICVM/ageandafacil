@@ -250,16 +250,18 @@ function LinkedSessionsPanel({
   classes,
   onClose,
   onUpdateAppointmentStatus,
+  colSpan = 7,
 }: {
   row: RowData;
   classes?: SchoolClass[];
   onClose: () => void;
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
+  colSpan?: number;
 }) {
   const { pub, seriesName, linkedSessions } = row;
   return (
     <tr className="border-b border-border/60 last:border-0 bg-muted/30">
-      <td colSpan={7} className="px-4 sm:px-5 py-3">
+      <td colSpan={colSpan} className="px-4 sm:px-5 py-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
           <div className="text-xs min-w-0">
             <span className="font-extrabold text-foreground">
@@ -426,6 +428,12 @@ function PublicationTable({
   onSelect?: (pub: Publication) => void;
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
   emptyHint?: string;
+  /**
+   * Oculta a coluna "Série" e move o Título para o início da tabela.
+   * Usado no Controle de Eventos Pedagógicos — eventos que envolvem todo o
+   * colégio ou alguns seguimentos, sem série específica.
+   */
+  hideSeries?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   // Publicação cuja lista de sessões vinculadas está expandida na tabela.
@@ -434,6 +442,137 @@ function PublicationTable({
   const [editPubId, setEditPubId] = useState<string | null>(null);
 
   const editTarget = rows.find((r) => r.pub.id === editPubId)?.pub;
+
+  /** Ordem das colunas: com Série (Controle de Publicações) ou sem (Eventos Pedagógicos). */
+  const columns: string[] = hideSeries
+    ? [
+        "Título da Publicação",
+        "Prazo (Dias Úteis)",
+        "Data Prevista Produção",
+        "Data da Publicação",
+        "Status",
+        "Sessões vinculadas",
+      ]
+    : [
+        "Série",
+        "Prazo (Dias Úteis)",
+        "Data Prevista Produção",
+        "Data da Publicação",
+        "Título da Publicação",
+        "Status",
+        "Sessões vinculadas",
+      ];
+
+  // Células da linha — renderizadas na ordem definida em `columns`.
+  const cellSeries = (row: RowData) => (
+    <td className="px-4 sm:px-5 py-2.5 font-bold text-foreground whitespace-nowrap">
+      {row.seriesName}
+    </td>
+  );
+  const cellTitle = (row: RowData) => (
+    <td className="px-4 sm:px-5 py-2.5 max-w-[280px]">
+      <button
+        type="button"
+        onClick={() => onSelect?.(row.pub)}
+        className="text-left truncate block w-full text-muted-foreground hover:text-foreground hover:underline"
+        title={row.pub.title || "Sem título — clique para editar"}
+      >
+        {row.pub.title || <em>Sem título</em>}
+      </button>
+    </td>
+  );
+  const cellPrazo = (row: RowData) => (
+    <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
+      <input
+        type="number"
+        min={0}
+        max={365}
+        value={row.productionDays}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          if (Number.isFinite(n) && n >= 0) onUpdatePrazo(row.pub, n);
+        }}
+        className="w-16 sm:w-20 rounded-lg border border-input bg-background px-1.5 sm:px-2 py-1 text-xs sm:text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+        title="Prazo de produção em dias úteis — alterar recalcula a Data Prevista Produção"
+      />
+    </td>
+  );
+  const cellPlanned = (row: RowData) => (
+    <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap tabular-nums">
+      <div className="flex flex-col gap-0.5">
+        <span>{formatDateBR(row.pub.plannedDate)}</span>
+        <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
+          {weekdayLabel(row.pub.plannedDate)}
+        </span>
+      </div>
+    </td>
+  );
+  const cellPubDate = (row: RowData) => (
+    <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
+      <div className="flex flex-col gap-0.5">
+        <input
+          type="date"
+          value={row.pub.publicationDate}
+          onChange={(e) => onUpdateDate(row.pub, e.target.value)}
+          className="w-[132px] sm:w-[150px] rounded-lg border border-input bg-background px-1.5 sm:px-2 py-1 text-xs sm:text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
+          {weekdayLabel(row.pub.publicationDate)}
+        </span>
+      </div>
+    </td>
+  );
+  const cellStatus = (row: RowData) => {
+    const published = normalizePublicationStatus(row.pub.status) === "PUBLICADO";
+    return (
+      <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={row.pub.status} onClick={() => onCycleStatus(row.pub)} />
+          {published && (
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-600" aria-label="Publicada" />
+          )}
+        </div>
+      </td>
+    );
+  };
+  const cellSessions = (row: RowData) => {
+    const isExpanded = expandedPubId === row.pub.id;
+    return (
+      <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
+        {row.linkedSessions.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setExpandedPubId(isExpanded ? null : row.pub.id)}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer ${
+              isExpanded
+                ? "bg-violet-600 text-white border-violet-600"
+                : "bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-200"
+            }`}
+            title={
+              isExpanded
+                ? "Ocultar sessões vinculadas"
+                : "Ver sessões fotográficas vinculadas a esta publicação"
+            }
+          >
+            <Link2 className="w-3 h-3" />
+            {row.linkedSessions.length} sessão{row.linkedSessions.length > 1 ? "ões" : ""}
+            {isExpanded ? " ▲" : " ▼"}
+          </button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground">—</span>
+        )}
+      </td>
+    );
+  };
+  const cellRenderers: Record<string, (row: RowData) => React.ReactNode> = {
+    Série: cellSeries,
+    "Título da Publicação": cellTitle,
+    "Prazo (Dias Úteis)": cellPrazo,
+    "Data Prevista Produção": cellPlanned,
+    "Data da Publicação": cellPubDate,
+    Status: cellStatus,
+    "Sessões vinculadas": cellSessions,
+  };
 
   return (
     <section className="bg-card border border-border rounded-2xl shadow-xs overflow-hidden">
@@ -486,113 +625,32 @@ function PublicationTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-muted/40">
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Série</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Prazo (Dias Úteis)</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Data Prevista Produção</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Data da Publicação</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Título da Publicação</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Status</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Sessões vinculadas</th>
+                  {columns.map((col) => (
+                    <th key={col} className="px-4 sm:px-5 py-2.5 font-bold whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const { pub, seriesName } = row;
-                  const published = normalizePublicationStatus(pub.status) === "PUBLICADO";
-                  const isExpanded = expandedPubId === pub.id;
+                  const isExpanded = expandedPubId === row.pub.id;
                   return (
-                    <React.Fragment key={pub.id}>
+                    <React.Fragment key={row.pub.id}>
                       <tr
                         className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
                       >
-                        <td className="px-4 sm:px-5 py-2.5 font-bold text-foreground whitespace-nowrap">
-                          {seriesName}
-                        </td>
-                        <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
-                          <input
-                            type="number"
-                            min={0}
-                            max={365}
-                            value={row.productionDays}
-                            onChange={(e) => {
-                              const n = Number(e.target.value);
-                              if (Number.isFinite(n) && n >= 0) onUpdatePrazo(pub, n);
-                            }}
-                            className="w-16 sm:w-20 rounded-lg border border-input bg-background px-1.5 sm:px-2 py-1 text-xs sm:text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            title="Prazo de produção em dias úteis — alterar recalcula a Data Prevista Produção"
-                          />
-                        </td>
-                        <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap tabular-nums">
-                          <div className="flex flex-col gap-0.5">
-                            <span>{formatDateBR(pub.plannedDate)}</span>
-                            <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
-                              {weekdayLabel(pub.plannedDate)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
-                          <div className="flex flex-col gap-0.5">
-                            <input
-                              type="date"
-                              value={pub.publicationDate}
-                              onChange={(e) => onUpdateDate(pub, e.target.value)}
-                              className="w-[132px] sm:w-[150px] rounded-lg border border-input bg-background px-1.5 sm:px-2 py-1 text-xs sm:text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
-                              {weekdayLabel(pub.publicationDate)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-5 py-2.5 max-w-[220px]">
-                          <button
-                            type="button"
-                            onClick={() => onSelect?.(pub)}
-                            className="text-left truncate block w-full text-muted-foreground hover:text-foreground hover:underline"
-                            title={pub.title || "Sem título — clique para editar"}
-                          >
-                            {pub.title || <em>Sem título</em>}
-                          </button>
-                        </td>
-                        <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <StatusBadge
-                              status={pub.status}
-                              onClick={() => onCycleStatus(pub)}
-                            />
-                            {published && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" aria-label="Publicada" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap">
-                          {row.linkedSessions.length > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedPubId(isExpanded ? null : pub.id)}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer ${
-                                isExpanded
-                                  ? "bg-violet-600 text-white border-violet-600"
-                                  : "bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-200"
-                              }`}
-                              title={
-                                isExpanded
-                                  ? "Ocultar sessões vinculadas"
-                                  : "Ver sessões fotográficas vinculadas a esta publicação"
-                              }
-                            >
-                              <Link2 className="w-3 h-3" />
-                              {row.linkedSessions.length} sessão{row.linkedSessions.length > 1 ? "ões" : ""}
-                              {isExpanded ? " ▲" : " ▼"}
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground">—</span>
-                          )}
-                        </td>
+                        {columns.map((col) => (
+                          <React.Fragment key={col}>
+                            {cellRenderers[col]?.(row)}
+                          </React.Fragment>
+                        ))}
                       </tr>
                       {isExpanded && (
                         <LinkedSessionsPanel
                           row={row}
                           classes={classes}
+                          colSpan={columns.length}
                           onClose={() => setExpandedPubId(null)}
                           onUpdateAppointmentStatus={onUpdateAppointmentStatus}
                         />
@@ -1026,9 +1084,10 @@ export function ControlTables({
           <span className="truncate">Controle de Eventos Pedagógicos</span>
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Eventos pedagógicos do plano anual e criados manualmente. Edite o
-          prazo e as datas diretamente na tabela — a Data Prevista Produção é
-          recalculada automaticamente.
+          Eventos pedagógicos do plano anual e criados manualmente — eventos que
+          envolvem todo o colégio ou alguns seguimentos, por isso não possuem
+          série. Edite o prazo e as datas diretamente na tabela — a Data
+          Prevista Produção é recalculada automaticamente.
         </p>
         <PublicationTable
           title={categoryNameById.get(EP_CATEGORY_ID) ?? "Eventos Pedagógicos"}
@@ -1041,6 +1100,7 @@ export function ControlTables({
           onCycleStatus={handleCycleStatus}
           onSelect={onSelectPublication}
           onUpdateAppointmentStatus={onUpdateAppointmentStatus}
+          hideSeries
           emptyHint={'Use "Gerar Plano Anual de Eventos Pedagógicos" para criar os eventos recorrentes.'}
         />
       </div>

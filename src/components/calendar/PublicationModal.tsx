@@ -83,6 +83,17 @@ export function PublicationModal({
 }: PublicationModalProps) {
   const isEditing = Boolean(publication);
 
+  /**
+   * Categorias que NÃO usam série escolar no formulário — eventos/registros
+   * que envolvem todo o colégio ou alguns seguimentos (RT Publicity, Eventos
+   * Pedagógicos e Feriados).
+   */
+  const SERIES_EXCLUDED_CATEGORY_IDS = [
+    "RT_PUBLICITY",
+    "EVENTOS_PEDAGOGICOS",
+    "FERIADOS",
+  ];
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>("ATIVIDADES_VARIADAS");
@@ -103,12 +114,17 @@ export function PublicationModal({
   // associar a publicação às linhas do Controle de Publicações.
   const [linkedAptIds, setLinkedAptIds] = useState<string[]>([]);
 
+  // Categorias sem série (RT Publicity, Eventos Pedagógicos, Feriados) não
+  // exibem o campo Série Escolar no formulário.
+  const showSeriesField = !SERIES_EXCLUDED_CATEGORY_IDS.includes(categoryId);
+
   // Sessões candidatas ao vínculo: as que correspondem à categoria/série
   // escolhidos no formulário (mesma regra da associação automática), mais as
   // já vinculadas a esta publicação — para poder removê-las também.
   const candidateAppointments: Appointment[] = (() => {
     const list = appointments ?? [];
     if (list.length === 0) return [];
+    if (!showSeriesField) return [];
     const cls = classes ?? [];
     const alreadyLinked = new Set(linkedAptIds);
     return list.filter((a) => {
@@ -424,7 +440,7 @@ export function PublicationModal({
 
             {/* Category & Series */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              <div className={showSeriesField ? "" : "sm:col-span-2"}>
                 <label className="block text-xs font-semibold text-foreground mb-1">
                   Categoria *
                 </label>
@@ -441,22 +457,25 @@ export function PublicationModal({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Série Escolar
-                </label>
-                <select
-                  value={seriesId}
-                  onChange={(e) => handleCategoryOrSeriesChange(categoryId, e.target.value)}
-                  className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
-                >
-                  {series.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* RT Publicity, Eventos Pedagógicos e Feriados não usam série. */}
+              {showSeriesField && (
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Série Escolar
+                  </label>
+                  <select
+                    value={seriesId}
+                    onChange={(e) => handleCategoryOrSeriesChange(categoryId, e.target.value)}
+                    className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                  >
+                    {series.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Dates & Automatic Calculation */}
