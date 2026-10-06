@@ -31,7 +31,13 @@ export type EventDateRule =
   | { kind: "nthWeekday"; month: number; weekday: number; nth: number } // 1-based; weekday 0=Dom
   | { kind: "lastWeekday"; month: number; weekday: number }
   | { kind: "firstBusinessDay"; month: number }
-  | { kind: "range"; startMonth: number; startDay: number; endMonth: number; endDay: number };
+  | { kind: "range"; startMonth: number; startDay: number; endMonth: number; endDay: number }
+  /**
+   * Lista EXPLÍCITA de dias do mês — gera uma publicação por dia informado.
+   * Usado por eventos de vários dias como a CVM Education Week
+   * (19, 20, 21, 22, 23, 26, 27, 28, 29 e 30 de janeiro).
+   */
+  | { kind: "businessDaysInPeriod"; month: number; days: number[] };
 
 export interface PedagogicalEventDef {
   key: string;
@@ -42,6 +48,11 @@ export interface PedagogicalEventDef {
   /** true = mantém a data mesmo em fim de semana/feriado (data simbólica) */
   keepDate?: boolean;
   description?: string;
+  /**
+   * true = evento de vários dias (regra "businessDaysInPeriod") — o gerador
+   * cria uma publicação por dia e a prévia exibe todos os dias do período.
+   */
+  multiDay?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,8 +62,11 @@ export const ANNUAL_PEDAGOGICAL_EVENTS: PedagogicalEventDef[] = [
   {
     key: "cvm-education-week",
     title: "CVM Education Week",
-    rule: { kind: "range", startMonth: 1, startDay: 19, endMonth: 1, endDay: 30 },
+    // Dias 19, 20, 21, 22, 23, 26, 27, 28, 29 e 30 de janeiro — uma
+    // publicação por dia (os fins de semana dentro do período são pulados).
+    rule: { kind: "businessDaysInPeriod", month: 1, days: [19, 20, 21, 22, 23, 26, 27, 28, 29, 30] },
     priority: "ALTA",
+    multiDay: true,
     description:
       "Semana pedagógica de abertura do ano letivo — formação e planejamento dos professores (19 a 30 de janeiro).",
   },
@@ -441,7 +455,35 @@ export function resolveEventDate(def: PedagogicalEventDef, year: number): Date {
     }
     case "range":
       return midpointOfRange(year, r.startMonth, r.startDay, r.endMonth, r.endDay);
+    case "businessDaysInPeriod": {
+      // Primeira data do período que seja dia útil (sáb/dom são pulados).
+      for (const day of [...r.days].sort((a, b) => a - b)) {
+        const d = new Date(year, r.month - 1, day);
+        if (d.getDay() !== 0 && d.getDay() !== 6) return d;
+      }
+      return new Date(year, r.month - 1, r.days[0] ?? 1);
+    }
   }
+}
+
+/**
+ * Todas as datas de um evento multi-dia (regra "businessDaysInPeriod"),
+ * pulando sábado/domingo e feriados cadastrados — ex.: CVM Education Week
+ * gera uma publicação para cada dia: 19, 20, 21, 22, 23, 26, 27, 28, 29 e 30.
+ */
+export function resolveEventDatesList(
+  def: PedagogicalEventDef,
+  year: number,
+  holidays: Holiday[]
+): Date[] {
+  const r = def.rule;
+  if (r.kind !== "businessDaysInPeriod") return [resolveEventDate(def, year)];
+  const out: Date[] = [];
+  for (const day of [...r.days].sort((a, b) => a - b)) {
+    const d = new Date(year, r.month - 1, day);
+    if (isBusinessDay(d, holidays)) out.push(d);
+  }
+  return out;
 }
 
 /** Desloca para o próximo dia útil (se não for keepDate). */
@@ -491,8 +533,15 @@ export function buildEventPublication(
   holidays: Holiday[],
   productionDays: number = 7
 ): Omit<Publication, "id"> {
+  // Eventos multi-dia (ex.: CVM Education Week) recebem sufixo com o dia,
+  // para diferenciar as publicações geradas (uma por dia do período).
+  const isMultiDayOccurrence =
+    ev.multiDay && !/^Dia \d+/.test(ev.title ?? "");
+  const title = isMultiDayOccurrence
+    ? `${ev.title} — Dia ${Number(ev.date.slice(8, 10))}`
+    : ev.title;
   return {
-    title: ev.title,
+    title,
     description: ev.description ?? "Evento pedagógico recorrente do plano anual.",
     categoryId: CAT_ID,
     seriesId: ev.seriesId,
@@ -503,6 +552,32 @@ export function buildEventPublication(
     productionDays,
     tags: [PED_TAG, "plano-anual", `key:${ev.key}`],
   };
+}
+
+/**
+ * Expande a lista de eventos resolvidos em uma entrada POR DIA para os
+ * eventos multi-dia (regra "businessDaysInPeriod"). Ex.: CVM Education Week
+ * vira 10 publicações — dias 19, 20, 21, 22, 23, 26, 27, 28, 29 e 30 de
+ * janeiro (pulando fins de semana/feriados que caírem dentro do período).
+ */
+export function expandMultiDayEvents(
+  events: ResolvedPedagogicalEvent[],
+  year: number,
+  holidays: Holiday[]
+): ResolvedPedagogicalEvent[] {
+  const out: ResolvedPedagogicalEvent[] = [];
+  for (const ev of events) {
+    if (!ev.multiDay || ev.rule.kind !== "businessDaysInPeriod") {
+      out.push(ev);
+      continue;
+    }
+    const dates = resolveEventDatesList(ev, year, holidays);
+    for (const d of dates) {
+      const date = formatDateToISO(d);
+      out.push({ ...ev, date, originalDate: date, wasAdjusted: false });
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Detecta publicações de eventos pedagógicos antigas do ano (para substituição). */

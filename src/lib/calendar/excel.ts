@@ -448,10 +448,23 @@ export async function parseControlWorkbook({
   return { rows, errors };
 }
 
-/** Constrói o objeto completo de uma nova publicação importada. */
+/** Constrói o objeto completo de uma nova publicação importada.
+ * `holidays` e `prazoPadrao` são opcionais: quando informados, a Data Prevista
+ * Produção é recalculada retrocedendo o prazo em dias úteis a partir da data
+ * de publicação. */
 export function buildPublicationFromImportedRow(
-  row: ImportedRow
+  row: ImportedRow,
+  holidays?: Holiday[],
+  prazoPadrao?: number
 ): Omit<Publication, "id" | "createdAt" | "updatedAt"> {
+  const productionDays = row.productionDays ?? prazoPadrao;
+  const publicationDate = row.publicationDate!;
+  const plannedDate =
+    holidays && productionDays != null
+      ? calculatePlannedDate(publicationDate, productionDays, holidays) ||
+        row.plannedDate ||
+        publicationDate
+      : row.plannedDate ?? publicationDate;
   return {
     title: row.title || `Publicação ${row.seriesName}`,
     description: "",
@@ -459,9 +472,9 @@ export function buildPublicationFromImportedRow(
     seriesId: row.seriesId,
     status: row.status ?? "PLANEJAMENTO",
     priority: "MEDIA" as Priority,
-    publicationDate: row.publicationDate!,
-    plannedDate: row.plannedDate ?? row.publicationDate!,
-    productionDays: row.productionDays ?? undefined,
+    publicationDate,
+    plannedDate,
+    productionDays,
     tags: [
       "obrigatoria",
       "plano-anual",
