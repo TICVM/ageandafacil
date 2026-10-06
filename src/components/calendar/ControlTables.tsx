@@ -22,6 +22,7 @@ import {
   normalizePublicationStatus,
 } from "@/lib/scheduler/status-mapping";
 import { DEFAULT_SERIES, DEFAULT_STATUSES } from "@/lib/calendar/constants";
+import { calculatePlannedDate } from "@/lib/calendar/utils";
 import {
   buildPublicationFromImportedRow,
   exportControlToExcel,
@@ -34,18 +35,22 @@ const aptKey = (apt: Appointment): string =>
   normalizeAppointmentStatus(apt.status) ?? String(apt.status);
 
 /**
- * Aba "Controle de Publicações": duas tabelas — Atividades Variadas e
- * Programa Bilíngue — no formato Série | Data Prevista | Data da Publicação.
+ * Aba "Controle de Publicações": três tabelas — Atividades Variadas,
+ * Programa Bilíngue e Eventos Pedagógicos — no formato
+ * Série | Prazo (Dias Úteis) | Data Prevista Produção | Data da Publicação.
  *
  * - Filtra as publicações obrigatórias geradas (tags "obrigatoria"/"plano-anual")
  *   por categoria e ano selecionável.
- * - A coluna "Data da Publicação" é editável: o usuário pode ajustar as datas
- *   geradas automaticamente sem abrir o modal (grava publicationDate + status).
+ * - As colunas "Prazo (Dias Úteis)" e "Data da Publicação" são editáveis: o
+ *   usuário pode ajustar diretamente na tabela sem abrir o modal
+ *   (grava productionDays + plannedDate + publicationDate + status).
+ * - Alterar o prazo recalcula a Data Prevista Produção automaticamente.
  * - Publicações já realizadas exibem um visto verde.
  */
 
 const AV_CATEGORY_ID = "ATIVIDADES_VARIADAS";
 const PB_CATEGORY_ID = "PROGRAMA_BILINGUE";
+const EP_CATEGORY_ID = "EVENTOS_PEDAGOGICOS";
 
 interface ControlTablesProps {
   publications: Publication[];
@@ -72,6 +77,10 @@ interface ControlTablesProps {
   onCreatePublication?: (
     pubData: Omit<Publication, "id" | "createdAt" | "updatedAt">
   ) => Promise<string> | string;
+  /** Feriados cadastrados — usados para recalcular a Data Prevista Produção. */
+  holidays?: { date: string }[];
+  /** Prazo padrão (dias úteis) de uma categoria/série — tabela oficial de prazos. */
+  getDeadline?: (categoryId: string, seriesId?: string) => number;
 }
 
 /**
@@ -192,6 +201,8 @@ interface RowData {
   pub: Publication;
   seriesName: string;
   linkedSessions: Appointment[];
+  /** Prazo (dias úteis) efetivo da linha — publicação ou tabela oficial. */
+  productionDays: number;
 }
 
 const APT_STATUS_LABELS: Record<string, string> = {
