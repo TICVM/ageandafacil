@@ -49,6 +49,14 @@ export interface PedagogicalEventDef {
 // ---------------------------------------------------------------------------
 export const ANNUAL_PEDAGOGICAL_EVENTS: PedagogicalEventDef[] = [
   {
+    key: "cvm-education-week",
+    title: "CVM Education Week",
+    rule: { kind: "range", startMonth: 1, startDay: 19, endMonth: 1, endDay: 30 },
+    priority: "ALTA",
+    description:
+      "Semana pedagógica de abertura do ano letivo — formação e planejamento dos professores (19 a 30 de janeiro).",
+  },
+  {
     key: "volta-as-aulas",
     title: "Volta às Aulas",
     rule: { kind: "firstBusinessDay", month: 2 },
