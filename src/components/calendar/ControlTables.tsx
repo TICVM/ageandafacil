@@ -201,7 +201,7 @@ interface RowData {
   pub: Publication;
   seriesName: string;
   linkedSessions: Appointment[];
-  /** Prazo (dias úteis) efetivo da linha — publicação ou tabela oficial. */
+  /** Prazo (Dias Úteis) efetivo da linha — publicação ou tabela oficial. */
   productionDays: number;
 }
 
@@ -259,7 +259,7 @@ function LinkedSessionsPanel({
   const { pub, seriesName, linkedSessions } = row;
   return (
     <tr className="border-b border-border/60 last:border-0 bg-muted/30">
-      <td colSpan={6} className="px-4 sm:px-5 py-3">
+      <td colSpan={7} className="px-4 sm:px-5 py-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
           <div className="text-xs min-w-0">
             <span className="font-extrabold text-foreground">
@@ -333,11 +333,30 @@ function isMandatory(p: Publication): boolean {
   return tags.includes("obrigatoria") || tags.includes("plano-anual");
 }
 
-/** Rótulo fixo das duas categorias do plano anual (usado no painel de vínculos). */
+/** Rótulo fixo das categorias do plano anual (usado no painel de vínculos). */
 function categoryLabelOf(categoryId?: string): string {
   if (categoryId === AV_CATEGORY_ID) return "Atividades Variadas";
   if (categoryId === PB_CATEGORY_ID) return "Programa Bilíngue";
+  if (categoryId === EP_CATEGORY_ID) return "Eventos Pedagógicos";
   return categoryId ?? "";
+}
+
+/**
+ * Identifica publicações do Controle de Eventos Pedagógicos: geradas pelo
+ * plano anual semi-automático ("plano-anual"/"evento-pedagogico") ou criadas
+ * manualmente na categoria Eventos Pedagógicos — desde que não sejam de
+ * sessões fotográficas associadas automaticamente (tags "apt:"), que pertencem
+ * às tabelas de Atividades Variadas / Programa Bilíngue.
+ */
+function isPedagogicalEventRow(p: Publication): boolean {
+  const tags = p.tags ?? [];
+  if (p.categoryId !== EP_CATEGORY_ID) return false;
+  if (tags.some((t) => t.startsWith("apt:"))) return false;
+  return (
+    tags.includes("plano-anual") ||
+    tags.includes("evento-pedagogico") ||
+    !isMandatory(p)
+  );
 }
 
 function formatDateBR(iso?: string): string {
@@ -389,9 +408,11 @@ function PublicationTable({
   year,
   classes,
   onUpdateDate,
+  onUpdatePrazo,
   onCycleStatus,
   onSelect,
   onUpdateAppointmentStatus,
+  emptyHint = "Use \"Gerar Plano Anual\" para criar as publicações obrigatórias.",
 }: {
   title: string;
   accentClass: string;
@@ -399,9 +420,12 @@ function PublicationTable({
   year: number;
   classes?: SchoolClass[];
   onUpdateDate: (pub: Publication, dateISO: string) => void;
+  /** Altera o Prazo (Dias Úteis) — recalcula a Data Prevista Produção. */
+  onUpdatePrazo: (pub: Publication, days: number) => void;
   onCycleStatus: (pub: Publication) => void;
   onSelect?: (pub: Publication) => void;
   onUpdateAppointmentStatus?: (appointmentId: string, status: AppointmentStatus) => Promise<void> | void;
+  emptyHint?: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   // Publicação cuja lista de sessões vinculadas está expandida na tabela.
@@ -455,9 +479,7 @@ function PublicationTable({
       {!collapsed &&
         (rows.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            Nenhuma publicação desta categoria em {year}. Use{" "}
-            <span className="font-bold">Gerar Plano Anual</span> para criar as
-            publicações obrigatórias.
+            Nenhuma publicação desta categoria em {year}. {emptyHint}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -465,7 +487,8 @@ function PublicationTable({
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-muted/40">
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Série</th>
-                  <th className="px-4 sm:px-5 py-2.5 font-bold">Data Prevista</th>
+                  <th className="px-4 sm:px-5 py-2.5 font-bold">Prazo (Dias Úteis)</th>
+                  <th className="px-4 sm:px-5 py-2.5 font-bold">Data Prevista Produção</th>
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Data da Publicação</th>
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Título da Publicação</th>
                   <th className="px-4 sm:px-5 py-2.5 font-bold">Status</th>
@@ -485,8 +508,27 @@ function PublicationTable({
                         <td className="px-4 sm:px-5 py-2.5 font-bold text-foreground whitespace-nowrap">
                           {seriesName}
                         </td>
+                        <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
+                          <input
+                            type="number"
+                            min={0}
+                            max={365}
+                            value={row.productionDays}
+                            onChange={(e) => {
+                              const n = Number(e.target.value);
+                              if (Number.isFinite(n) && n >= 0) onUpdatePrazo(pub, n);
+                            }}
+                            className="w-16 sm:w-20 rounded-lg border border-input bg-background px-1.5 sm:px-2 py-1 text-xs sm:text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            title="Prazo de produção em dias úteis — alterar recalcula a Data Prevista Produção"
+                          />
+                        </td>
                         <td className="px-4 sm:px-5 py-2.5 whitespace-nowrap tabular-nums">
-                          {formatDateBR(pub.plannedDate)}
+                          <div className="flex flex-col gap-0.5">
+                            <span>{formatDateBR(pub.plannedDate)}</span>
+                            <span className="text-[10px] text-muted-foreground capitalize pl-0.5">
+                              {weekdayLabel(pub.plannedDate)}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 sm:px-5 py-2 whitespace-nowrap">
                           <div className="flex flex-col gap-0.5">
@@ -579,6 +621,8 @@ export function ControlTables({
   onSetEditingPublicationId,
   onRequestRestore,
   onCreatePublication,
+  holidays,
+  getDeadline,
 }: ControlTablesProps) {
   const allSeries = seriesList && seriesList.length > 0 ? seriesList : DEFAULT_SERIES;
 
@@ -594,7 +638,7 @@ export function ControlTables({
   const years = useMemo(() => {
     const set = new Set<number>();
     publications
-      .filter((p) => !p.isDeleted && isMandatory(p))
+      .filter((p) => !p.isDeleted && (isMandatory(p) || isPedagogicalEventRow(p)))
       .forEach((p) => {
         const y = Number(p.publicationDate.slice(0, 4));
         if (!isNaN(y)) set.add(y);
@@ -622,6 +666,7 @@ export function ControlTables({
     (categories ?? []).forEach((c) => map.set(c.id, c.name));
     map.set(AV_CATEGORY_ID, map.get(AV_CATEGORY_ID) ?? "Atividades Variadas");
     map.set(PB_CATEGORY_ID, map.get(PB_CATEGORY_ID) ?? "Programa Bilíngue");
+    map.set(EP_CATEGORY_ID, map.get(EP_CATEGORY_ID) ?? "Eventos Pedagógicos");
     return map;
   }, [categories]);
 
@@ -631,6 +676,21 @@ export function ControlTables({
     (appointments ?? []).forEach((a) => map.set(a.id, a));
     return map;
   }, [appointments]);
+
+  /** Prazo (Dias Úteis) efetivo: valor da publicação ou tabela oficial de prazos. */
+  const effectivePrazo = (pub: Publication): number =>
+    pub.productionDays ??
+    (getDeadline ? getDeadline(pub.categoryId, pub.seriesId) : 7);
+
+  const toRow = (pub: Publication): RowData => ({
+    pub,
+    seriesName: seriesNameById.get(pub.seriesId ?? "") ?? pub.seriesId ?? "—",
+    linkedSessions: (pub.tags ?? [])
+      .filter((t) => t.startsWith("apt:"))
+      .map((t) => aptById.get(t.slice(4)))
+      .filter((a): a is Appointment => !!a),
+    productionDays: effectivePrazo(pub),
+  });
 
   const buildRows = (categoryId: string): RowData[] =>
     publications
@@ -642,21 +702,44 @@ export function ControlTables({
           p.publicationDate.startsWith(String(activeYear))
       )
       .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate))
-      .map((pub) => ({
-        pub,
-        seriesName: seriesNameById.get(pub.seriesId ?? "") ?? pub.seriesId ?? "—",
-        linkedSessions: (pub.tags ?? [])
-          .filter((t) => t.startsWith("apt:"))
-          .map((t) => aptById.get(t.slice(4)))
-          .filter((a): a is Appointment => !!a),
-      }));
+      .map(toRow);
+
+  /**
+   * Linhas do "Controle de Eventos Pedagógicos": eventos gerados pelo plano
+   * anual semi-automático + eventos criados manualmente na categoria
+   * (exceto publicações vinculadas a sessões fotográficas).
+   */
+  const epRows: RowData[] = publications
+    .filter(
+      (p) =>
+        !p.isDeleted &&
+        isPedagogicalEventRow(p) &&
+        p.publicationDate.startsWith(String(activeYear))
+    )
+    .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate))
+    .map(toRow);
 
   const avRows = buildRows(AV_CATEGORY_ID);
   const pbRows = buildRows(PB_CATEGORY_ID);
 
   const handleUpdateDate = async (pub: Publication, dateISO: string) => {
     if (!dateISO) return;
-    await onUpdatePublication(pub.id, { publicationDate: dateISO });
+    // Alterar a Data da Publicação recalcula a Data Prevista Produção
+    // (subtraindo o Prazo em dias úteis, respeitando os feriados cadastrados).
+    const days = effectivePrazo(pub);
+    await onUpdatePublication(pub.id, {
+      publicationDate: dateISO,
+      productionDays: days,
+      plannedDate: calculatePlannedDate(dateISO, days, holidays ?? []),
+    });
+  };
+
+  /** Editar o Prazo (Dias Úteis) diretamente na tabela — recalcula a data prevista. */
+  const handleUpdatePrazo = async (pub: Publication, days: number) => {
+    await onUpdatePublication(pub.id, {
+      productionDays: days,
+      plannedDate: calculatePlannedDate(pub.publicationDate, days, holidays ?? []),
+    });
   };
 
   const STATUS_CYCLE: PublicationStatus[] = [
@@ -728,6 +811,7 @@ export function ControlTables({
         seriesList: allSeries,
         statuses: DEFAULT_STATUSES,
         year: activeYear,
+        getDeadline,
       });
       setImportMessage(`Planilha do ano ${activeYear} exportada com sucesso.`);
     } catch (err) {
@@ -769,17 +853,50 @@ export function ControlTables({
     let failed = 0;
     for (const row of importPreview.rows) {
       try {
+        // Prazo efetivo da linha: valor da planilha ou tabela oficial de prazos.
+        const prazo =
+          row.productionDays ??
+          (getDeadline ? getDeadline(row.categoryId, row.seriesId) : 7);
         if (row.matchedExisting && row.existingId) {
+          const existing = publications.find((p) => p.id === row.existingId);
+          const planned =
+            row.plannedDate ??
+            (row.publicationDate
+              ? calculatePlannedDate(
+                  row.publicationDate,
+                  prazo,
+                  holidays ?? []
+                )
+              : undefined) ??
+            row.publicationDate!;
           const updates: Partial<Publication> = {
             publicationDate: row.publicationDate!,
-            plannedDate: row.plannedDate ?? row.publicationDate!,
+            plannedDate: planned,
+            productionDays: prazo,
           };
           if (row.title) updates.title = row.title;
           if (row.status) updates.status = row.status;
+          // Evita regravar tags quando a publicação já as possui (preserva
+          // vínculos "apt:" e tags específicas de eventos pedagógicos).
+          if (existing) {
+            const merged = Array.from(
+              new Set([
+                ...(existing.tags ?? []),
+                "obrigatoria",
+                "plano-anual",
+                ...(row.categoryId === EP_CATEGORY_ID ? ["evento-pedagogico"] : []),
+              ])
+            );
+            if (merged.length !== (existing.tags ?? []).length) {
+              updates.tags = merged;
+            }
+          }
           await onUpdatePublication(row.existingId, updates);
           updated += 1;
         } else if (onCreatePublication && row.publicationDate) {
-          await onCreatePublication(buildPublicationFromImportedRow(row));
+          await onCreatePublication(
+            buildPublicationFromImportedRow(row, holidays ?? [], prazo)
+          );
           created += 1;
         } else {
           failed += 1;
@@ -879,6 +996,7 @@ export function ControlTables({
         year={activeYear}
         classes={classes}
         onUpdateDate={handleUpdateDate}
+        onUpdatePrazo={handleUpdatePrazo}
         onCycleStatus={handleCycleStatus}
         onSelect={onSelectPublication}
         onUpdateAppointmentStatus={onUpdateAppointmentStatus}
@@ -891,10 +1009,41 @@ export function ControlTables({
         year={activeYear}
         classes={classes}
         onUpdateDate={handleUpdateDate}
+        onUpdatePrazo={handleUpdatePrazo}
         onCycleStatus={handleCycleStatus}
         onSelect={onSelectPublication}
         onUpdateAppointmentStatus={onUpdateAppointmentStatus}
       />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Controle de Eventos Pedagógicos — mesma estrutura do Controle de    */}
+      {/* Publicações: Série | Prazo (Dias Úteis) | Data Prevista Produção |  */}
+      {/* Data da Publicação | Título | Status | Sessões vinculadas.          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="pt-2 border-t border-border">
+        <h2 className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2 mb-1">
+          <Table2 className="w-5 h-5 shrink-0 text-amber-500" />
+          <span className="truncate">Controle de Eventos Pedagógicos</span>
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Eventos pedagógicos do plano anual e criados manualmente. Edite o
+          prazo e as datas diretamente na tabela — a Data Prevista Produção é
+          recalculada automaticamente.
+        </p>
+        <PublicationTable
+          title={categoryNameById.get(EP_CATEGORY_ID) ?? "Eventos Pedagógicos"}
+          accentClass="bg-amber-50 dark:bg-amber-950/30"
+          rows={epRows}
+          year={activeYear}
+          classes={classes}
+          onUpdateDate={handleUpdateDate}
+          onUpdatePrazo={handleUpdatePrazo}
+          onCycleStatus={handleCycleStatus}
+          onSelect={onSelectPublication}
+          onUpdateAppointmentStatus={onUpdateAppointmentStatus}
+          emptyHint={'Use "Gerar Plano Anual de Eventos Pedagógicos" para criar os eventos recorrentes.'}
+        />
+      </div>
 
       {importMessage && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800">
