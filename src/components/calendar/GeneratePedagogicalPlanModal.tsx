@@ -15,6 +15,7 @@ import { formatDateForDisplay, getMonthName } from "@/lib/calendar/utils";
 import {
   ANNUAL_PEDAGOGICAL_EVENTS,
   resolveAnnualEvents,
+  expandMultiDayEvents,
   buildEventPublication,
   findOutdatedPedagogicalGenerated,
   getExistingEventKeys,
@@ -56,7 +57,14 @@ export function GeneratePedagogicalPlanModal({
   const resolvedAll = useMemo(() => {
     if (!isOpen) return [] as ResolvedPedagogicalEvent[];
     try {
-      return resolveAnnualEvents(year, holidays, ANNUAL_PEDAGOGICAL_EVENTS);
+      // expandMultiDayEvents: eventos de vários dias (ex.: CVM Education
+      // Week — dias 19, 20, 21, 22, 23, 26, 27, 28, 29 e 30 de janeiro)
+      // viram uma publicação por dia na prévia e na geração.
+      return expandMultiDayEvents(
+        resolveAnnualEvents(year, holidays, ANNUAL_PEDAGOGICAL_EVENTS),
+        year,
+        holidays
+      );
     } catch {
       return [] as ResolvedPedagogicalEvent[];
     }
@@ -74,26 +82,40 @@ export function GeneratePedagogicalPlanModal({
 
   // Lista final que será gerada: aplica exclusões + overrides de data + filtro de existentes
   const selected = useMemo(() => {
+    // Dedupe por (key, date): eventos multi-dia expandidos podem gerar
+    // ocorrências duplicadas quando uma data é sobrescrita manualmente.
+    const seen = new Set<string>();
     return resolvedAll.filter((ev) => {
       if (excluded.has(ev.key)) return false;
       if (skipExisting && !replaceExisting && existingKeys.has(ev.key)) return false;
+      const id = `${ev.key}@${ev.date}`;
+      if (seen.has(id)) return false;
+      seen.add(id);
       return true;
     });
   }, [resolvedAll, excluded, skipExisting, replaceExisting, existingKeys]);
 
   const publications = useMemo(() => {
     return selected.map((ev) => {
-      const overrideDate = dateOverrides[ev.key];
+      // Override de data só se aplica à PRIMEIRA ocorrência do evento
+      // multi-dia — as demais mantêm os dias calculados do período.
+      const isFirstOccurrence =
+        !ev.multiDay || resolvedAll.find((e) => e.key === ev.key)?.date === ev.date;
+      const overrideDate = isFirstOccurrence ? dateOverrides[ev.key] : undefined;
       const effectiveEv: ResolvedPedagogicalEvent = overrideDate
         ? { ...ev, date: overrideDate, originalDate: ev.date, wasAdjusted: false }
         : ev;
       return buildEventPublication(effectiveEv, holidays);
     });
-  }, [selected, dateOverrides, holidays]);
+  }, [selected, resolvedAll, dateOverrides, holidays]);
 
   if (!isOpen) return null;
 
   const alreadyThereCount = resolvedAll.filter((e) => existingKeys.has(e.key)).length;
+
+  /** Chave única por linha da prévia (eventos multi-dia repetem a mesma key). */
+  const occurrenceId = (ev: ResolvedPedagogicalEvent): string =>
+    `${ev.key}@${ev.date}`;
 
   const toggleEvent = (key: string) => {
     setExcluded((prev) => {
@@ -255,11 +277,14 @@ export function GeneratePedagogicalPlanModal({
                   <ul className="space-y-1">
                     {items.map(({ ev }) => {
                       const isChecked = !excluded.has(ev.key);
-                      const override = dateOverrides[ev.key];
+                      const isFirstOccurrence =
+                        !ev.multiDay ||
+                        resolvedAll.find((e) => e.key === ev.key)?.date === ev.date;
+                      const override = isFirstOccurrence ? dateOverrides[ev.key] : undefined;
                       const displayDate = override ?? ev.date;
                       return (
                         <li
-                          key={ev.key}
+                          key={occurrenceId(ev)}
                           className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs"
                         >
                           <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
@@ -273,6 +298,9 @@ export function GeneratePedagogicalPlanModal({
                               className={`truncate ${isChecked ? "text-foreground" : "text-muted-foreground line-through"}`}
                             >
                               {ev.title}
+                              {ev.multiDay && !/^Dia \d+/.test(ev.title)
+                                ? ` — Dia ${Number(ev.date.slice(8, 10))}`
+                                : ""}
                             </span>
                             {ev.seriesId && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
