@@ -13,7 +13,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
+import { Holiday, Publication, PublicationStatus, Series, Category } from "@/lib/calendar/types";
 import { Appointment, AppointmentStatus, SchoolClass } from "@/lib/scheduler/types";
 import { resolveClassName } from "@/lib/scheduler/association";
 import {
@@ -78,7 +78,7 @@ interface ControlTablesProps {
     pubData: Omit<Publication, "id" | "createdAt" | "updatedAt">
   ) => Promise<string> | string;
   /** Feriados cadastrados — usados para recalcular a Data Prevista Produção. */
-  holidays?: { date: string }[];
+  holidays?: Holiday[];
   /** Prazo padrão (dias úteis) de uma categoria/série — tabela oficial de prazos. */
   getDeadline?: (categoryId: string, seriesId?: string) => number;
 }
@@ -415,6 +415,7 @@ function PublicationTable({
   onSelect,
   onUpdateAppointmentStatus,
   emptyHint = "Use \"Gerar Plano Anual\" para criar as publicações obrigatórias.",
+  hideSeries = false,
 }: {
   title: string;
   accentClass: string;
@@ -740,6 +741,20 @@ export function ControlTables({
     pub.productionDays ??
     (getDeadline ? getDeadline(pub.categoryId, pub.seriesId) : 7);
 
+  /** Feriados normalizados — aceita itens mínimos ({ date }) vindos de outras fontes. */
+  const holidayList: Holiday[] = useMemo(
+    () =>
+      (holidays ?? []).map((h, i) => ({
+        id: h.id ?? `holiday-${i}`,
+        name: h.name ?? "Feriado",
+        date: h.date,
+        year: h.year,
+        type: h.type ?? "NACIONAL",
+        recurring: h.recurring ?? false,
+      })),
+    [holidays]
+  );
+
   const toRow = (pub: Publication): RowData => ({
     pub,
     seriesName: seriesNameById.get(pub.seriesId ?? "") ?? pub.seriesId ?? "—",
@@ -788,7 +803,7 @@ export function ControlTables({
     await onUpdatePublication(pub.id, {
       publicationDate: dateISO,
       productionDays: days,
-      plannedDate: calculatePlannedDate(dateISO, days, holidays ?? []),
+      plannedDate: calculatePlannedDate(dateISO, days, holidayList),
     });
   };
 
@@ -796,7 +811,7 @@ export function ControlTables({
   const handleUpdatePrazo = async (pub: Publication, days: number) => {
     await onUpdatePublication(pub.id, {
       productionDays: days,
-      plannedDate: calculatePlannedDate(pub.publicationDate, days, holidays ?? []),
+      plannedDate: calculatePlannedDate(pub.publicationDate, days, holidayList),
     });
   };
 
@@ -923,7 +938,7 @@ export function ControlTables({
               ? calculatePlannedDate(
                   row.publicationDate,
                   prazo,
-                  holidays ?? []
+                  holidayList
                 )
               : undefined) ??
             row.publicationDate!;
@@ -953,7 +968,7 @@ export function ControlTables({
           updated += 1;
         } else if (onCreatePublication && row.publicationDate) {
           await onCreatePublication(
-            buildPublicationFromImportedRow(row, holidays ?? [], prazo)
+            buildPublicationFromImportedRow(row, holidayList, prazo)
           );
           created += 1;
         } else {
