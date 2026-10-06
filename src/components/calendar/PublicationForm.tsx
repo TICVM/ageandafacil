@@ -82,6 +82,15 @@ export function PublicationForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [conflicts, setConflicts] = useState<string[]>([]);
 
+  // Categorias sem série (RT Publicity, Eventos Pedagógicos, Feriados) não
+  // exibem o campo Série Escolar no formulário.
+  const SERIES_EXCLUDED_CATEGORY_IDS = [
+    "RT_PUBLICITY",
+    "EVENTOS_PEDAGOGICOS",
+    "FERIADOS",
+  ];
+  const showSeriesField = !SERIES_EXCLUDED_CATEGORY_IDS.includes(formData.categoryId);
+
   // Reset form when opening or initialData changes
   useEffect(() => {
     if (open && initialData) {
@@ -235,7 +244,13 @@ export function PublicationForm({
                   <Label htmlFor="categoryId">Categoria *</Label>
                   <Select
                     value={formData.categoryId}
-                    onValueChange={(value) => handleChange('categoryId', value)}
+                    onValueChange={(value) => {
+                      handleChange('categoryId', value);
+                      // Categorias sem série não devem guardar série residual.
+                      if (SERIES_EXCLUDED_CATEGORY_IDS.includes(value)) {
+                        setFormData(prev => ({ ...prev, seriesId: '' }));
+                      }
+                    }}
                   >
                     <SelectTrigger className={errors.categoryId ? 'border-red-500' : ''}>
                       <SelectValue placeholder="Selecione" />
@@ -259,24 +274,26 @@ export function PublicationForm({
                   )}
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="seriesId">Série (se aplicável)</Label>
-                  <Select
-                    value={formData.seriesId}
-                    onValueChange={(value) => handleChange('seriesId', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {series.filter(s => s.isActive).map(serie => (
-                        <SelectItem key={serie.id} value={serie.id}>
-                          {serie.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {showSeriesField && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="seriesId">Série (se aplicável)</Label>
+                    <Select
+                      value={formData.seriesId}
+                      onValueChange={(value) => handleChange('seriesId', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {series.filter(s => s.isActive).map(serie => (
+                          <SelectItem key={serie.id} value={serie.id}>
+                            {serie.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
