@@ -161,11 +161,19 @@ export const ANNUAL_PEDAGOGICAL_EVENTS: PedagogicalEventDef[] = [
   },
   {
     key: "ferias-escolares-julho",
-    title: "Férias Escolares (Julho)",
-    rule: { kind: "range", startMonth: 7, startDay: 1, endMonth: 7, endDay: 31 },
+    title: "Férias de Julho",
+    rule: { kind: "fixed", month: 7, day: 1 },
     priority: "BAIXA",
     keepDate: true,
-    description: "Recesso escolar de meio de ano.",
+    description: "Início das férias escolares de meio de ano (01/07).",
+  },
+  {
+    key: "volta-as-aulas-2-semestre",
+    title: "Volta às Aulas — 2º Semestre",
+    rule: { kind: "fixed", month: 8, day: 3 },
+    priority: "ALTA",
+    keepDate: true,
+    description: "Retomada das aulas do 2º semestre (03/08).",
   },
   {
     key: "dia-dos-pais",
@@ -183,11 +191,11 @@ export const ANNUAL_PEDAGOGICAL_EVENTS: PedagogicalEventDef[] = [
     description: "Período de rematrícula dos alunos atuais.",
   },
   {
-    key: "plantoes-de-matriculas",
-    title: "Plantões de Matrículas",
+    key: "portas-abertas-cvm",
+    title: "Portas Abertas CVM",
     rule: { kind: "range", startMonth: 9, startDay: 1, endMonth: 9, endDay: 30 },
     priority: "ALTA",
-    description: "Plantões presenciais para novos alunos.",
+    description: "Evento Portas Abertas CVM — visitação e captação de novos alunos.",
   },
   {
     key: "aluno-nota-10-t2",
@@ -339,6 +347,14 @@ export const ANNUAL_PEDAGOGICAL_EVENTS: PedagogicalEventDef[] = [
     seriesId: "MEDIO_3",
     priority: "URGENTE",
     description: "Cerimônia de colação de grau do 3º Ano do Ensino Médio.",
+  },
+  {
+    key: "ferias-final-de-ano",
+    title: "Férias de Final de Ano",
+    rule: { kind: "fixed", month: 12, day: 1 },
+    priority: "BAIXA",
+    keepDate: true,
+    description: "Início das férias escolares de fim de ano (01/12).",
   },
 ];
 
