@@ -1,15 +1,18 @@
 "use client";
 
 /**
- * Importação / Exportação em Excel do "Controle de Publicações" e do
- * "Controle de Eventos Pedagógicos".
+ * Importação / Exportação em Excel do "Controle de Publicações", do
+ * "Controle de Eventos Pedagógicos" e do "Controle de Publicações — RT
+ * Publicity".
  *
  * Formato do arquivo (uma planilha por categoria):
- *   - "Atividades Variadas"      → categoryId ATIVIDADES_VARIADAS
- *   - "Programa Bilíngue"        → categoryId PROGRAMA_BILINGUE
- *   - "Eventos Pedagógicos"      → categoryId EVENTOS_PEDAGOGICOS
+ *   - "Atividades Variadas"      → categoryId ATIVIDADES_VARIADAS (com Série)
+ *   - "Programa Bilíngue"        → categoryId PROGRAMA_BILINGUE (com Série)
+ *   - "Eventos Pedagógicos"      → categoryId EVENTOS_PEDAGOGICOS (sem Série)
+ *   - "RT Publicity"             → categoryId RT_PUBLICITY (sem Série)
  * Colunas: Série | Prazo (Dias Úteis) | Data Prevista Produção |
  *          Data da Publicação | Título | Status
+ * (nas abas sem série, as colunas começam em "Prazo (Dias Úteis)")
  *
  * A exportação usa exatamente os mesmos rótulos exibidos na tabela, de modo
  * que o arquivo pode ser editado no Excel e reimportado sem divergências:
@@ -34,6 +37,7 @@ import { normalizePublicationStatus } from "@/lib/scheduler/status-mapping";
 export const AV_CATEGORY_ID = "ATIVIDADES_VARIADAS";
 export const PB_CATEGORY_ID = "PROGRAMA_BILINGUE";
 export const EP_CATEGORY_ID = "EVENTOS_PEDAGOGICOS";
+export const RT_CATEGORY_ID = "RT_PUBLICITY";
 
 const HEADERS = [
   "Série",
@@ -196,10 +200,40 @@ function sheetRows(
   return rows;
 }
 
+/** Tag que identifica publicações geradas pelo plano anual semi-automático. */
+const PEDAGOGICAL_TAG = "evento-pedagogico";
+
 /**
- * Gera e baixa um arquivo .xlsx com três abas (Atividades Variadas, Programa
- * Bilíngue e Eventos Pedagógicos) contendo as publicações obrigatórias do ano
- * informado.
+ * Publicações exibidas no Controle de Eventos Pedagógicos: da categoria com
+ * tag do plano anual/gerador OU criadas manualmente na categoria (sem as tags
+ * obrigatórias das tabelas por série) — exatamente o filtro usado na tabela.
+ */
+function isPedagogicalExportRow(p: Publication): boolean {
+  if (p.categoryId !== EP_CATEGORY_ID) return false;
+  const tags = p.tags ?? [];
+  if (tags.some((t) => t.startsWith("apt:"))) return false;
+  return (
+    tags.includes("plano-anual") ||
+    tags.includes(PEDAGOGICAL_TAG) ||
+    !(tags.includes("obrigatoria") || tags.includes("plano-anual"))
+  );
+}
+
+/**
+ * Publicações exibidas no Controle de Publicações — RT Publicity: todas as
+ * da categoria, exceto vínculos automáticos de sessões fotográficas ("apt:").
+ */
+function isRtExportRow(p: Publication): boolean {
+  if (p.categoryId !== RT_CATEGORY_ID) return false;
+  return !(p.tags ?? []).some((t) => t.startsWith("apt:"));
+}
+
+/**
+ * Gera e baixa um arquivo .xlsx com quatro abas (Atividades Variadas, Programa
+ * Bilíngue, Eventos Pedagógicos e RT Publicity) contendo as publicações do ano
+ * informado — as duas primeiras com as publicações obrigatórias por série, as
+ * duas últimas com exatamente as mesmas linhas exibidas nos controles
+ * correspondentes (sem a coluna Série).
  */
 export function exportControlToExcel({
   publications,
@@ -226,9 +260,36 @@ export function exportControlToExcel({
   const pb = mandatoryOfYear
     .filter((p) => p.categoryId === PB_CATEGORY_ID)
     .sort(byDate);
-  const ep = mandatoryOfYear
-    .filter((p) => p.categoryId === EP_CATEGORY_ID)
-    .sort(byDate);
+  // Eventos Pedagógicos / RT Publicity: mesmo filtro das tabelas na tela.
+  const allOfYear = publications.filter(
+    (p) => !p.isDeleted && p.publicationDate.startsWith(String(year))
+  );
+  const ep = allOfYear.filter(isPedagogicalExportRow).sort(byDate);
+  const rt = allOfYear.filter(isRtExportRow).sort(byDate);
+
+  /** Linha sem a coluna "Série" (tabelas sem série específica). */
+  function sheetRowsNoSeries(
+    pubs: Publication[],
+    categoryId: string
+  ): (string | number)[][] {
+    const rows: (string | number)[][] = [
+      HEADERS.slice(1) as unknown as string[],
+    ];
+    pubs.forEach((p) => {
+      const key = normalizePublicationStatus(p.status) ?? p.status;
+      const deadlineDays =
+        p.productionDays ??
+        (getDeadline ? getDeadline(categoryId, p.seriesId) : undefined);
+      rows.push([
+        deadlineDays ?? "",
+        formatDateBR(p.plannedDate),
+        formatDateBR(p.publicationDate),
+        p.title ?? "",
+        statusLabelByKey.get(key) ?? key,
+      ]);
+    });
+    return rows;
+  }
 
   const wb = XLSX.utils.book_new();
   const wsAv = XLSX.utils.aoa_to_sheet(
@@ -237,9 +298,8 @@ export function exportControlToExcel({
   const wsPb = XLSX.utils.aoa_to_sheet(
     sheetRows(pb, seriesNameById, statusLabelByKey, PB_CATEGORY_ID, getDeadline)
   );
-  const wsEp = XLSX.utils.aoa_to_sheet(
-    sheetRows(ep, seriesNameById, statusLabelByKey, EP_CATEGORY_ID, getDeadline)
-  );
+  const wsEp = XLSX.utils.aoa_to_sheet(sheetRowsNoSeries(ep, EP_CATEGORY_ID));
+  const wsRt = XLSX.utils.aoa_to_sheet(sheetRowsNoSeries(rt, RT_CATEGORY_ID));
   const colWidths = [
     { wch: 14 },
     { wch: 18 },
@@ -250,10 +310,12 @@ export function exportControlToExcel({
   ];
   wsAv["!cols"] = colWidths;
   wsPb["!cols"] = colWidths;
-  wsEp["!cols"] = colWidths;
+  wsEp["!cols"] = colWidths.slice(1);
+  wsRt["!cols"] = colWidths.slice(1);
   XLSX.utils.book_append_sheet(wb, wsAv, "Atividades Variadas");
   XLSX.utils.book_append_sheet(wb, wsPb, "Programa Bilíngue");
   XLSX.utils.book_append_sheet(wb, wsEp, "Eventos Pedagógicos");
+  XLSX.utils.book_append_sheet(wb, wsRt, "RT Publicity");
 
   XLSX.writeFile(wb, `controle-publicacoes-${year}.xlsx`);
 }
@@ -300,6 +362,7 @@ function parseDays(raw: unknown): number | null {
 
 function categoryFromSheetName(name: string): string | null {
   const key = norm(name);
+  if (key.includes("rt publicity") || key.includes("publicity")) return RT_CATEGORY_ID;
   if (key.includes("bilingue")) return PB_CATEGORY_ID;
   if (key.includes("atividade") || key.includes("variada")) return AV_CATEGORY_ID;
   if (key.includes("evento") || key.includes("pedagogic")) return EP_CATEGORY_ID;
@@ -335,13 +398,25 @@ export async function parseControlWorkbook({
       mandatoryIndex.set(k, p);
     });
 
+  // Índice por título (categoria|título normalizado|data publicação) — usado
+  // nas abas sem coluna "Série" (Eventos Pedagógicos e RT Publicity).
+  const titleIndex = new Map<string, Publication>();
+  publications
+    .filter((p) => !p.isDeleted)
+    .forEach((p) => {
+      const t = norm(p.title ?? "");
+      if (!t) return;
+      const k = `${p.categoryId}|${t}|${p.publicationDate}`;
+      if (!titleIndex.has(k)) titleIndex.set(k, p);
+    });
+
   let parsedAny = false;
 
   wb.SheetNames.forEach((sheetName) => {
     const categoryId = categoryFromSheetName(sheetName);
     if (!categoryId) {
       errors.push(
-        `Aba "${sheetName}" ignorada (esperado "Atividades Variadas", "Programa Bilíngue" ou "Eventos Pedagógicos").`
+        `Aba "${sheetName}" ignorada (esperado "Atividades Variadas", "Programa Bilíngue", "Eventos Pedagógicos" ou "RT Publicity").`
       );
       return;
     }
@@ -352,11 +427,15 @@ export async function parseControlWorkbook({
       defval: null,
     });
 
-    // Localiza a linha de cabeçalho (primeira linha contendo "Série")
+    // Localiza a linha de cabeçalho (primeira linha com "Série" ou "Título";
+    // as abas de Eventos Pedagógicos / RT Publicity não têm coluna Série).
     let headerIdx = -1;
     for (let i = 0; i < Math.min(aoa.length, 10); i++) {
       const line = (aoa[i] ?? []).map((c) => norm(String(c ?? "")));
-      if (line.includes("série") || line.includes("serie")) {
+      const hasSerie = line.includes("série") || line.includes("serie");
+      const hasTitulo = line.some((h) => h.includes("titulo"));
+      const hasData = line.some((h) => h.includes("publicacao"));
+      if (hasSerie || (hasTitulo && hasData)) {
         headerIdx = i;
         break;
       }
@@ -396,12 +475,22 @@ export async function parseControlWorkbook({
     aoa.slice(headerIdx + 1).forEach((line, idx) => {
       const rowNum = headerIdx + idx + 2;
       const serieRaw = col.serie >= 0 ? line[col.serie] : null;
-      if (serieRaw == null || String(serieRaw).trim() === "") return; // linha vazia
-
-      const series = resolveSeries(serieRaw, seriesList);
-      if (!series) {
-        errors.push(`${sheetName} linha ${rowNum}: série vazia.`);
+      const title = col.titulo >= 0 ? String(line[col.titulo] ?? "").trim() : "";
+      // Linha vazia: sem Série quando a aba tem essa coluna; sem Título nas
+      // abas sem Série (Eventos Pedagógicos / RT Publicity).
+      if (col.serie >= 0) {
+        if (serieRaw == null || String(serieRaw).trim() === "") return;
+      } else if (!title) {
         return;
+      }
+
+      let series: Series | undefined;
+      if (col.serie >= 0) {
+        series = resolveSeries(serieRaw, seriesList);
+        if (!series) {
+          errors.push(`${sheetName} linha ${rowNum}: série vazia.`);
+          return;
+        }
       }
       const pubDate = col.publicacao >= 0 ? cellToISO(line[col.publicacao]) : null;
       const planDate = col.prevista >= 0 ? cellToISO(line[col.prevista]) : null;
@@ -413,7 +502,6 @@ export async function parseControlWorkbook({
         );
         return;
       }
-      const title = col.titulo >= 0 ? String(line[col.titulo] ?? "").trim() : "";
       const status = col.status >= 0 ? parseStatus(line[col.status]) : null;
       const productionDays = col.prazo >= 0 ? parseDays(line[col.prazo]) : null;
       if (col.status >= 0 && status === null && String(line[col.status] ?? "").trim()) {
@@ -424,11 +512,15 @@ export async function parseControlWorkbook({
         );
       }
 
-      const existing = mandatoryIndex.get(`${categoryId}|${series.id}|${pubDate}`);
+      // Correspondência com publicação existente: por série (tabelas com
+      // coluna Série) ou por título + data (abas sem Série).
+      const existing = series
+        ? mandatoryIndex.get(`${categoryId}|${series.id}|${pubDate}`)
+        : titleIndex.get(`${categoryId}|${norm(title)}|${pubDate}`);
       rows.push({
         categoryId,
-        seriesId: series.id,
-        seriesName: series.name,
+        seriesId: series?.id ?? "",
+        seriesName: series?.name ?? "",
         plannedDate: planDate ?? pubDate,
         publicationDate: pubDate,
         productionDays,

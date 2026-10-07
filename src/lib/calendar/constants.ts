@@ -1,7 +1,7 @@
 import { Category, Series, ProductionDeadline, Holiday, PublicationStatus, Priority } from "./types";
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: "RT_PUBLICITY", name: "RT Publicity", color: "#FF6B6B", isActive: true },
+  { id: "RT_PUBLICITY", name: "RT Publicity", color: "#3853B6", isActive: true },
   { id: "ATIVIDADES_VARIADAS", name: "Atividades Variadas", color: "#4ECDC4", isActive: true },
   { id: "PROGRAMA_BILINGUE", name: "Programa Bilíngue", color: "#9B59B6", isActive: true },
   { id: "EVENTOS_PEDAGOGICOS", name: "Eventos Pedagógicos", color: "#F39C12", isActive: true },

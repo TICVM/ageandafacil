@@ -124,6 +124,25 @@ export interface DashboardStats {
   approved: number; // APROVADO_PARA_PUBLICAR
   /** Totais por categoria — sempre restritos ao ano selecionado. */
   byCategory: Record<string, number>;
+  /**
+   * Publicações do ano selecionado que compõem cada métrica do dashboard
+   * (ex.: card "Atrasadas" → lista de todas as atrasadas). Usado para abrir
+   * a lista detalhada ao clicar em um card.
+   */
+  lists?: {
+    total: Publication[];
+    thisMonth: Publication[];
+    planned: Publication[];
+    scheduled: Publication[];
+    inProduction: Publication[];
+    inReview: Publication[];
+    approved: Publication[];
+    completed: Publication[];
+    delayed: Publication[];
+    next7Days: Publication[];
+    /** Publicações do ano por categoria (id da categoria → lista). */
+    byCategoryList: Record<string, Publication[]>;
+  };
 }
 
 export interface ConflictAlert {

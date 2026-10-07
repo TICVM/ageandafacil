@@ -424,31 +424,49 @@ export function usePublications() {
     const next7DaysStr = next7DaysLimit.toISOString().split("T")[0];
     const todayStr = now.toISOString().split("T")[0];
 
-    const thisMonth = active.filter((p) => p.publicationDate.startsWith(yearMonthStr)).length;
-    const planned = active.filter((p) => p.status === "PLANEJAMENTO").length;
-    const completed = active.filter((p) => p.status === "PUBLICADO").length;
-    const delayed = active.filter((p) => p.status === "ATRASADO" || (p.status !== "PUBLICADO" && p.publicationDate < todayStr)).length;
+    const thisMonthList = active.filter((p) => p.publicationDate.startsWith(yearMonthStr));
+    const plannedList = active.filter((p) => p.status === "PLANEJAMENTO");
+    const completedList = active.filter((p) => p.status === "PUBLICADO");
+    const delayedList = active.filter((p) => p.status === "ATRASADO" || (p.status !== "PUBLICADO" && p.publicationDate < todayStr));
     // Status intermediários do fluxo de produção — também restritos ao ano.
-    const scheduled = active.filter((p) => p.status === "AGENDADO").length;
-    const inProduction = active.filter(
+    const scheduledList = active.filter((p) => p.status === "AGENDADO");
+    const inProductionList = active.filter(
       (p) => p.status === "PRODUCAO_CONTEUDO" || p.status === "DESIGN_ARTE" || p.status === "BRIEFING"
-    ).length;
-    const inReview = active.filter((p) => p.status === "REVISAO_APROVACAO").length;
-    const approved = active.filter((p) => p.status === "APROVADO_PARA_PUBLICAR").length;
+    );
+    const inReviewList = active.filter((p) => p.status === "REVISAO_APROVACAO");
+    const approvedList = active.filter((p) => p.status === "APROVADO_PARA_PUBLICAR");
     // "Próximos 7 Dias" também não pode ultrapassar a virada do ano.
     const nextYearPrefix = `${year + 1}-`;
-    const next7Days = active.filter(
+    const next7DaysList = active.filter(
       (p) =>
         p.publicationDate >= todayStr &&
         p.publicationDate <= next7DaysStr &&
         !p.publicationDate.startsWith(nextYearPrefix)
-    ).length;
+    );
 
-    // Totais por categoria (somente o ano selecionado).
+    const thisMonth = thisMonthList.length;
+    const planned = plannedList.length;
+    const completed = completedList.length;
+    const delayed = delayedList.length;
+    const scheduled = scheduledList.length;
+    const inProduction = inProductionList.length;
+    const inReview = inReviewList.length;
+    const approved = approvedList.length;
+    const next7Days = next7DaysList.length;
+
+    // Totais por categoria (somente o ano selecionado) + listas por categoria,
+    // usadas pelo dashboard ao clicar em um card de contagem.
     const byCategory: Record<string, number> = {};
+    const byCategoryList: Record<string, Publication[]> = {};
     for (const p of active) {
       byCategory[p.categoryId] = (byCategory[p.categoryId] ?? 0) + 1;
+      (byCategoryList[p.categoryId] ??= []).push(p);
     }
+    Object.values(byCategoryList).forEach((list) =>
+      list.sort((a, b) => a.publicationDate.localeCompare(b.publicationDate))
+    );
+    const byDate = (a: Publication, b: Publication) =>
+      a.publicationDate.localeCompare(b.publicationDate);
 
     return {
       total: active.length,
@@ -462,6 +480,19 @@ export function usePublications() {
       inReview,
       approved,
       byCategory,
+      lists: {
+        total: [...active].sort(byDate),
+        thisMonth: [...thisMonthList].sort(byDate),
+        planned: [...plannedList].sort(byDate),
+        scheduled: [...scheduledList].sort(byDate),
+        inProduction: [...inProductionList].sort(byDate),
+        inReview: [...inReviewList].sort(byDate),
+        approved: [...approvedList].sort(byDate),
+        completed: [...completedList].sort(byDate),
+        delayed: [...delayedList].sort(byDate),
+        next7Days: [...next7DaysList].sort(byDate),
+        byCategoryList,
+      },
     };
   }, [publications]);
 
@@ -607,6 +638,16 @@ export function useHolidays(year?: number) {
   return { holidays, loading, createHoliday, deleteHoliday };
 }
 
+/**
+ * Cores oficiais das categorias padrão. Se a cor do Firestore divergir da
+ * cor definida em DEFAULT_CATEGORIES, a cor do código tem precedência —
+ * isso garante que trocas de cor (ex.: RT Publicity #3853B6) apareçam
+ * imediatamente para todos os usuários sem precisar editar o banco.
+ */
+const CATEGORY_COLORS: Record<string, string> = Object.fromEntries(
+  DEFAULT_CATEGORIES.map((c) => [c.id, c.color])
+);
+
 export function useCategories() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
 
@@ -619,7 +660,18 @@ export function useCategories() {
         (snap) => {
           if (!snap.empty) {
             const list: Category[] = [];
-            snap.forEach((d) => list.push({ ...(d.data() as Category), id: d.id }));
+            snap.forEach((d) => {
+              const cat = { ...(d.data() as Category), id: d.id };
+              const officialColor = CATEGORY_COLORS[cat.id];
+              if (officialColor && cat.color !== officialColor) {
+                cat.color = officialColor;
+                // Sincroniza o documento no Firestore com a cor oficial.
+                void updateDoc(doc(db, "publication_categories", cat.id), {
+                  color: officialColor,
+                }).catch(() => {});
+              }
+              list.push(cat);
+            });
             setCategories(list);
           }
         },
