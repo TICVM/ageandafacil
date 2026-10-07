@@ -114,6 +114,7 @@ export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 /** Datas comemorativas nacionais (não são feriado oficial, mas entram no calendário). */
 export const COMMEMORATIVE_DATE_DEFS: BrazilHolidayDef[] = [
   { key: "dia-internacional-mulher", name: "Dia Internacional da Mulher", scope: "NACIONAL", recurring: true, month: 3, day: 8 },
+  { key: "dia-das-mulheres", name: "Dia das Mulheres", scope: "NACIONAL", recurring: true, month: 3, day: 8 },
 ];
 
 export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [

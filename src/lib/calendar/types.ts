@@ -124,6 +124,8 @@ export interface DashboardStats {
   approved: number; // APROVADO_PARA_PUBLICAR
   /** Totais por categoria — sempre restritos ao ano selecionado. */
   byCategory: Record<string, number>;
+  /** Feriados do ano selecionado (nacionais + SP Capital) — card "Feriados". */
+  holidays?: Holiday[];
   /**
    * Publicações do ano selecionado que compõem cada métrica do dashboard
    * (ex.: card "Atrasadas" → lista de todas as atrasadas). Usado para abrir

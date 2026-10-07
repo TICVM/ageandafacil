@@ -130,6 +130,24 @@ function recordDeletedHolidayId(id: string) {
   } catch {}
 }
 
+/**
+ * Remove duplicatas de publicações geradas automaticamente (feriados/datas
+ * comemorativas): mesma categoria + data de publicação + título. Mantém a
+ * primeira ocorrência — evita que o card "Total de Feriados" conte a mesma
+ * data mais de uma vez quando há cópias locais e no Firestore.
+ */
+function dedupeByCategoryDateTitle(list: Publication[]): Publication[] {
+  const seen = new Set<string>();
+  const out: Publication[] = [];
+  for (const p of list) {
+    const key = `${p.categoryId}|${p.publicationDate}|${(p.title ?? "").trim().toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
 export function usePublications() {
   const [publications, setPublications] = useState<Publication[]>(() => {
     const deleted = getDeletedPublicationIds();
@@ -169,12 +187,12 @@ export function usePublications() {
               (s) => !deleted.has(s.id) && !firestoreIds.has(s.id) && !customMap.has(s.id)
             );
 
-            setPublications([...list, ...remainingCustom, ...remainingSamples]);
+            setPublications(dedupeByCategoryDateTitle([...list, ...remainingCustom, ...remainingSamples]));
           } else {
             const remainingSamples = INITIAL_SAMPLE_PUBLICATIONS.filter(
               (p) => !deleted.has(p.id) && !customMap.has(p.id)
             );
-            setPublications([...custom, ...remainingSamples]);
+            setPublications(dedupeByCategoryDateTitle([...custom, ...remainingSamples]));
           }
           setLoading(false);
         },
@@ -509,23 +527,6 @@ export function usePublications() {
   };
 }
 
-/** Mescla feriados automáticos (nacionais + SP Capital) ao catálogo base,
- *  sem duplicar datas e respeitando as exclusões locais do usuário. */
-function mergeAutoBrazilHolidays(list: Holiday[], deleted: Set<string>): Holiday[] {
-  const years = new Set<number>();
-  for (const h of list) if (h.year) years.add(h.year);
-  years.add(new Date().getFullYear());
-  const byDate = new Map<string, Holiday>();
-  for (const h of list) byDate.set(h.date, h);
-  for (const y of years) {
-    for (const auto of listBrazilHolidays(y)) {
-      if (deleted.has(auto.id)) continue;
-      if (!byDate.has(auto.date)) byDate.set(auto.date, auto);
-    }
-  }
-  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-}
-
 export function useHolidays(year?: number) {
   // Ano ativo do calendário — garante que o modal "Feriados & Recessos
   // Escolares" mostre os feriados (nacionais + SP) do ANO SELECIONADO,
@@ -536,13 +537,27 @@ export function useHolidays(year?: number) {
   const buildList = useCallback(
     (base: Holiday[]) => {
       const deleted = getDeletedHolidayIds();
-      const merged = mergeAutoBrazilHolidays(base, deleted);
       const activeYear = yearRef.current;
-      const existingDates = new Set(merged.map((h) => h.date));
-      const extra = listBrazilHolidays(activeYear).filter(
-        (auto) => !deleted.has(auto.id) && !existingDates.has(auto.date)
+      // Feriados automáticos do ANO SELECIONADO (nacionais + SP Capital +
+      // datas comemorativas como Páscoa, Dia das Mães, Dia Internacional da
+      // Mulher) — sempre presentes no modal "Feriados & Recessos Escolares",
+      // mesmo que o banco só tenha feriados de outros anos.
+      const autoForYear = listBrazilHolidays(activeYear).filter(
+        (auto) => !deleted.has(auto.id)
       );
-      return [...merged, ...extra].sort((a, b) => a.date.localeCompare(b.date));
+      const autoIds = new Set(autoForYear.map((a) => a.id));
+      // Mantém apenas itens manuais e autos do ano ativo na base vinda do banco.
+      const keptBase = base.filter(
+        (h) => !h.id.startsWith("auto-") || autoIds.has(h.id)
+      );
+      // Autos do ano ativo têm prioridade sobre itens manuais na mesma data.
+      const autoDates = new Set(autoForYear.map((a) => a.date));
+      const manual = keptBase.filter(
+        (h) => !(h.id.startsWith("auto-") && autoDates.has(h.date))
+      );
+      return [...manual, ...autoForYear].sort((a, b) =>
+        a.date.localeCompare(b.date)
+      );
     },
     []
   );
