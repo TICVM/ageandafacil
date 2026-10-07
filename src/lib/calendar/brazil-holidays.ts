@@ -82,13 +82,7 @@ function secondSundayOfMonth(year: number, month0: number): Date {
   const first = new Date(year, month0, 1);
   const offset = (7 - first.getDay()) % 7; // dia do primeiro domingo (0-based)
   return new Date(year, month0, 1 + offset + 7);
-}
-
-/** Retorna o segundo domingo do mês. */
-function secondSundayOfMonth(year: number, month0: number): Date {
-  const first = new Date(year, month0, 1);
-  const offset = (7 - first.getDay()) % 7;
-  return new Date(year, month0, 1 + offset + 7);
+  const diaDosPais = secondSundayOfMonth(year, 7);
 }
 
 /** Feriados NACIONAIS do Brasil. */
