@@ -69,7 +69,7 @@ export interface BrazilHolidayDef {
   month?: number;
   day?: number;
   /** Data especial calculada por função própria (ex.: Black Friday). */
-  special?: "blackFriday" | "dia-das-maes";
+  special?: "blackFriday" | "dia-das-maes" | "dia-das-pais";
 }
 
 /** Domingo de Páscoa — data nacional comemorativa (feriado religioso). */
