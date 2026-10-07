@@ -114,7 +114,6 @@ export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 /** Datas comemorativas nacionais (não são feriado oficial, mas entram no calendário). */
 export const COMMEMORATIVE_DATE_DEFS: BrazilHolidayDef[] = [
   { key: "dia-internacional-mulher", name: "Dia Internacional da Mulher", scope: "NACIONAL", recurring: true, month: 3, day: 8 },
-  { key: "dia-das-mulheres", name: "Dia das Mulheres", scope: "NACIONAL", recurring: true, month: 3, day: 8 },
 ];
 
 export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
@@ -238,6 +237,24 @@ export function getExistingFeriadoKeys(publications: Publication[], year: number
 }
 
 /**
+ * Keys de feriados/datas comemorativas que o usuário EXCLUIU manualmente.
+ * A geração automática respeita essa lista: uma vez removida (ex.: "Dia das
+ * Mulheres" da RT Publicity), a publicação NÃO volta a ser recriada ao
+ * atualizar/recarregar o sistema — nem para aquele ano, nem nos demais.
+ */
+export function getSuppressedFeriadoKeys(publications: Publication[]): Set<string> {
+  const set = new Set<string>();
+  for (const p of publications) {
+    if (!p.isDeleted) continue;
+    if (p.categoryId !== FERIADOS_CATEGORY_ID && p.categoryId !== "RT_PUBLICITY") continue;
+    const tagKey = p.tags?.find((t) => t.startsWith("key:"));
+    if (tagKey) set.add(tagKey.substring(4));
+    else set.add(`date:${p.publicationDate}`);
+  }
+  return set;
+}
+
+/**
  * Gera as publicações dos feriados do ano que ainda não existem.
  * Feriados são lançados automaticamente — não precisam ser cadastrados
  * manualmente no formulário de Nova Publicação Editorial.
@@ -247,16 +264,20 @@ export function getExistingFeriadoKeys(publications: Publication[], year: number
 export function generateFeriadoPublications(
   year: number,
   existingPublications: Publication[],
-  holidays: Holiday[]
+  holidays: Holiday[],
+  /** Keys suprimidas manualmente (excluídas pelo usuário) — nunca recriar. */
+  suppressed?: Set<string>
 ): Omit<Publication, "id">[] {
   const existing = getExistingFeriadoKeys(existingPublications, year);
-  const missingDefs = ALL_BRAZIL_HOLIDAY_DEFS.filter(
-    (def) =>
-      !existing.has(def.key) &&
-      !existing.has(
-        `date:${formatDateToISO(resolveBrazilHolidayDate(def, year))}`
-      )
-  );
+  const missingDefs = ALL_BRAZIL_HOLIDAY_DEFS.filter((def) => {
+    if (suppressed?.has(def.key)) return false;
+    if (existing.has(def.key)) return false;
+    const dateKey = `date:${formatDateToISO(resolveBrazilHolidayDate(def, year))}`;
+    if (existing.has(dateKey)) return false;
+    // Feriado excluído manualmente em qualquer ano não volta mais.
+    if (suppressed?.has(dateKey)) return false;
+    return true;
+  });
   return missingDefs.map((def) => {
     const isCommemorative = COMMEMORATIVE_DATE_DEFS.some((d) => d.key === def.key);
     // Cálculo de dias úteis ignora apenas os feriados que realmente afetam a

@@ -35,6 +35,76 @@ import { saveDeletedSnapshot } from "./generate-mandatory";
 const DELETED_PUBLICATIONS_KEY = "schoollens_deleted_publications_v1";
 const CUSTOM_PUBLICATIONS_KEY = "schoollens_custom_publications_v1";
 const DELETED_HOLIDAYS_KEY = "schoollens_deleted_holidays_v1";
+/**
+ * Registro PERMANENTE de exclusões de publicações automáticas (feriados e
+ * datas comemorativas): chave `auto:{ano}:{key}` ou `{key}@{data}`. A geração
+ * automática respeita esse registro — um feriado excluído pelo usuário (ex.:
+ * "Dia das Mulheres" da RT Publicity) NÃO volta mais após atualizar/recarregar
+ * o sistema, mesmo que o documento tenha sido apagado do Firestore por
+ * sincronização entre dispositivos.
+ */
+const SUPPRESSED_FERIADO_KEYS: Record<string, string> = {
+  year: "schoollens_suppressed_feriado_years_v1",
+  global: "schoollens_suppressed_feriado_global_v1",
+};
+
+interface SuppressedFeriadoRegistry {
+  /** keys/`date:...` suprimidos por ano → nunca recriar naquele ano. */
+  byYear: Record<string, string[]>;
+  /** keys suprimidos em TODOS os anos (datas fixas como 8/março). */
+  always: string[];
+}
+
+function getSuppressedFeriadoRegistry(): SuppressedFeriadoRegistry {
+  if (typeof window === "undefined") return { byYear: {}, always: [] };
+  try {
+    const byYearRaw = localStorage.getItem(SUPPRESSED_FERIADO_KEYS.year);
+    const alwaysRaw = localStorage.getItem(SUPPRESSED_FERIADO_KEYS.global);
+    return {
+      byYear: byYearRaw ? JSON.parse(byYearRaw) : {},
+      always: alwaysRaw ? JSON.parse(alwaysRaw) : [],
+    };
+  } catch {
+    return { byYear: {}, always: [] };
+  }
+}
+
+/** Conjunto de suppression para um ano (keys globais + keys daquele ano). */
+export function getSuppressedFeriadoKeysForYear(year: number): Set<string> {
+  const reg = getSuppressedFeriadoRegistry();
+  const set = new Set<string>(reg.always);
+  for (const k of reg.byYear[String(year)] ?? []) set.add(k);
+  return set;
+}
+
+/** Registra a exclusão manual de uma publicação automática (feriado/data comemorativa). */
+function recordFeriadoSuppression(tags: string[] | undefined, categoryId: string, publicationDate: string) {
+  if (typeof window === "undefined") return;
+  if (categoryId !== "FERIADOS" && categoryId !== "RT_PUBLICITY") return;
+  if (!tags?.includes("feriado-automatico")) return;
+  const keyTag = tags.find((t) => t.startsWith("key:"));
+  if (!keyTag) return;
+  const key = keyTag.substring(4);
+  const reg = getSuppressedFeriadoRegistry();
+  // Datas comemorativas/fixas brasileiras se repetem todo ano — suprimir
+  // globalmente. Feriados móveis (Páscoa etc.) caem em datas diferentes a
+  // cada ano, então a supressão vale também apenas para aquele ano/data.
+  const isFixedCommemorative =
+    tags.includes("data-comemorativa") ||
+    /^dia-|mulher|maes|trabalho|confraternizacao|independencia|aparecida|finados|proclamacao|consciencia-negra|natal|tiradentes|revolucao-sp|aniversario-sp/.test(key);
+  if (isFixedCommemorative && !reg.always.includes(key)) reg.always.push(key);
+  const year = Number(publicationDate.slice(0, 4));
+  if (year > 1970) {
+    const list = reg.byYear[String(year)] ?? [];
+    if (!list.includes(key)) list.push(key);
+    if (!list.includes(`date:${publicationDate}`)) list.push(`date:${publicationDate}`);
+    reg.byYear[String(year)] = list;
+  }
+  try {
+    localStorage.setItem(SUPPRESSED_FERIADO_KEYS.year, JSON.stringify(reg.byYear));
+    localStorage.setItem(SUPPRESSED_FERIADO_KEYS.global, JSON.stringify(reg.always));
+  } catch {}
+}
 
 function getDeletedPublicationIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -332,6 +402,16 @@ export function usePublications() {
     // 1. Mark as deleted in local storage immediately
     recordDeletedPublicationId(id);
     removeCustomPublication(id);
+    // 1b. Feriados/datas comemorativas automáticas: registra a supressão para
+    //     que a geração automática NUNCA mais recrie esta publicação após
+    //     atualizar/recarregar o sistema (mesmo se o doc sumir do Firestore).
+    if (deleting) {
+      recordFeriadoSuppression(
+        deleting.tags,
+        deleting.categoryId,
+        deleting.publicationDate
+      );
+    }
     // 2. Immediately remove from local state so UI updates instantaneously
     setPublications((prev) => prev.filter((p) => p.id !== id));
     // 3. Fire Firestore delete in background with timeout protection to prevent freezing
@@ -363,6 +443,26 @@ export function usePublications() {
   ): Promise<string> => {
     const id = (pubData as Publication).id;
     if (id) clearDeletedPublicationId(id);
+    // Restaurou uma publicação automática? Remove a supressão para que a
+    // geração automática volte a reconhecê-la como existente/permitida.
+    {
+      const keyTag = (pubData as Publication).tags?.find((t) => t.startsWith("key:"));
+      if (keyTag && typeof window !== "undefined") {
+        const reg = getSuppressedFeriadoRegistry();
+        const key = keyTag.substring(4);
+        reg.always = reg.always.filter((k) => k !== key);
+        const y = String(pubData.publicationDate?.slice(0, 4) ?? "");
+        if (reg.byYear[y]) {
+          reg.byYear[y] = reg.byYear[y].filter(
+            (k) => k !== key && k !== `date:${pubData.publicationDate}`
+          );
+        }
+        try {
+          localStorage.setItem(SUPPRESSED_FERIADO_KEYS.year, JSON.stringify(reg.byYear));
+          localStorage.setItem(SUPPRESSED_FERIADO_KEYS.global, JSON.stringify(reg.always));
+        } catch {}
+      }
+    }
 
     const existsLocally = publications.some(
       (p) => p.id === id && !p.isDeleted
