@@ -48,6 +48,8 @@ export interface PedagogicalEventDef {
   /** true = mantém a data mesmo em fim de semana/feriado (data simbólica) */
   keepDate?: boolean;
   description?: string;
+  /** true = evento adicionado manualmente pelo usuário (catálogo customizado) */
+  custom?: boolean;
   /**
    * true = evento de vários dias (regra "businessDaysInPeriod") — o gerador
    * cria uma publicação por dia e a prévia exibe todos os dias do período.
@@ -379,6 +381,65 @@ export const ANNUAL_PEDAGOGICAL_EVENTS: PedagogicalEventDef[] = [
     description: "Início das férias escolares de fim de ano (01/12).",
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Catálogo customizado (função para adicionar novos eventos ao gerador)
+// ---------------------------------------------------------------------------
+
+const CUSTOM_EVENTS_STORAGE_KEY = "calendar-custom-pedagogical-events";
+
+/**
+ * Carrega os eventos pedagógicos adicionados manualmente pelo usuário
+ * (persistidos em localStorage). Eles entram no gerador do plano anual junto
+ * com o catálogo padrão — inclusive a CVM Education Week pode ser duplicada
+ * como evento próprio com dias personalizados.
+ */
+export function loadCustomPedagogicalEvents(): PedagogicalEventDef[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_EVENTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PedagogicalEventDef[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomPedagogicalEvents(defs: PedagogicalEventDef[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CUSTOM_EVENTS_STORAGE_KEY, JSON.stringify(defs));
+  } catch {
+    /* storage indisponível — ignora */
+  }
+}
+
+/** Adiciona um novo evento ao catálogo customizado (retorna a lista atualizada). */
+export function addCustomPedagogicalEvent(
+  def: Omit<PedagogicalEventDef, "key" | "custom"> & { key?: string }
+): PedagogicalEventDef[] {
+  const list = loadCustomPedagogicalEvents();
+  const baseKey = (def.key || def.title).trim().toLowerCase().replace(/\s+/g, "-");
+  let key = `custom-${baseKey}`;
+  let n = 2;
+  while (list.some((e) => e.key === key)) key = `custom-${baseKey}-${n++}`;
+  const next = [...list, { ...def, key, custom: true }];
+  saveCustomPedagogicalEvents(next);
+  return next;
+}
+
+/** Remove um evento customizado pelo key. */
+export function removeCustomPedagogicalEvent(key: string): PedagogicalEventDef[] {
+  const next = loadCustomPedagogicalEvents().filter((e) => e.key !== key);
+  saveCustomPedagogicalEvents(next);
+  return next;
+}
+
+/** Catálogo completo do gerador: eventos padrão + eventos adicionados pelo usuário. */
+export function getAllPedagogicalEvents(): PedagogicalEventDef[] {
+  return [...ANNUAL_PEDAGOGICAL_EVENTS, ...loadCustomPedagogicalEvents()];
+}
 
 // ---------------------------------------------------------------------------
 // Cálculo de datas

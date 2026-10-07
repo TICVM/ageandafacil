@@ -28,6 +28,7 @@ import {
   INITIAL_SAMPLE_PUBLICATIONS,
 } from "./constants";
 import { calculatePlannedDate } from "./utils";
+import { listBrazilHolidays } from "./brazil-holidays";
 import { saveDeletedSnapshot } from "./generate-mandatory";
 
 const DELETED_PUBLICATIONS_KEY = "schoollens_deleted_publications_v1";
@@ -443,6 +444,12 @@ export function usePublications() {
         !p.publicationDate.startsWith(nextYearPrefix)
     ).length;
 
+    // Totais por categoria (somente o ano selecionado).
+    const byCategory: Record<string, number> = {};
+    for (const p of active) {
+      byCategory[p.categoryId] = (byCategory[p.categoryId] ?? 0) + 1;
+    }
+
     return {
       total: active.length,
       thisMonth,
@@ -454,6 +461,7 @@ export function usePublications() {
       inProduction,
       inReview,
       approved,
+      byCategory,
     };
   }, [publications]);
 
@@ -470,10 +478,30 @@ export function usePublications() {
   };
 }
 
+/** Mescla feriados automáticos (nacionais + SP Capital) ao catálogo base,
+ *  sem duplicar datas e respeitando as exclusões locais do usuário. */
+function mergeAutoBrazilHolidays(list: Holiday[], deleted: Set<string>): Holiday[] {
+  const years = new Set<number>();
+  for (const h of list) if (h.year) years.add(h.year);
+  years.add(new Date().getFullYear());
+  const byDate = new Map<string, Holiday>();
+  for (const h of list) byDate.set(h.date, h);
+  for (const y of years) {
+    for (const auto of listBrazilHolidays(y)) {
+      if (deleted.has(auto.id)) continue;
+      if (!byDate.has(auto.date)) byDate.set(auto.date, auto);
+    }
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function useHolidays() {
   const [holidays, setHolidays] = useState<Holiday[]>(() => {
     const deleted = getDeletedHolidayIds();
-    return DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id));
+    return mergeAutoBrazilHolidays(
+      DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id)),
+      deleted
+    );
   });
   const [loading, setLoading] = useState(true);
 
@@ -496,17 +524,22 @@ export function useHolidays() {
             const remainingSamples = DEFAULT_HOLIDAYS_2026.filter(
               (h) => !deleted.has(h.id) && !firestoreIds.has(h.id)
             );
-            setHolidays([...list, ...remainingSamples]);
+            setHolidays(mergeAutoBrazilHolidays([...list, ...remainingSamples], deleted));
           } else {
             const remaining = DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id));
-            setHolidays(remaining);
+            setHolidays(mergeAutoBrazilHolidays(remaining, deleted));
           }
           setLoading(false);
         },
         (err) => {
           console.warn("Firestore holidays snapshot fallback:", err);
           const deleted = getDeletedHolidayIds();
-          setHolidays(DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id)));
+          setHolidays(
+            mergeAutoBrazilHolidays(
+              DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id)),
+              deleted
+            )
+          );
           setLoading(false);
         }
       );

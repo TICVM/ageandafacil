@@ -122,6 +122,8 @@ export interface DashboardStats {
   inProduction: number; // PRODUCAO_CONTEUDO + DESIGN_ARTE + BRIEFING
   inReview: number; // REVISAO_APROVACAO
   approved: number; // APROVADO_PARA_PUBLICAR
+  /** Totais por categoria — sempre restritos ao ano selecionado. */
+  byCategory: Record<string, number>;
 }
 
 export interface ConflictAlert {
