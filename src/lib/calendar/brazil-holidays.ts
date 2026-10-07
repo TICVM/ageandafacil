@@ -86,9 +86,9 @@ function secondSundayOfMonth(year: number, month0: number): Date {
 
 /** Segundo domingo de agosto (Dia dos Pais). */
 function secondSundayOfAugust(year: number): Date {
-  const first = new Date(year, 7, 1); // agosto = mês 7
+  const first = new Date(year,month0, 1); // agosto = mês 7
   const offset = (7 - first.getDay()) % 7; // dia do primeiro domingo
-  return new Date(year, 7, 1 + offset + 7);
+  return new Date(year,month0, 1 + offset + 7);
 }
 /** Feriados NACIONAIS do Brasil. */
 export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
