@@ -21,9 +21,10 @@ import {
   Languages,
   GraduationCap,
   Megaphone,
+  CalendarDays,
   X,
 } from "lucide-react";
-import { DashboardStats, Publication, Category } from "@/lib/calendar/types";
+import { DashboardStats, Publication, Category, Holiday } from "@/lib/calendar/types";
 import { DEFAULT_STATUSES, DEFAULT_PRIORITIES, DEFAULT_SERIES } from "@/lib/calendar/constants";
 import { formatDateForDisplay } from "@/lib/calendar/utils";
 
@@ -49,6 +50,8 @@ interface DashboardCardsProps {
   categories: Category[];
   onSelectPublication: (pub: Publication) => void;
   onNewPublication: () => void;
+  /** Feriados do ano selecionado — alimenta o card "Total de Feriados". */
+  holidays?: Holiday[];
   /** Controle externo de visibilidade dos cards (opcional). */
   collapsed?: boolean;
   onToggleCollapsed?: (collapsed: boolean) => void;
@@ -61,6 +64,7 @@ export function DashboardCards({
   categories,
   onSelectPublication,
   onNewPublication,
+  holidays: holidaysProp,
   collapsed: collapsedProp,
   onToggleCollapsed,
 }: DashboardCardsProps) {
@@ -278,6 +282,25 @@ export function DashboardCards({
     });
   };
 
+  // ---------------------------------------------------------------------
+  // Feriados do ANO SELECIONADO (nacionais + SP Capital) — contabilizados
+  // no dashboard; clicar no card abre a lista dos feriados daquele ano.
+  // ---------------------------------------------------------------------
+  const yearHolidays = React.useMemo(() => {
+    const list = holidaysProp ?? stats.holidays ?? [];
+    if (!year) return list;
+    return list.filter(
+      (h) => (h.year ?? Number(h.date?.slice(0, 4))) === year
+    );
+  }, [holidaysProp, stats.holidays, year]);
+
+  const openHolidayList = () => {
+    if (yearHolidays.length === 0) return;
+    setHolidayListOpen(true);
+  };
+
+  const [holidayListOpen, setHolidayListOpen] = useState(false);
+
   return (
     <div className="space-y-6">
       {/* Barra de controle: ocultar/exibir os cards de resumo */}
@@ -355,7 +378,7 @@ export function DashboardCards({
       {/* Contagem por categoria — somente o ano selecionado.
           Clique abre a lista de publicações da categoria no ano. */}
       {!isCollapsed && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {categoryCards.map((c) => {
             const Icon = c.icon;
             const name =
@@ -393,6 +416,37 @@ export function DashboardCards({
               </button>
             );
           })}
+
+          {/* Feriados do ano selecionado (nacionais + SP Capital). */}
+          <button
+            type="button"
+            onClick={openHolidayList}
+            disabled={yearHolidays.length === 0}
+            title={
+              yearHolidays.length > 0
+                ? `Ver lista: Feriados de ${year ?? ""}`
+                : "Nenhum feriado neste ano"
+            }
+            className="text-left flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card transition-all hover:shadow-sm disabled:cursor-default"
+          >
+            <span
+              className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+              style={{ backgroundColor: "#E74C3C1A", color: "#E74C3C" }}
+            >
+              <CalendarDays className="w-[18px] h-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground truncate">
+                Total de Feriados
+              </p>
+              <p className="text-xl font-bold tracking-tight text-foreground leading-tight">
+                {yearHolidays.length}
+                <span className="ml-1.5 text-[11px] font-semibold text-muted-foreground">
+                  {year ?? ""}
+                </span>
+              </p>
+            </div>
+          </button>
         </div>
       )}
 
@@ -410,6 +464,92 @@ export function DashboardCards({
           }}
         />
       )}
+
+      {/* Modal com a lista de feriados do ano selecionado */}
+      {holidayListOpen && (
+        <HolidaysListModal
+          holidays={yearHolidays}
+          year={year}
+          onClose={() => setHolidayListOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Modal listagem de feriados: exibido ao clicar no card "Total de Feriados".
+ * Mostra os feriados nacionais do Brasil, de São Paulo Capital e datas
+ * comemorativas do ANO SELECIONADO (mesma fonte do modal "Feriados &
+ * Recessos Escolares").
+ */
+function HolidaysListModal({
+  holidays,
+  year,
+  onClose,
+}: {
+  holidays: Holiday[];
+  year?: number;
+  onClose: () => void;
+}) {
+  const typeLabel = (t?: string) =>
+    t === "NACIONAL" ? "Nacional" : t === "ESCOLAR" ? "SP / Escolar" : t === "FACULTATIVO" ? "Facultativo" : t ?? "";
+  const typeColor = (t?: string) =>
+    t === "NACIONAL" ? "#3853B6" : t === "ESCOLAR" ? "#E74C3C" : "#F39C12";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+          <div>
+            <h3 className="text-base font-black text-foreground flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-rose-600" />
+              Total de Feriados{year ? ` — ${year}` : ""}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {holidays.length} {holidays.length === 1 ? "feriado" : "feriados"} •
+              Nacionais do Brasil + São Paulo Capital (gerados automaticamente)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+          {holidays.map((h) => (
+            <div
+              key={h.id}
+              className="w-full p-3 rounded-lg border border-border/80 bg-background/60 flex items-center justify-between gap-3"
+              style={{ borderLeftWidth: "4px", borderLeftColor: typeColor(h.type) }}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground truncate">{h.name}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {typeLabel(h.type)}
+                  {h.recurring ? " • Recorrente" : ""}
+                </p>
+              </div>
+              <span className="text-xs font-bold text-foreground tabular-nums whitespace-nowrap">
+                {formatDateForDisplay(h.date)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
