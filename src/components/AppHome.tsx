@@ -25,6 +25,7 @@ import { useAppointmentPublicationLink } from "@/lib/scheduler/useAppointmentPub
 import { Publication, PublicationStatus } from "@/lib/calendar/types";
 import { formatDateToISO } from "@/lib/calendar/utils";
 import { generateFeriadoPublications } from "@/lib/calendar/brazil-holidays";
+import { getSuppressedFeriadoKeysForYear } from "@/lib/calendar/hooks";
 
 export function AppHome() {
   const [currentTab, setCurrentTab] = useState<AppTab>("calendar");
@@ -99,7 +100,13 @@ export function AppHome() {
     for (const year of years) {
       if (feriadoGenYearsRef.current.has(year)) continue;
       feriadoGenYearsRef.current.add(year);
-      const missing = generateFeriadoPublications(year, publications, holidays);
+      const missing = generateFeriadoPublications(
+        year,
+        publications,
+        holidays,
+        // Feriados/datas comemorativas excluídas manualmente nunca voltam.
+        getSuppressedFeriadoKeysForYear(year)
+      );
       if (missing.length === 0) continue;
       (async () => {
         for (const pub of missing) {
@@ -109,6 +116,29 @@ export function AppHome() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubsLoading, holidays, selectedYear]);
+
+  // ---------------------------------------------------------------------
+  // Poda de duplicatas históricas: versões antigas do catálogo geravam
+  // "Dia das Mulheres" e "Dia Internacional da Mulher" no mesmo dia (8/3)
+  // na RT Publicity. Remove automaticamente as publicações automáticas
+  // duplicadas (mesma categoria + data + tag key diferente) que sobraram
+  // em bancos já populados — a primeira (oficial) é mantida.
+  // ---------------------------------------------------------------------
+  const purgedDupRef = React.useRef(false);
+  useEffect(() => {
+    if (purgedDupRef.current || pubsLoading) return;
+    purgedDupRef.current = true;
+    const seen = new Map<string, Publication>();
+    for (const p of publications) {
+      if (p.isDeleted) continue;
+      if (!p.tags?.includes("feriado-automatico")) continue;
+      const k = `${p.categoryId}|${p.publicationDate}`;
+      const kept = seen.get(k);
+      if (kept) deletePublication(p.id);
+      else seen.set(k, p);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pubsLoading, publications]);
 
   // Scheduler Hooks
   const {
