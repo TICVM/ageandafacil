@@ -84,12 +84,13 @@ function secondSundayOfMonth(year: number, month0: number): Date {
   return new Date(year, month0, 1 + offset + 7);
 }
 
-/** Segundo domingo de agosto (Dia dos Pais). */
-function secondSundayOfAugust(year: number): Date {
-  const first = new Date(year,month0, 1); // agosto = mês 7
-  const offset = (7 - first.getDay()) % 7; // dia do primeiro domingo
-  return new Date(year,month0, 1 + offset + 7);
+/** Retorna o segundo domingo do mês. */
+function secondSundayOfMonth(year: number, month0: number): Date {
+  const first = new Date(year, month0, 1);
+  const offset = (7 - first.getDay()) % 7;
+  return new Date(year, month0, 1 + offset + 7);
 }
+
 /** Feriados NACIONAIS do Brasil. */
 export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "confraternizacao", name: "Confraternização Universal", scope: "NACIONAL", recurring: true, month: 1, day: 1 },
@@ -133,6 +134,7 @@ export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 export function resolveBrazilHolidayDate(def: BrazilHolidayDef, year: number): Date {
   if (def.special === "blackFriday") return blackFriday(year);
   if (def.special === "dia-das-maes") return secondSundayOfMonth(year, 4); // maio
+  if (def.special === "dia-das-pais") return secondSundayOfMonth(year, 7); // Agosto
   if (def.movable && typeof def.easterOffset === "number") {
     return addDays(computeEasterSunday(year), def.easterOffset);
   }
