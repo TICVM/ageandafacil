@@ -18,6 +18,9 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
+  Languages,
+  GraduationCap,
+  Megaphone,
 } from "lucide-react";
 import { DashboardStats, Publication, Category } from "@/lib/calendar/types";
 import { DEFAULT_STATUSES, DEFAULT_PRIORITIES, DEFAULT_SERIES } from "@/lib/calendar/constants";
@@ -202,6 +205,42 @@ export function DashboardCards({
     },
   ];
 
+  // ---------------------------------------------------------------------
+  // Contagem de publicações POR CATEGORIA — somente o ano selecionado.
+  // (stats.byCategory já é calculado restrito ao ano ativo do calendário)
+  // ---------------------------------------------------------------------
+  const cat = (id: string) => stats.byCategory?.[id] ?? 0;
+  const categoryCards = [
+    {
+      id: "ATIVIDADES_VARIADAS",
+      fallbackName: "Atividades Variadas",
+      value: cat("ATIVIDADES_VARIADAS"),
+      icon: FileText,
+      color: "#4ECDC4",
+    },
+    {
+      id: "PROGRAMA_BILINGUE",
+      fallbackName: "Programa Bilíngue",
+      value: cat("PROGRAMA_BILINGUE"),
+      icon: Languages,
+      color: "#9B59B6",
+    },
+    {
+      id: "EVENTOS_PEDAGOGICOS",
+      fallbackName: "Eventos Pedagógicos",
+      value: cat("EVENTOS_PEDAGOGICOS"),
+      icon: GraduationCap,
+      color: "#F39C12",
+    },
+    {
+      id: "RT_PUBLICITY",
+      fallbackName: "RT Publicity",
+      value: cat("RT_PUBLICITY"),
+      icon: Megaphone,
+      color: "#FF6B6B",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Barra de controle: ocultar/exibir os cards de resumo */}
@@ -259,6 +298,41 @@ export function DashboardCards({
             </div>
           );
         })}
+        </div>
+      )}
+
+      {/* Contagem por categoria — somente o ano selecionado */}
+      {!isCollapsed && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {categoryCards.map((c) => {
+            const Icon = c.icon;
+            const name =
+              categories.find((catItem) => catItem.id === c.id)?.name ?? c.fallbackName;
+            return (
+              <div
+                key={c.id}
+                className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card transition-all hover:shadow-sm"
+              >
+                <span
+                  className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+                  style={{ backgroundColor: `${c.color}1A`, color: c.color }}
+                >
+                  <Icon className="w-[18px] h-[18px]" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground truncate">
+                    Total de {name}
+                  </p>
+                  <p className="text-xl font-bold tracking-tight text-foreground leading-tight">
+                    {c.value}
+                    <span className="ml-1.5 text-[11px] font-semibold text-muted-foreground">
+                      {year ?? ""}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
