@@ -24,6 +24,7 @@ import { useScheduler } from "@/lib/scheduler/hooks";
 import { useAppointmentPublicationLink } from "@/lib/scheduler/useAppointmentPublicationLink";
 import { Publication, PublicationStatus } from "@/lib/calendar/types";
 import { formatDateToISO } from "@/lib/calendar/utils";
+import { generateFeriadoPublications } from "@/lib/calendar/brazil-holidays";
 
 export function AppHome() {
   const [currentTab, setCurrentTab] = useState<AppTab>("calendar");
@@ -82,6 +83,28 @@ export function AppHome() {
   const { categories } = useCategories();
   const { series } = useSeries();
   const { deadlines, getDeadline } = useProductionDeadlines();
+
+  // ---------------------------------------------------------------------
+  // Feriados automáticos: publicações da categoria "Feriados" são criadas
+  // automaticamente com base nos feriados nacionais do Brasil e de São
+  // Paulo Capital — não precisam ser lançadas pelo formulário de Nova
+  // Publicação Editorial. Roda uma única vez por ano após o carregamento.
+  // ---------------------------------------------------------------------
+  const feriadoGenYearRef = React.useRef<number | null>(null);
+  useEffect(() => {
+    if (pubsLoading) return;
+    const year = new Date().getFullYear();
+    if (feriadoGenYearRef.current === year) return;
+    feriadoGenYearRef.current = year;
+    const missing = generateFeriadoPublications(year, publications, holidays);
+    if (missing.length === 0) return;
+    (async () => {
+      for (const pub of missing) {
+        await createPublication(pub);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pubsLoading, holidays]);
 
   // Scheduler Hooks
   const {
