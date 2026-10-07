@@ -79,7 +79,7 @@ export function AppHome() {
     getStats,
   } = usePublications();
 
-  const { holidays, createHoliday, deleteHoliday } = useHolidays();
+  const { holidays, createHoliday, deleteHoliday } = useHolidays(selectedYear);
   const { categories } = useCategories();
   const { series } = useSeries();
   const { deadlines, getDeadline } = useProductionDeadlines();
@@ -90,21 +90,25 @@ export function AppHome() {
   // Paulo Capital — não precisam ser lançadas pelo formulário de Nova
   // Publicação Editorial. Roda uma única vez por ano após o carregamento.
   // ---------------------------------------------------------------------
-  const feriadoGenYearRef = React.useRef<number | null>(null);
+  const feriadoGenYearsRef = React.useRef<Set<number>>(new Set());
   useEffect(() => {
     if (pubsLoading) return;
-    const year = new Date().getFullYear();
-    if (feriadoGenYearRef.current === year) return;
-    feriadoGenYearRef.current = year;
-    const missing = generateFeriadoPublications(year, publications, holidays);
-    if (missing.length === 0) return;
-    (async () => {
-      for (const pub of missing) {
-        await createPublication(pub);
-      }
-    })();
+    // Gera para o ano atual E para o ano selecionado no calendário — assim
+    // os feriados e datas comemorativas aparecem em qualquer ano ativo.
+    const years = new Set<number>([new Date().getFullYear(), selectedYear]);
+    for (const year of years) {
+      if (feriadoGenYearsRef.current.has(year)) continue;
+      feriadoGenYearsRef.current.add(year);
+      const missing = generateFeriadoPublications(year, publications, holidays);
+      if (missing.length === 0) continue;
+      (async () => {
+        for (const pub of missing) {
+          await createPublication(pub);
+        }
+      })();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pubsLoading, holidays]);
+  }, [pubsLoading, holidays, selectedYear]);
 
   // Scheduler Hooks
   const {
@@ -374,6 +378,7 @@ export function AppHome() {
         isOpen={isHolidaysModalOpen}
         onClose={() => setIsHolidaysModalOpen(false)}
         holidays={holidays}
+        year={selectedYear}
         onCreateHoliday={createHoliday}
         onDeleteHoliday={deleteHoliday}
       />
