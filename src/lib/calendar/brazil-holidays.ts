@@ -88,7 +88,7 @@ export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 ];
 
 /** Feriados da cidade de São Paulo (Capital) e do estado de SP. */
-export const SAO PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
+export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "carnaval-seg", name: "Carnaval (Segunda-feira)", scope: "SP", recurring: false, movable: true, easterOffset: -48 },
   { key: "carnaval-ter", name: "Carnaval (Terça-feira)", scope: "SP", recurring: false, movable: true, easterOffset: -47 },
   { key: "cinzas", name: "Quarta-feira de Cinzas (ponto facultativo até 14h)", scope: "SP", recurring: false, movable: true, easterOffset: -46 },
