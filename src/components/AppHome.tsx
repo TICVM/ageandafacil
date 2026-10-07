@@ -250,6 +250,7 @@ export function AppHome() {
               year={selectedYear}
               upcoming={upcomingSorted}
               categories={categories}
+              holidays={holidays}
               onSelectPublication={handleSelectPublication}
               onNewPublication={() => handleOpenNewPublication()}
             />
