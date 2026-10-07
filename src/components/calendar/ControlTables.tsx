@@ -51,6 +51,7 @@ const aptKey = (apt: Appointment): string =>
 const AV_CATEGORY_ID = "ATIVIDADES_VARIADAS";
 const PB_CATEGORY_ID = "PROGRAMA_BILINGUE";
 const EP_CATEGORY_ID = "EVENTOS_PEDAGOGICOS";
+const RT_CATEGORY_ID = "RT_PUBLICITY";
 
 interface ControlTablesProps {
   publications: Publication[];
@@ -340,6 +341,7 @@ function categoryLabelOf(categoryId?: string): string {
   if (categoryId === AV_CATEGORY_ID) return "Atividades Variadas";
   if (categoryId === PB_CATEGORY_ID) return "Programa Bilíngue";
   if (categoryId === EP_CATEGORY_ID) return "Eventos Pedagógicos";
+  if (categoryId === RT_CATEGORY_ID) return "RT Publicity";
   return categoryId ?? "";
 }
 
@@ -697,7 +699,11 @@ export function ControlTables({
   const years = useMemo(() => {
     const set = new Set<number>();
     publications
-      .filter((p) => !p.isDeleted && (isMandatory(p) || isPedagogicalEventRow(p)))
+      .filter(
+        (p) =>
+          !p.isDeleted &&
+          (isMandatory(p) || isPedagogicalEventRow(p) || p.categoryId === RT_CATEGORY_ID)
+      )
       .forEach((p) => {
         const y = Number(p.publicationDate.slice(0, 4));
         if (!isNaN(y)) set.add(y);
@@ -765,6 +771,10 @@ export function ControlTables({
     productionDays: effectivePrazo(pub),
   });
 
+  /**
+   * Linhas do "Controle de Publicações": publicações obrigatórias do plano
+   * anual da própria categoria, restritas ao ano ativo.
+   */
   const buildRows = (categoryId: string): RowData[] =>
     publications
       .filter(
@@ -787,6 +797,23 @@ export function ControlTables({
       (p) =>
         !p.isDeleted &&
         isPedagogicalEventRow(p) &&
+        p.publicationDate.startsWith(String(activeYear))
+    )
+    .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate))
+    .map(toRow);
+
+  /**
+   * Linhas do "Controle de Publicações — RT Publicity": todas as publicações
+   * da categoria RT Publicity do ano ativo (manuais + datas comemorativas
+   * geradas automaticamente), exceto vínculos de sessões fotográficas.
+   * São pautas que envolvem o colégio todo — por isso a tabela não exibe Série.
+   */
+  const rtRows: RowData[] = publications
+    .filter(
+      (p) =>
+        !p.isDeleted &&
+        p.categoryId === RT_CATEGORY_ID &&
+        !(p.tags ?? []).some((t) => t.startsWith("apt:")) &&
         p.publicationDate.startsWith(String(activeYear))
     )
     .sort((a, b) => a.publicationDate.localeCompare(b.publicationDate))
@@ -1117,6 +1144,37 @@ export function ControlTables({
           onUpdateAppointmentStatus={onUpdateAppointmentStatus}
           hideSeries
           emptyHint={'Use "Gerar Plano Anual de Eventos Pedagógicos" para criar os eventos recorrentes.'}
+        />
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Controle de Publicações — RT Publicity: sem coluna Série (pautas   */}
+      {/* que envolvem todo o colégio); Título no início da tabela.          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="pt-2 border-t border-border">
+        <h2 className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2 mb-1">
+          <Table2 className="w-5 h-5 shrink-0 text-rose-500" />
+          <span className="truncate">Controle de Publicações — RT Publicity</span>
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Pautas de divulgação e datas comemorativas (Dia Internacional da
+          Mulher, Páscoa, Dia das Mães…) geradas automaticamente ou criadas
+          manualmente — não possuem série por envolverem todo o colégio. Edite
+          o prazo e as datas diretamente na tabela.
+        </p>
+        <PublicationTable
+          title={categoryNameById.get(RT_CATEGORY_ID) ?? "RT Publicity"}
+          accentClass="bg-rose-50 dark:bg-rose-950/30"
+          rows={rtRows}
+          year={activeYear}
+          classes={classes}
+          onUpdateDate={handleUpdateDate}
+          onUpdatePrazo={handleUpdatePrazo}
+          onCycleStatus={handleCycleStatus}
+          onSelect={onSelectPublication}
+          onUpdateAppointmentStatus={onUpdateAppointmentStatus}
+          hideSeries
+          emptyHint={'Crie publicações da categoria "RT Publicity" no formulário de Nova Publicação Editorial — as datas comemorativas são geradas automaticamente.'}
         />
       </div>
 

@@ -9,6 +9,8 @@ interface HolidaysModalProps {
   isOpen: boolean;
   onClose: () => void;
   holidays: Holiday[];
+  /** Ano ativo do calendário — título e filtro da lista de feriados. */
+  year?: number;
   onCreateHoliday: (h: Omit<Holiday, "id">) => Promise<string>;
   onDeleteHoliday: (id: string) => Promise<void>;
 }
@@ -17,6 +19,7 @@ export function HolidaysModal({
   isOpen,
   onClose,
   holidays,
+  year,
   onCreateHoliday,
   onDeleteHoliday,
 }: HolidaysModalProps) {
@@ -56,6 +59,13 @@ export function HolidaysModal({
     });
   };
 
+  /** Feriados exibidos: somente o ano selecionado (ou todos, se não informado). */
+  const activeYear = year ?? new Date().getFullYear();
+  const visibleHolidays = holidays.filter((h) => {
+    const hYear = h.year ?? Number(h.date?.slice(0, 4));
+    return hYear === activeYear;
+  });
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="w-full max-w-xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -63,10 +73,12 @@ export function HolidaysModal({
           <div>
             <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" />
-              Feriados &amp; Recessos Escolares (2026)
+              Feriados &amp; Recessos Escolares ({activeYear})
             </h3>
             <p className="text-xs text-muted-foreground">
-              Dias considerados não-úteis no cálculo automático de produção.
+              Feriados nacionais do Brasil e de São Paulo Capital gerados
+              automaticamente + recessos cadastrados. Dias não-úteis usados no
+              cálculo de produção do ano selecionado.
             </p>
           </div>
           <button
@@ -132,12 +144,12 @@ export function HolidaysModal({
 
         {/* List of holidays */}
         <div className="p-4 max-h-[380px] overflow-y-auto divide-y divide-border/60">
-          {holidays.length === 0 ? (
+          {visibleHolidays.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
               Nenhum feriado cadastrado.
             </div>
           ) : (
-            holidays.map((h) => (
+            visibleHolidays.map((h) => (
               <div key={h.id} className="py-2.5 flex items-center justify-between text-xs">
                 <div>
                   <span className="font-semibold text-foreground">{h.name}</span>
