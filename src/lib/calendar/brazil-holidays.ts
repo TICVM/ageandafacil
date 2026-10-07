@@ -99,7 +99,7 @@ export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 
 export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   ...NATIONAL_HOLIDAY_DEFS,
-  ...SAO PAULO_HOLIDAY_DEFS,
+  ...SAO_PAULO_HOLIDAY_DEFS,
 ];
 
 /** Resolve a data concreta de um feriado do catálogo em um determinado ano. */
