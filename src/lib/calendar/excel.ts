@@ -484,9 +484,9 @@ export async function parseControlWorkbook({
         return;
       }
 
-      let series: Series | undefined;
+      let series: { id: string; name: string } | undefined;
       if (col.serie >= 0) {
-        series = resolveSeries(serieRaw, seriesList);
+        series = resolveSeries(serieRaw, seriesList) ?? undefined;
         if (!series) {
           errors.push(`${sheetName} linha ${rowNum}: série vazia.`);
           return;

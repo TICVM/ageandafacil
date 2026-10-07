@@ -1,5 +1,13 @@
 import { Category, Series, ProductionDeadline, Holiday, PublicationStatus, Priority } from "./types";
 
+/**
+ * Categoria reservada aos FERIADOS gerados automaticamente (Brasil + SP
+ * Capital). Feriados NÃO são publicações editoriais: continuam aparecendo no
+ * calendário e em "Feriados & Recessos Escolares", mas ficam fora de TODAS as
+ * contagens do dashboard (Total de Publicações, Este Mês, Atrasadas, etc.).
+ */
+export const NON_PUBLICATION_CATEGORY_IDS: string[] = ["FERIADOS"];
+
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: "RT_PUBLICITY", name: "RT Publicity", color: "#3853B6", isActive: true },
   { id: "ATIVIDADES_VARIADAS", name: "Atividades Variadas", color: "#4ECDC4", isActive: true },

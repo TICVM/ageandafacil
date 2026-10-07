@@ -26,6 +26,7 @@ import {
   DEFAULT_PRODUCTION_DEADLINES,
   DEFAULT_HOLIDAYS_2026,
   INITIAL_SAMPLE_PUBLICATIONS,
+  NON_PUBLICATION_CATEGORY_IDS,
 } from "./constants";
 import { calculatePlannedDate } from "./utils";
 import { listBrazilHolidays } from "./brazil-holidays";
@@ -430,8 +431,15 @@ export function usePublications() {
    */
   const getStats = useCallback((year = 2026): DashboardStats => {
     const yearPrefix = `${year}-`;
+    // Feriados NÃO são contados como publicações no dashboard: eles têm vida
+    // própria (aba/modal "Feriados & Recessos Escolares" e card "Total de
+    // Feriados"). Excluímos as categorias marcadas como não-publicação
+    // (NON_PUBLICATION_CATEGORY_IDS = FERIADOS) de TODAS as métricas —
+    // Total, Este Mês, Planejamento, Atrasadas, listas clicáveis etc.
+    const isCountablePublication = (p: { categoryId?: string }) =>
+      !NON_PUBLICATION_CATEGORY_IDS.includes(p.categoryId ?? "");
     const active = publications.filter(
-      (p) => !p.isDeleted && p.publicationDate?.startsWith(yearPrefix)
+      (p) => !p.isDeleted && p.publicationDate?.startsWith(yearPrefix) && isCountablePublication(p)
     );
     const now = new Date();
     const currentMonthStr = String(now.getMonth() + 1).padStart(2, "0");
