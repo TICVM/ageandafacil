@@ -84,6 +84,12 @@ function secondSundayOfMonth(year: number, month0: number): Date {
   return new Date(year, month0, 1 + offset + 7);
 }
 
+/** Segundo domingo de agosto (Dia dos Pais). */
+function secondSundayOfAugust(year: number): Date {
+  const first = new Date(year, 7, 1); // agosto = mês 7
+  const offset = (7 - first.getDay()) % 7; // dia do primeiro domingo
+  return new Date(year, 7, 1 + offset + 7);
+}
 /** Feriados NACIONAIS do Brasil. */
 export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "confraternizacao", name: "Confraternização Universal", scope: "NACIONAL", recurring: true, month: 1, day: 1 },
@@ -93,6 +99,7 @@ export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "trabalho", name: "Dia do Trabalho", scope: "NACIONAL", recurring: true, month: 5, day: 1 },
   { key: "dia-das-maes", name: "Dia das Mães", scope: "NACIONAL", recurring: false, special: "dia-das-maes" },
   { key: "corpus-christi", name: "Corpus Christi", scope: "NACIONAL", recurring: false, movable: true, easterOffset: 60 },
+  { key: "dia-das-pais", name: "Dia das Pais", scope: "NACIONAL", recurring: false, special: "dia-das-pais" },
   { key: "independencia", name: "Independência do Brasil", scope: "NACIONAL", recurring: true, month: 9, day: 7 },
   { key: "aparecida", name: "Nossa Senhora Aparecida", scope: "NACIONAL", recurring: true, month: 10, day: 12 },
   { key: "finados", name: "Finados", scope: "NACIONAL", recurring: true, month: 11, day: 2 },
