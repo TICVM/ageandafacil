@@ -69,15 +69,29 @@ export interface BrazilHolidayDef {
   month?: number;
   day?: number;
   /** Data especial calculada por função própria (ex.: Black Friday). */
-  special?: "blackFriday";
+  special?: "blackFriday" | "dia-das-maes";
+}
+
+/** Domingo de Páscoa — data nacional comemorativa (feriado religioso). */
+export function easterSunday(year: number): Date {
+  return computeEasterSunday(year);
+}
+
+/** Segundo domingo de maio (Dia das Mães). */
+function secondSundayOfMonth(year: number, month0: number): Date {
+  const first = new Date(year, month0, 1);
+  const offset = (7 - first.getDay()) % 7; // dia do primeiro domingo (0-based)
+  return new Date(year, month0, 1 + offset + 7);
 }
 
 /** Feriados NACIONAIS do Brasil. */
 export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "confraternizacao", name: "Confraternização Universal", scope: "NACIONAL", recurring: true, month: 1, day: 1 },
+  { key: "pascoa", name: "Páscoa", scope: "NACIONAL", recurring: false, movable: true, easterOffset: 0 },
   { key: "sexta-santa", name: "Sexta-feira Santa (Paixão de Cristo)", scope: "NACIONAL", recurring: false, movable: true, easterOffset: -2 },
   { key: "tiradentes", name: "Tiradentes", scope: "NACIONAL", recurring: true, month: 4, day: 21 },
   { key: "trabalho", name: "Dia do Trabalho", scope: "NACIONAL", recurring: true, month: 5, day: 1 },
+  { key: "dia-das-maes", name: "Dia das Mães", scope: "NACIONAL", recurring: false, special: "dia-das-maes" },
   { key: "corpus-christi", name: "Corpus Christi", scope: "NACIONAL", recurring: false, movable: true, easterOffset: 60 },
   { key: "independencia", name: "Independência do Brasil", scope: "NACIONAL", recurring: true, month: 9, day: 7 },
   { key: "aparecida", name: "Nossa Senhora Aparecida", scope: "NACIONAL", recurring: true, month: 10, day: 12 },
@@ -97,14 +111,21 @@ export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "black-friday", name: "Black Friday (feriado municipal em SP)", scope: "SP", recurring: false, special: "blackFriday" },
 ];
 
+/** Datas comemorativas nacionais (não são feriado oficial, mas entram no calendário). */
+export const COMMEMORATIVE_DATE_DEFS: BrazilHolidayDef[] = [
+  { key: "dia-internacional-mulher", name: "Dia Internacional da Mulher", scope: "NACIONAL", recurring: true, month: 3, day: 8 },
+];
+
 export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   ...NATIONAL_HOLIDAY_DEFS,
   ...SAO_PAULO_HOLIDAY_DEFS,
+  ...COMMEMORATIVE_DATE_DEFS,
 ];
 
 /** Resolve a data concreta de um feriado do catálogo em um determinado ano. */
 export function resolveBrazilHolidayDate(def: BrazilHolidayDef, year: number): Date {
   if (def.special === "blackFriday") return blackFriday(year);
+  if (def.special === "dia-das-maes") return secondSundayOfMonth(year, 4); // maio
   if (def.movable && typeof def.easterOffset === "number") {
     return addDays(computeEasterSunday(year), def.easterOffset);
   }
@@ -125,6 +146,29 @@ export function listBrazilHolidays(year: number): Holiday[] {
     type: def.scope === "NACIONAL" ? ("NACIONAL" as const) : ("ESCOLAR" as const),
     recurring: def.recurring,
   })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Datas comemorativas (Páscoa, Dia das Mães, Dia Internacional da Mulher…) —
+ * NÃO são dias não-úteis, por isso ficam fora do cálculo de produção e dos
+ * feriados automáticos. São exibidas apenas como referência no calendário.
+ */
+export function listCommemorativeDates(year: number): Holiday[] {
+  return COMMEMORATIVE_DATE_DEFS.map((def) => ({
+    id: `auto-${year}-${def.key}`,
+    name: def.name,
+    date: formatDateToISO(resolveBrazilHolidayDate(def, year)),
+    year,
+    type: "FACULTATIVO" as const,
+    recurring: def.recurring,
+  })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Feriados que afetam dias úteis (exclui as datas comemorativas). */
+export function listWorkingDayHolidays(year: number): Holiday[] {
+  return listBrazilHolidays(year).filter(
+    (h) => !COMMEMORATIVE_DATE_DEFS.some((d) => `auto-${year}-${d.key}` === h.id)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -155,13 +199,33 @@ export function buildFeriadoPublication(
   };
 }
 
+/**
+ * Publicações das datas comemorativas (Páscoa, Dia das Mães, Dia
+ * Internacional da Mulher…) — categoria RT Publicity, pois são pautas de
+ * conteúdo/engajamento que não envolvem produção em dias não-úteis.
+ */
+export function buildCommemorativePublication(
+  def: BrazilHolidayDef,
+  year: number,
+  holidays: Holiday[],
+  productionDays: number = 5
+): Omit<Publication, "id"> {
+  const pub = buildFeriadoPublication(def, year, holidays, productionDays);
+  return {
+    ...pub,
+    categoryId: "RT_PUBLICITY",
+    description: `Data comemorativa — gerada automaticamente (${pub.publicationDate.split("-").reverse().join("/")}/${String(year)}).`,
+    tags: [FERIADO_TAG, "plano-anual", "data-comemorativa", `key:${def.key}`],
+  };
+}
+
 /** Keys dos feriados já lançados no ano (para não duplicar na geração). */
 export function getExistingFeriadoKeys(publications: Publication[], year: number): Set<string> {
   const set = new Set<string>();
   for (const p of publications) {
     if (
       !p.isDeleted &&
-      p.categoryId === FERIADOS_CATEGORY_ID &&
+      (p.categoryId === FERIADOS_CATEGORY_ID || p.categoryId === "RT_PUBLICITY") &&
       p.publicationDate.startsWith(String(year))
     ) {
       const tagKey = p.tags?.find((t) => t.startsWith("key:"));
@@ -176,6 +240,8 @@ export function getExistingFeriadoKeys(publications: Publication[], year: number
  * Gera as publicações dos feriados do ano que ainda não existem.
  * Feriados são lançados automaticamente — não precisam ser cadastrados
  * manualmente no formulário de Nova Publicação Editorial.
+ * Datas comemorativas (Páscoa, Dia das Mães, Dia Internacional da Mulher…)
+ * entram como publicações RT Publicity.
  */
 export function generateFeriadoPublications(
   year: number,
@@ -183,11 +249,22 @@ export function generateFeriadoPublications(
   holidays: Holiday[]
 ): Omit<Publication, "id">[] {
   const existing = getExistingFeriadoKeys(existingPublications, year);
-  return ALL_BRAZIL_HOLIDAY_DEFS.filter(
+  const missingDefs = ALL_BRAZIL_HOLIDAY_DEFS.filter(
     (def) =>
       !existing.has(def.key) &&
       !existing.has(
         `date:${formatDateToISO(resolveBrazilHolidayDate(def, year))}`
       )
-  ).map((def) => buildFeriadoPublication(def, year, holidays));
+  );
+  return missingDefs.map((def) => {
+    const isCommemorative = COMMEMORATIVE_DATE_DEFS.some((d) => d.key === def.key);
+    // Cálculo de dias úteis ignora apenas os feriados que realmente afetam a
+    // produção (datas comemorativas não param o calendário letivo).
+    const workingDayHolidays = holidays.filter(
+      (h) => !COMMEMORATIVE_DATE_DEFS.some((d) => h.id === `auto-${year}-${d.key}`)
+    );
+    return isCommemorative
+      ? buildCommemorativePublication(def, year, workingDayHolidays)
+      : buildFeriadoPublication(def, year, workingDayHolidays);
+  });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   collection,
   doc,
@@ -495,15 +495,47 @@ function mergeAutoBrazilHolidays(list: Holiday[], deleted: Set<string>): Holiday
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function useHolidays() {
-  const [holidays, setHolidays] = useState<Holiday[]>(() => {
-    const deleted = getDeletedHolidayIds();
-    return mergeAutoBrazilHolidays(
-      DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id)),
-      deleted
-    );
-  });
+export function useHolidays(year?: number) {
+  // Ano ativo do calendário — garante que o modal "Feriados & Recessos
+  // Escolares" mostre os feriados (nacionais + SP) do ANO SELECIONADO,
+  // mesmo quando ainda não existe nenhuma publicação naquele ano.
+  const yearRef = useRef<number>(year ?? new Date().getFullYear());
+  if (typeof year === "number" && year > 1970) yearRef.current = year;
+
+  const buildList = useCallback(
+    (base: Holiday[]) => {
+      const deleted = getDeletedHolidayIds();
+      const merged = mergeAutoBrazilHolidays(base, deleted);
+      const activeYear = yearRef.current;
+      const existingDates = new Set(merged.map((h) => h.date));
+      const extra = listBrazilHolidays(activeYear).filter(
+        (auto) => !deleted.has(auto.id) && !existingDates.has(auto.date)
+      );
+      return [...merged, ...extra].sort((a, b) => a.date.localeCompare(b.date));
+    },
+    []
+  );
+
+  const [holidays, setHolidays] = useState<Holiday[]>(() =>
+    buildList(DEFAULT_HOLIDAYS_2026.filter((h) => !getDeletedHolidayIds().has(h.id)))
+  );
   const [loading, setLoading] = useState(true);
+
+  // Reage à troca de ano no calendário: injeta os feriados automáticos do novo ano.
+  useEffect(() => {
+    if (typeof year !== "number" || year <= 1970) return;
+    yearRef.current = year;
+    setHolidays((prev) => {
+      const deleted = getDeletedHolidayIds();
+      const withoutAuto = prev.filter((h) => !h.id.startsWith("auto-"));
+      const withNewYear = buildList(withoutAuto);
+      // mantém a lista estável se nada mudou
+      const same =
+        withNewYear.length === prev.length &&
+        withNewYear.every((h, i) => h.id === prev[i]?.id);
+      return same ? prev : withNewYear;
+    });
+  }, [year, buildList]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -524,21 +556,17 @@ export function useHolidays() {
             const remainingSamples = DEFAULT_HOLIDAYS_2026.filter(
               (h) => !deleted.has(h.id) && !firestoreIds.has(h.id)
             );
-            setHolidays(mergeAutoBrazilHolidays([...list, ...remainingSamples], deleted));
+            setHolidays(buildList([...list, ...remainingSamples]));
           } else {
             const remaining = DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id));
-            setHolidays(mergeAutoBrazilHolidays(remaining, deleted));
+            setHolidays(buildList(remaining));
           }
           setLoading(false);
         },
         (err) => {
           console.warn("Firestore holidays snapshot fallback:", err);
-          const deleted = getDeletedHolidayIds();
           setHolidays(
-            mergeAutoBrazilHolidays(
-              DEFAULT_HOLIDAYS_2026.filter((h) => !deleted.has(h.id)),
-              deleted
-            )
+            buildList(DEFAULT_HOLIDAYS_2026.filter((h) => !getDeletedHolidayIds().has(h.id)))
           );
           setLoading(false);
         }
@@ -550,7 +578,7 @@ export function useHolidays() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [buildList]);
 
   const createHoliday = async (holidayData: Omit<Holiday, "id">) => {
     try {
