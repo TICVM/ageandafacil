@@ -167,7 +167,9 @@ function ImportPreviewModal({
               >
                 {r.matchedExisting ? "Atualizar" : "Criar"}
               </span>
-              <span className="font-bold shrink-0">{r.seriesName}</span>
+              <span className="font-bold shrink-0">
+                {r.seriesName || categoryLabelOf(r.categoryId)}
+              </span>
               <span className="tabular-nums shrink-0">{r.publicationDate}</span>
               <span className="truncate text-muted-foreground">{r.title || "—"}</span>
             </li>

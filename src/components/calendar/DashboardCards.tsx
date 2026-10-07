@@ -21,6 +21,7 @@ import {
   Languages,
   GraduationCap,
   Megaphone,
+  X,
 } from "lucide-react";
 import { DashboardStats, Publication, Category } from "@/lib/calendar/types";
 import { DEFAULT_STATUSES, DEFAULT_PRIORITIES, DEFAULT_SERIES } from "@/lib/calendar/constants";
@@ -124,6 +125,7 @@ export function DashboardCards({
 
   const cardItems = [
     {
+      key: "total" as const,
       title: "Total de Publicações",
       value: stats.total,
       subtitle: year ? `Cadastradas em ${year}` : "Cadastradas no sistema",
@@ -132,6 +134,7 @@ export function DashboardCards({
       bgColor: "bg-blue-50 border-blue-200",
     },
     {
+      key: "thisMonth" as const,
       title: "Este Mês",
       value: stats.thisMonth,
       subtitle: "Programadas no mês",
@@ -140,6 +143,7 @@ export function DashboardCards({
       bgColor: "bg-indigo-50 border-indigo-200",
     },
     {
+      key: "planned" as const,
       title: "Em Planejamento",
       value: stats.planned,
       subtitle: "Aguardando produção",
@@ -148,6 +152,7 @@ export function DashboardCards({
       bgColor: "bg-amber-50 border-amber-200",
     },
     {
+      key: "scheduled" as const,
       title: "Agendados",
       value: stats.scheduled ?? 0,
       subtitle: "Com data confirmada",
@@ -156,6 +161,7 @@ export function DashboardCards({
       bgColor: "bg-sky-50 border-sky-200",
     },
     {
+      key: "inProduction" as const,
       title: "Em Produção",
       value: stats.inProduction ?? 0,
       subtitle: "Sendo produzidos",
@@ -164,6 +170,7 @@ export function DashboardCards({
       bgColor: "bg-violet-50 border-violet-200",
     },
     {
+      key: "inReview" as const,
       title: "Revisão / Aprovação",
       value: stats.inReview ?? 0,
       subtitle: "Em conferência",
@@ -172,6 +179,7 @@ export function DashboardCards({
       bgColor: "bg-teal-50 border-teal-200",
     },
     {
+      key: "approved" as const,
       title: "Aprovados p/ Publicar",
       value: stats.approved ?? 0,
       subtitle: "Prontos para ir ao ar",
@@ -180,6 +188,7 @@ export function DashboardCards({
       bgColor: "bg-lime-50 border-lime-200",
     },
     {
+      key: "completed" as const,
       title: "Concluídas / No Ar",
       value: stats.completed,
       subtitle: "Publicadas com sucesso",
@@ -188,6 +197,7 @@ export function DashboardCards({
       bgColor: "bg-emerald-50 border-emerald-200",
     },
     {
+      key: "delayed" as const,
       title: "Atrasadas",
       value: stats.delayed,
       subtitle: "Atenção necessária",
@@ -196,6 +206,7 @@ export function DashboardCards({
       bgColor: "bg-rose-50 border-rose-200",
     },
     {
+      key: "next7Days" as const,
       title: "Próximos 7 Dias",
       value: stats.next7Days,
       subtitle: "Datas iminentes",
@@ -237,9 +248,35 @@ export function DashboardCards({
       fallbackName: "RT Publicity",
       value: cat("RT_PUBLICITY"),
       icon: Megaphone,
-      color: "#FF6B6B",
+      color: "#3853B6",
     },
   ];
+
+  // ---------------------------------------------------------------------
+  // Clique nos cards: abre a lista das publicações que compõem a contagem
+  // (ex.: clicar em "Atrasadas" abre a lista de todas as atrasadas).
+  // ---------------------------------------------------------------------
+  const [openList, setOpenList] = useState<{
+    title: string;
+    subtitle?: string;
+    items: Publication[];
+  } | null>(null);
+
+  const openStatusList = (key: (typeof cardItems)[number]["key"], title: string) => {
+    const items = stats.lists?.[key] ?? [];
+    if (items.length === 0) return;
+    setOpenList({ title, subtitle: year ? `Ano ${year}` : undefined, items });
+  };
+
+  const openCategoryList = (id: string, name: string) => {
+    const items = stats.lists?.byCategoryList?.[id] ?? [];
+    if (items.length === 0) return;
+    setOpenList({
+      title: `Total de ${name}`,
+      subtitle: year ? `Ano ${year}` : undefined,
+      items,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -273,15 +310,24 @@ export function DashboardCards({
         </button>
       </div>
 
-      {/* Cards Grid — 10 cards em fluxo responsivo (2/3/5 colunas) */}
+      {/* Cards Grid — 10 cards em fluxo responsivo (2/3/5 colunas).
+          Clicar em um card abre a lista das publicações daquela contagem. */}
       {!isCollapsed && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {cardItems.map((card, idx) => {
           const Icon = card.icon;
           return (
-            <div
+            <button
               key={idx}
-              className={`p-3.5 rounded-xl border bg-card transition-all hover:shadow-sm ${card.bgColor}`}
+              type="button"
+              onClick={() => openStatusList(card.key, card.title)}
+              disabled={card.value === 0}
+              title={
+                card.value > 0
+                  ? `Ver lista: ${card.title}`
+                  : "Nenhuma publicação nesta contagem"
+              }
+              className={`text-left p-3.5 rounded-xl border bg-card transition-all hover:shadow-sm disabled:cursor-default ${card.bgColor}`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium text-muted-foreground line-clamp-1">
@@ -295,13 +341,19 @@ export function DashboardCards({
               <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
                 {card.subtitle}
               </p>
-            </div>
+              {card.value > 0 && (
+                <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-primary/80">
+                  <Eye className="w-3 h-3" /> Ver lista
+                </p>
+              )}
+            </button>
           );
         })}
         </div>
       )}
 
-      {/* Contagem por categoria — somente o ano selecionado */}
+      {/* Contagem por categoria — somente o ano selecionado.
+          Clique abre a lista de publicações da categoria no ano. */}
       {!isCollapsed && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {categoryCards.map((c) => {
@@ -309,9 +361,17 @@ export function DashboardCards({
             const name =
               categories.find((catItem) => catItem.id === c.id)?.name ?? c.fallbackName;
             return (
-              <div
+              <button
                 key={c.id}
-                className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card transition-all hover:shadow-sm"
+                type="button"
+                onClick={() => openCategoryList(c.id, name)}
+                disabled={c.value === 0}
+                title={
+                  c.value > 0
+                    ? `Ver lista: Total de ${name}`
+                    : "Nenhuma publicação desta categoria no ano"
+                }
+                className="text-left flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card transition-all hover:shadow-sm disabled:cursor-default"
               >
                 <span
                   className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
@@ -330,12 +390,130 @@ export function DashboardCards({
                     </span>
                   </p>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       )}
+
+      {/* Modal com a lista de publicações da contagem clicada */}
+      {openList && (
+        <StatsListModal
+          title={openList.title}
+          subtitle={openList.subtitle}
+          publications={openList.items}
+          categories={categories}
+          onClose={() => setOpenList(null)}
+          onSelectPublication={(pub) => {
+            setOpenList(null);
+            onSelectPublication(pub);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Modal listagem do dashboard: exibido ao clicar em um card de contagem
+ * (ex.: "Atrasadas" → todas as publicações atrasadas do ano selecionado).
+ * Cada linha mostra data, título, categoria e status; clicar na linha abre
+ * a edição completa da publicação.
+ */
+function StatsListModal({
+  title,
+  subtitle,
+  publications,
+  categories,
+  onClose,
+  onSelectPublication,
+}: {
+  title: string;
+  subtitle?: string;
+  publications: Publication[];
+  categories: Category[];
+  onClose: () => void;
+  onSelectPublication: (pub: Publication) => void;
+}) {
+  const categoryName = (catId: string) =>
+    categories.find((c) => c.id === catId)?.name || catId;
+  const categoryColor = (catId: string) =>
+    categories.find((c) => c.id === catId)?.color || "#6B7280";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-3xl max-h-[80vh] flex flex-col rounded-2xl border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+          <div>
+            <h3 className="text-base font-black text-foreground">{title}</h3>
+            <p className="text-xs text-muted-foreground">
+              {publications.length}{" "}
+              {publications.length === 1 ? "publicação" : "publicações"}
+              {subtitle ? ` • ${subtitle}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+          {publications.map((pub) => (
+            <button
+              key={pub.id}
+              type="button"
+              onClick={() => onSelectPublication(pub)}
+              className="w-full text-left p-3 rounded-lg border border-border/80 bg-background/60 hover:bg-accent/40 hover:border-border transition-all flex items-center justify-between gap-3"
+              style={{ borderLeftWidth: "4px", borderLeftColor: categoryColor(pub.categoryId) }}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {getPublicationLabel(pub, categoryName(pub.categoryId))}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {categoryName(pub.categoryId)}
+                  {pub.plannedDate ? ` • Produção até ${formatDateForDisplay(pub.plannedDate)}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold text-foreground tabular-nums whitespace-nowrap">
+                  {formatDateForDisplay(pub.publicationDate)}
+                </span>
+                {getStatusBadgeStatic(pub.status)}
+                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Badge de status estático (usado no modal de listagem do dashboard). */
+function getStatusBadgeStatic(status: string) {
+  const s = DEFAULT_STATUSES.find((item) => item.value === status);
+  return (
+    <span
+      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${s?.bg || "bg-gray-100"} ${
+        s?.color || "text-gray-700"
+      }`}
+    >
+      {s?.label || status}
+    </span>
   );
 }
 
