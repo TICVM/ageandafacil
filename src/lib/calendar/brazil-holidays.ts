@@ -44,13 +44,6 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
-/** Última sexta-feira de novembro (Black Friday — feriado municipal de SP). */
-function blackFriday(year: number): Date {
-  const nov30 = new Date(year, 10, 30);
-  const diff = (nov30.getDay() - 5 + 7) % 7; // dias até a última sexta
-  return addDays(nov30, -diff);
-}
-
 // ---------------------------------------------------------------------------
 // Catálogo anual
 // ---------------------------------------------------------------------------
@@ -68,8 +61,8 @@ export interface BrazilHolidayDef {
   /** Data fixa (mês 1-12). */
   month?: number;
   day?: number;
-  /** Data especial calculada por função própria (ex.: Black Friday). */
-  special?: "blackFriday" | "dia-das-maes" | "dia-das-pais";
+  /** Data especial calculada por função própria (ex.: Dia das Mães). */
+  special?: "dia-das-maes" | "dia-das-pais";
 }
 
 /** Domingo de Páscoa — data nacional comemorativa (feriado religioso). */
@@ -110,7 +103,6 @@ export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "cinzas", name: "Quarta-feira de Cinzas (ponto facultativo até 14h)", scope: "SP", recurring: false, movable: true, easterOffset: -46 },
   { key: "revolucao-sp", name: "Revolução Constitucionalista de 1932", scope: "SP", recurring: true, month: 7, day: 9 },
   { key: "aniversario-sp", name: "Aniversário da Cidade de São Paulo", scope: "SP", recurring: true, month: 1, day: 25 },
-  { key: "black-friday", name: "Black Friday (feriado municipal em SP)", scope: "SP", recurring: false, special: "blackFriday" },
 ];
 
 /** Datas comemorativas nacionais (não são feriado oficial, mas entram no calendário). */
@@ -126,7 +118,6 @@ export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 
 /** Resolve a data concreta de um feriado do catálogo em um determinado ano. */
 export function resolveBrazilHolidayDate(def: BrazilHolidayDef, year: number): Date {
-  if (def.special === "blackFriday") return blackFriday(year);
   if (def.special === "dia-das-maes") return secondSundayOfMonth(year, 4); // maio
   if (def.special === "dia-das-pais") return secondSundayOfMonth(year, 7); // Agosto
   if (def.movable && typeof def.easterOffset === "number") {
