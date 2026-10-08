@@ -165,7 +165,7 @@ export function CalendarView({
             onClick={onOpenHolidays}
             className="px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
           >
-            Feriados ({holidays.length})
+            Feriados 
           </button>
 
           <button
