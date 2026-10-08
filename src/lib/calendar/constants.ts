@@ -13,7 +13,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: "ATIVIDADES_VARIADAS", name: "Atividades Variadas", color: "#4ECDC4", isActive: true },
   { id: "PROGRAMA_BILINGUE", name: "Programa Bilíngue", color: "#9B59B6", isActive: true },
   { id: "EVENTOS_PEDAGOGICOS", name: "Eventos Pedagógicos", color: "#F39C12", isActive: true },
-  { id: "FERIADOS", name: "Feriados", color: "#E74C3C", isActive: true },
+  { id: "FERIADOS", name: "Datas Comemorativas", color: "#E74C3C", isActive: true },
 ];
 
 export const DEFAULT_SERIES: Series[] = [
