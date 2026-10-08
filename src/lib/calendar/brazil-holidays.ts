@@ -51,7 +51,7 @@ function addDays(d: Date, n: number): Date {
 export interface BrazilHolidayDef {
   key: string;
   name: string;
-  scope: "NACIONAL" | "SP";
+  scope: "NACIONAL" | "SP" | "ESCOLAR";
   /** Recorrente = mesma data todos os anos (comparada por MM-DD). */
   recurring: boolean;
   /** true quando a data é derivada da Páscoa ou outro cálculo. */
@@ -90,7 +90,6 @@ export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "dia-das-pais", name: "Dia das Pais", scope: "NACIONAL", recurring: false, special: "dia-das-pais" },
   { key: "independencia", name: "Independência do Brasil", scope: "NACIONAL", recurring: true, month: 9, day: 7 },
   { key: "aparecida", name: "Nossa Senhora Aparecida", scope: "NACIONAL", recurring: true, month: 10, day: 12 },
-  { key: "dia-dos-professor", name: "Dia do Professor", scope: "NACIONAL", recurring: true, month: 10, day: 15 },
   { key: "finados", name: "Finados", scope: "NACIONAL", recurring: true, month: 11, day: 2 },
   { key: "proclamacao", name: "Proclamação da República", scope: "NACIONAL", recurring: true, month: 11, day: 15 },
   { key: "consciencia-negra", name: "Dia Nacional de Zumbi e da Consciência Negra", scope: "NACIONAL", recurring: true, month: 11, day: 20 },
@@ -109,6 +108,7 @@ export const SAO_PAULO_HOLIDAY_DEFS: BrazilHolidayDef[] = [
 /** Datas comemorativas nacionais (não são feriado oficial, mas entram no calendário). */
 export const COMMEMORATIVE_DATE_DEFS: BrazilHolidayDef[] = [
   { key: "dia-internacional-mulher", name: "Dia Internacional da Mulher", scope: "NACIONAL", recurring: true, month: 3, day: 8 },
+  { key: "dia-dos-professor", name: "Dia do Professor", scope: "ESCOLAR", recurring: true, month: 10, day: 15 },
 ];
 
 export const ALL_BRAZIL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
