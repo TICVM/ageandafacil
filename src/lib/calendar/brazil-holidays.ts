@@ -90,6 +90,7 @@ export const NATIONAL_HOLIDAY_DEFS: BrazilHolidayDef[] = [
   { key: "dia-das-pais", name: "Dia das Pais", scope: "NACIONAL", recurring: false, special: "dia-das-pais" },
   { key: "independencia", name: "Independência do Brasil", scope: "NACIONAL", recurring: true, month: 9, day: 7 },
   { key: "aparecida", name: "Nossa Senhora Aparecida", scope: "NACIONAL", recurring: true, month: 10, day: 12 },
+  { key: "dia-dos-professor", name: "Dia do Professor", scope: "NACIONAL", recurring: true, month: 10, day: 15 },
   { key: "finados", name: "Finados", scope: "NACIONAL", recurring: true, month: 11, day: 2 },
   { key: "proclamacao", name: "Proclamação da República", scope: "NACIONAL", recurring: true, month: 11, day: 15 },
   { key: "consciencia-negra", name: "Dia Nacional de Zumbi e da Consciência Negra", scope: "NACIONAL", recurring: true, month: 11, day: 20 },
