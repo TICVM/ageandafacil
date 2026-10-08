@@ -50,7 +50,7 @@ interface DashboardCardsProps {
   categories: Category[];
   onSelectPublication: (pub: Publication) => void;
   onNewPublication: () => void;
-  /** Feriados do ano selecionado — alimenta o card "Total de Feriados". */
+  /** Feriados do ano selecionado — alimenta o card "Total de Datas Comemorativas". */
   holidays?: Holiday[];
   /** Controle externo de visibilidade dos cards (opcional). */
   collapsed?: boolean;
@@ -437,7 +437,7 @@ export function DashboardCards({
             </span>
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground truncate">
-                Total de Feriados
+                Datas Comemorativas
               </p>
               <p className="text-xl font-bold tracking-tight text-foreground leading-tight">
                 {yearHolidays.length}
