@@ -116,7 +116,7 @@ export function HolidaysModal({
                 onChange={(e) => setType(e.target.value as any)}
                 className="h-8 px-2 text-xs rounded-lg border border-border bg-background text-foreground"
               >
-                <option value="ESCOLAR">Recesso Escolar</option>
+                <option value="ESCOLAR">Data Comemorativa</option>
                 <option value="FACULTATIVO">Ponto Facultativo</option>
                 <option value="NACIONAL">Feriado Nacional</option>
               </select>
