@@ -73,7 +73,7 @@ export function HolidaysModal({
           <div>
             <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" />
-              Feriados &amp; Recessos Escolares ({activeYear})
+              Feriados &amp; Datas comemorativas escolares ({activeYear})
             </h3>
             <p className="text-xs text-muted-foreground">
               Feriados nacionais do Brasil e de São Paulo Capital gerados
