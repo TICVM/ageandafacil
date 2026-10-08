@@ -437,7 +437,7 @@ export function DashboardCards({
             </span>
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground truncate">
-                Datas Comemorativas
+                Total de Datas Comemorativas
               </p>
               <p className="text-xl font-bold tracking-tight text-foreground leading-tight">
                 {yearHolidays.length}
