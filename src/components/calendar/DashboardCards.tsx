@@ -437,7 +437,7 @@ export function DashboardCards({
             </span>
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground truncate">
-                Total de Datas Comemorativas
+                Total de Comemorações
               </p>
               <p className="text-xl font-bold tracking-tight text-foreground leading-tight">
                 {yearHolidays.length}
@@ -512,7 +512,7 @@ function HolidaysListModal({
           <div>
             <h3 className="text-base font-black text-foreground flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-rose-600" />
-              Total de Feriados{year ? ` — ${year}` : ""}
+              Total de Feriados e Datas Comemorativas{year ? ` — ${year}` : ""}
             </h3>
             <p className="text-xs text-muted-foreground">
               {holidays.length} {holidays.length === 1 ? "feriado" : "feriados"} •
