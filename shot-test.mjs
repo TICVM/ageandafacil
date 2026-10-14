@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer';
+const browser = await puppeteer.launch({args:['--no-sandbox','--disable-setuid-sandbox']});
+const page = await browser.newPage();
+await page.setViewport({width:1600,height:1000});
+page.on('pageerror', e => console.log('PAGEERROR:', e.message));
+page.on('console', m => { if (m.type()==='error') console.log('CONSOLE-ERR:', m.text().slice(0,300)); });
+await page.goto('http://localhost:9002/painel', {waitUntil:'networkidle2', timeout:60000});
+await new Promise(r=>setTimeout(r,3000));
+const bodyText = await page.evaluate(()=>document.body.innerText.slice(0));
+console.log('BODY:', bodyText);
+await page.screenshot({path:'/tmp/painel.png', fullPage:true});
+await browser.close();
