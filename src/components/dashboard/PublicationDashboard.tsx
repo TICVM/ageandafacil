@@ -264,35 +264,39 @@ const LEGEND_STATUSES: PublicationStatus[] = [
 function StatusCard({ card }: { card: StatusCardData }) {
   const Icon = card.icon;
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
+    <Card className="overflow-hidden">
+      <CardContent className="p-3">
+        {/* Cabeçalho do card: título em linha própria, nunca sobreposto ao ícone */}
+        <div className="mb-1.5 flex items-center gap-2">
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
               card.iconClass
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-muted-foreground">
-              {card.title}
-            </p>
-            <p className="text-2xl font-bold leading-tight">{card.value}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {card.subtitle}
-            </p>
-          </div>
+          <h3 className="min-w-0 break-words text-[13px] font-semibold leading-snug text-muted-foreground">
+            {card.title}
+          </h3>
         </div>
-        {card.showLink && (
-          <button
-            type="button"
-            className="mt-2 text-xs font-medium text-primary hover:underline"
-          >
-            Ver lista
-          </button>
-        )}
+        {/* Valor + subtítulo empilhados, com quebra de palavra controlada */}
+        <div className="pl-9">
+          <p className="break-words text-xl font-bold leading-tight tabular-nums">
+            {card.value}
+          </p>
+          <p className="break-words text-[11px] leading-snug text-muted-foreground">
+            {card.subtitle}
+          </p>
+          {card.showLink && (
+            <button
+              type="button"
+              className="mt-1.5 text-[11px] font-medium text-primary hover:underline"
+            >
+              Ver lista
+            </button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -301,29 +305,27 @@ function StatusCard({ card }: { card: StatusCardData }) {
 function CategoryCard({ card }: { card: CategoryCardData }) {
   const Icon = card.icon;
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3">
+    <Card className="overflow-hidden">
+      <CardContent className="p-3">
+        <div className="mb-1.5 flex items-center gap-2">
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
               card.iconClass
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-muted-foreground">
-              {card.title}
-            </p>
-            <p className="text-2xl font-bold leading-tight">
-              {card.value}
-              <span className="ml-1 align-top text-xs font-semibold text-muted-foreground">
-                {card.year}
-              </span>
-            </p>
-          </div>
+          <h3 className="min-w-0 break-words text-[13px] font-semibold leading-snug text-muted-foreground">
+            {card.title}
+          </h3>
         </div>
+        <p className="break-words pl-9 text-xl font-bold leading-tight tabular-nums">
+          {card.value}
+          <span className="ml-1 align-top text-[10px] font-semibold text-muted-foreground">
+            {card.year}
+          </span>
+        </p>
       </CardContent>
     </Card>
   );
