@@ -28,7 +28,19 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { usePublications, useCategories } from "@/lib/calendar/hooks";
+import { NON_PUBLICATION_CATEGORY_IDS } from "@/lib/calendar/constants";
 import type { Publication, Category, PublicationStatus } from "@/lib/calendar/types";
+
+/**
+ * Regra ÚNICA compartilhada entre o calendário central e os cards laterais.
+ * Mesma regra usada pelo calendário principal (/calendar) e por getStats():
+ * publica "no ar" (PUBLICADO/AGENDADO), ignora removidas e feriados.
+ */
+const isActivePublication = (p: Publication) =>
+  !p.isDeleted && !NON_PUBLICATION_CATEGORY_IDS.includes(p.categoryId ?? "");
+
+const isPublishedOrScheduled = (p: Publication) =>
+  p.status === "PUBLICADO" || p.status === "AGENDADO";
 
 /* ------------------------------------------------------------------ */
 /* Tipos e dados dos cards                                             */
@@ -187,13 +199,39 @@ const dayKey = (year: number, monthIdx: number, day: number) =>
   `${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
 /**
+ * Publicações que aparecem COMO AGENDAMENTO no calendário: tudo o que está
+ * ativo (não removido, não-feriado) e ainda "vai ao ar" — status PUBLICADO ou
+ * AGENDADO, OU datas futuras em produção/planejamento. É a regra usada tanto
+ * pelo calendário central quanto pelos cards laterais, para que os números
+ * nunca divergam do que é desenhado nos dias.
+ */
+const isScheduledOrFuture = (p: Publication, todayStr: string) =>
+  isPublishedOrScheduled(p) || p.publicationDate >= todayStr;
+
+export function getCalendarEvents(publications: Publication[], todayStr?: string): Publication[] {
+  const today =
+    todayStr ??
+    (() => {
+      const n = new Date();
+      return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+    })();
+  return publications.filter(
+    (p) => isActivePublication(p) && !!p.publicationDate && isScheduledOrFuture(p, today)
+  );
+}
+
+/**
  * Agrupa publicações vindas do banco por data de publicação ("publicationDate"),
  * exatamente como exibido no calendário principal do sistema.
  */
 function buildScheduleMap(publications: Publication[]): Record<string, Publication[]> {
   const map: Record<string, Publication[]> = {};
+  const today = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
   for (const p of publications) {
-    if (p.isDeleted || !p.publicationDate) continue;
+    if (!isActivePublication(p) || !isScheduledOrFuture(p, today) || !p.publicationDate) continue;
     (map[p.publicationDate] ??= []).push(p);
   }
   Object.values(map).forEach((list) =>
@@ -592,50 +630,29 @@ function CenterCalendar({
 /* ------------------------------------------------------------------ */
 
 export function PublicationDashboard() {
-  const { publications, loading } = usePublications();
+  const { publications, loading, getStats } = usePublications();
   const { categories } = useCategories();
 
   const stats = useMemo(() => {
-    const yearPrefix = "2026-";
-    const active = publications.filter(
-      (p) => !p.isDeleted && p.publicationDate?.startsWith(yearPrefix)
+    // MESMA fonte de contagem do calendário principal: getStats() do hook
+    // compartilhado (ano 2026, exclui removidas e FERIADOS, mesmas regras de
+    // status para cada card). Assim os números dos cards batem com o que o
+    // calendário usa — qualquer divergência anterior vinha de contar duas
+    // vezes, com regras diferentes.
+    const s = getStats(2026);
+    // Agendamentos realmente desenhados nos dias do calendário central —
+    // MESMA regra/função usada pela grade (getCalendarEvents), para que o
+    // card "No Calendário" bata exatamente com os chips visíveis.
+    const calendarEvents = getCalendarEvents(publications).filter((p) =>
+      p.publicationDate.startsWith("2026-")
     );
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const currentMonthStr = `${yearPrefix}${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const next7 = new Date(now);
-    next7.setDate(next7.getDate() + 7);
-    const next7Str = `${next7.getFullYear()}-${String(next7.getMonth() + 1).padStart(2, "0")}-${String(next7.getDate()).padStart(2, "0")}`;
-
-    const byCategory: Record<string, number> = {};
-    for (const p of active) {
-      byCategory[p.categoryId] = (byCategory[p.categoryId] ?? 0) + 1;
-    }
-
-    return {
-      total: active.length,
-      thisMonth: active.filter((p) => p.publicationDate.startsWith(currentMonthStr)).length,
-      planned: active.filter((p) => p.status === "PLANEJAMENTO").length,
-      scheduled: active.filter((p) => p.status === "AGENDADO").length,
-      inProduction: active.filter(
-        (p) => p.status === "PRODUCAO_CONTEUDO" || p.status === "DESIGN_ARTE" || p.status === "BRIEFING"
-      ).length,
-      inReview: active.filter((p) => p.status === "REVISAO_APROVACAO").length,
-      approved: active.filter((p) => p.status === "APROVADO_PARA_PUBLICAR").length,
-      completed: active.filter((p) => p.status === "PUBLICADO").length,
-      delayed: active.filter(
-        (p) => p.status === "ATRASADO" || (p.status !== "PUBLICADO" && p.publicationDate < todayStr)
-      ).length,
-      next7Days: active.filter(
-        (p) => p.publicationDate >= todayStr && p.publicationDate <= next7Str
-      ).length,
-      byCategory,
-    };
-  }, [publications]);
+    return { ...s, calendarEventsCount: calendarEvents.length };
+  }, [publications, getStats]);
 
   const statusCards: StatusCardData[] = [
     { title: "Total de Publicações", value: stats.total, subtitle: "Cadastradas em 2026", icon: FileText, iconClass: "bg-blue-50 text-blue-600", showLink: true },
     { title: "Este Mês", value: stats.thisMonth, subtitle: "Programadas no mês", icon: CalendarDays, iconClass: "bg-indigo-50 text-indigo-600", showLink: true },
+    { title: "No Calendário", value: stats.calendarEventsCount, subtitle: "Agendamentos nos dias", icon: CalendarDays, iconClass: "bg-sky-50 text-sky-600", showLink: false },
     { title: "Em Planejamento", value: stats.planned, subtitle: "Aguardando produção", icon: ClipboardList, iconClass: "bg-slate-100 text-slate-600", showLink: true },
     { title: "Agendados", value: stats.scheduled, subtitle: "Com data confirmada", icon: CalendarCheck, iconClass: "bg-sky-50 text-sky-600", showLink: true },
     { title: "Em Produção", value: stats.inProduction, subtitle: "Sendo produzidos", icon: Palette, iconClass: "bg-amber-50 text-amber-600", showLink: true },
